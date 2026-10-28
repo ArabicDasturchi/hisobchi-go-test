@@ -23,11 +23,11 @@ Savdogar spiskani yozadi (yoki aytadi), tizim tushunadi, savdogar tasdiqlaydi, k
 | Tasdiqlash ekrani, sariq noaniq qatorlar | Ombor, kirim agenti |
 | Ikki marta hisob | O'rnatish agenti |
 | Mijoz daftari | Telegram/SMS xabar |
-| Mobilga moslashgan veb-ilova | Alohida mobil ilova, oflayn navbat |
+| Expo ilova: veb havola (Vercel) + telefonda Expo Go | Do'kon build'lari, oflayn navbat |
 
 ## 4. Texnik talablar
 
-- Veb-ilova, telefonda ham qulay (mobile-first).
+- Expo (React Native) + TypeScript; veb havola va Expo Go orqali telefonda ochiladi. Mobile-first.
 - Hisob mantig'i alohida modul, AI dan mustaqil, testlari bor.
 - AI faqat matnni tuzilmaga aylantiradi (JSON: tovar, soni, narxi, ishonch darajasi).
 - Baza: Supabase (yoki shunga o'xshash). Jurnal faqat qo'shiladi, o'chirilmaydi.
@@ -54,5 +54,5 @@ Savdogar spiskani yozadi (yoki aytadi), tizim tushunadi, savdogar tasdiqlaydi, k
 ## 7. Ish taqsimoti (taklif)
 
 - Abdulloh: mahsulot, namuna ma'lumot, namoyish, savdogar bilan test.
-- Humoyun: frontend, deploy.
+- Humoyun: Expo ekranlar, deploy.
 - Claude Code: yadroni va ekranlarni yozishda yordam (CLAUDE.md ga qarang).

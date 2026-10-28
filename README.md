@@ -1,6 +1,6 @@
 # Hisobchi Go
 
-Savdogar spiskasini ovoz yoki rasm orqali tushunib, hisobni kod bilan bajaradigan ilova (mobil + kompyuter).
+Savdogar spiskasini ovoz yoki rasm orqali tushunib, hisobni kod bilan bajaradigan ilova. Asosiy: Android va iOS; veb versiya kompyuter uchun.
 
 > AI tushunadi, savdogar tasdiqlaydi, kod hisoblaydi. **Xato yozilmaydi, joyida ushlanadi.**
 

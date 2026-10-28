@@ -11,6 +11,10 @@ Savdogar spiskasini ovoz/rasm orqali tushunib, kod bilan hisoblaydigan ilova. Ja
 5. Pul summalari butun son (so'm), suzuvchi nuqta ishlatilmaydi.
 6. Kalitlar, parollar, mijoz telefon raqamlari repoga yozilmaydi. `.env` gitignore da.
 
+## Stack
+
+Expo (React Native) + TypeScript, Supabase, monorepo: `apps/mobile`, `packages/core`, `supabase/`. Hisob kodi faqat `packages/core` da.
+
 ## Hujjatlar
 
 - [docs/TZ-MVP.md](docs/TZ-MVP.md) — MVP vazifasi

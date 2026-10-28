@@ -1,6 +1,6 @@
 # Hisobchi Go — arxitektura (v2)
 
-Holat: qurishga tayyor reja. Oxirgi yangilanish: 28.10.2026.
+Holat: qurishga tayyor reja. Oxirgi yangilanish: 28.10.2026. **Mobil-birinchi:** asosiy mahsulot Android va iOS ilovasi; savdogarga alohida kompyuter kerak emas. Veb (PC) versiya shu kodning o'zidan chiqadi.
 Belgilar: **[QAROR]** — shu bilan quramiz. **[SINASH]** — tanlov sinov natijasiga bog'liq. **[TAXMIN]** — o'lchanmagan.
 
 ---
@@ -19,14 +19,37 @@ Oqim: **kiritadi → tushunadi → tasdiqlaydi → hisoblaydi → saqlaydi → n
 
 | Qatlam | Tanlov | Sabab |
 |---|---|---|
-| Ilova | Next.js + TypeScript, **PWA** (telefonga o'rnatiladi, kompyuterda brauzerda ochiladi) | Bitta kod = mobil + PC. Humoyun frontend bilan ishlaydi. Alohida mobil ilova keyingi bosqich |
-| Baza | Supabase (Postgres) | Auth, Storage, RLS, SQL funksiyalar bitta joyda; bepul tarif bor |
-| Hosting | Vercel | Bepul, ommaviy havola |
-| AI (tushunish) | Claude API, server tomonda, strukturalangan JSON chiqish | Kalit brauzerga tushmaydi |
+| Ilova | **Expo (React Native) + TypeScript**: bitta kod → Android, iOS, veb (PC) | Haqiqiy mobil ilova; kamera, mikrofon, mahalliy xotira, Bluetooth chop etish ishonchli. Alohida PC ilova kerak emas |
+| Mahalliy baza (telefonda) | SQLite (`expo-sqlite`) | Oflayn navbat va tez ishlash |
+| Server mantig'i | Supabase Edge Functions (TypeScript) | AI, STT, hisob (A yo'li). Kalitlar faqat shu yerda |
+| Baza | Supabase (Postgres) | Auth, Storage, RLS, SQL funksiya (B yo'li) |
+| Veb versiya | `expo export -p web` → Vercel | Bepul ommaviy havola, PC uchun |
+| Mobil build | Expo EAS (Android APK/AAB, iOS) | Do'konga chiqarish. Google Play va Apple ishlab chiquvchi hisoblari pullik (summani tekshirish kerak) |
+| AI (tushunish) | Claude API, strukturalangan JSON chiqish | Server tomonda |
 | Ovoz → matn | Provayder interfeysi orqasida: Aisha / Muxlisa / UzbekVoice **[SINASH]** | 9-bo'limdagi sinov bilan tanlanadi |
 | Rasm → matn | Claude ko'rish (vision) yoki OCR **[SINASH]** | Qo'lyozma uchun sinov kerak |
 
 Provayderlar `SttProvider` va `VisionProvider` interfeysi orqasida turadi, almashtirish bitta fayl.
+
+### Repo tuzilmasi (monorepo)
+
+```
+apps/mobile/        Expo ilova (Android, iOS, veb)
+packages/core/      Hisob (calc), parseUzNumber, turlar, tekshiruvlar. Mobil ham, server ham shuni ishlatadi
+supabase/
+  migrations/       Jadvallar, RLS, calc_document() SQL funksiyasi
+  functions/        Edge Functions: parse-capture, post-document, stt, ...
+docs/
+```
+
+`packages/core` — yagona haqiqat manbai: bir xil hisob kodi telefonda (ko'rsatma uchun) va serverda (A yo'li) ishlaydi. B yo'li SQLda alohida yoziladi.
+
+### Mobil imkoniyatlar (suhbatlardan)
+
+- **Kamera:** spiska va nakladnoy rasmi; shtrix/QR skaner (Husanboy aka taklifi).
+- **Chop etish:** telefondan Bluetooth printerga (Muhammad Sodiq aka muammosi) **[SINASH: printer modeli]**.
+- **Mikrofon:** spiskani ovoz bilan aytish.
+- **Qulf:** ilovaga PIN/barmoq izi (telefon boshqa odamda bo'lsa ham ma'lumot ochilmasin).
 
 ## 2. Ma'lumotlar modeli (2-muammo hal)
 
@@ -106,19 +129,20 @@ Pipeline (AI tovar to'qimaydi, faqat bazadagi nomzodlardan tanlaydi):
 - Har amalga mijoz tomonda **`client_op_id` (UUID)** beriladi. Server shu id bilan takroriy yuborishni rad etadi (idempotent). Ikki marta yuborilsa, ikki marta yozilmaydi.
 - Jurnal faqat qo'shiladigan bo'lgani uchun **ikki qurilma to'qnashmaydi**: ikkala yozuv ham saqlanadi, qoldiq `SUM` dan chiqadi.
 - Tahrirlanadigan ma'lumotlar (tovar nomi, narx, mijoz): `version` raqami; eski versiya bilan yozilsa server rad etadi, ilova "yangilab qaytadan urining" deydi. Narx o'zgarishi `price_history` ga qator bo'lib tushadi.
-- **Oflayn rejim:** matn bilan qo'lda kiritish, mahsulotlar keshi, mahalliy hisob ishlaydi. Ovoz/rasm tahlili (AI) internet talab qiladi: oflayn bo'lsa "internet kelganda tahlil qilinadi" navbatiga tushadi. Hujjat navbatga `pending_sync` bilan saqlanadi.
+- **Oflayn rejim:** telefondagi SQLite'da mahsulotlar keshi, mijozlar va navbat. Matn bilan qo'lda kiritish va mahalliy hisob ishlaydi. Ovoz/rasm tahlili (AI) internet talab qiladi: oflayn bo'lsa "internet kelganda tahlil qilinadi" navbatiga tushadi. Hujjat navbatga `pending_sync` bilan saqlanadi.
 - Internet kelganda navbat tartib bilan yuboriladi; server har birini 5-bo'lim bo'yicha qayta hisoblaydi. Mos kelmasa savdogarga "ko'rib chiqing" ro'yxati chiqadi.
-- MVP da oflayn kirish yo'q (faqat onlayn). Navbat 2-bosqichda.
+- Mobil-birinchi bo'lgani uchun oflayn navbat **1-bosqichda** (MVP da yo'q, faqat onlayn).
 
 ## 8. Foydalanuvchilar va xavfsizlik (4- va 8-muammo hal)
 
 - **Kirish:** Supabase Auth (telefon raqam + OTP yoki email; qaysi biri qulay — savdogarlar bilan sinab hal qilinadi **[SINASH]**).
 - **Rollar:** `owner` — hammasi; `staff` — sotuv kiritadi, mijozlarni ko'radi, narx/tan narx/teskari yozuvni ko'rmaydi yoki qila olmaydi.
 - **Ma'lumot ajratish:** har jadvalda RLS: `shop_id` foydalanuvchining `memberships` ida bo'lsagina o'qiydi/yozadi. Bir savdogar boshqasining ma'lumotini ko'ra olmaydi.
-- **Kalitlar:** AI va STT kalitlari faqat server tomonda (`.env`, Vercel muhit o'zgaruvchilari). Brauzerga chiqmaydi.
+- **Kalitlar:** AI va STT kalitlari faqat server tomonda (`.env`, Supabase Edge Functions maxfiy sozlamalari). Brauzerga chiqmaydi.
 - **Ovoz va rasm:** shaxsiy (private) xotirada, faqat imzolangan vaqtinchalik havola bilan. **Saqlash muddati 30 kun [QAROR]**, keyin fayl o'chadi, tushunilgan matn va hujjat qoladi.
 - **Zaxira:** Supabase kunlik nusxa **[tarifga bog'liq, tekshirish kerak]** + savdogar o'zi istagan paytda CSV/Excel yuklab olishi (mijoz daftari, ledger). Bu ularning ma'lumoti ekani va ketish erkinligini ham beradi.
 - **Cheklov:** AI/STT chaqiruvlariga foydalanuvchi bo'yicha kunlik limit (xarajat va suiiste'mol uchun).
+- **Telefondagi ma'lumot:** mahalliy bazada faqat shu do'konning kerakli ma'lumoti; ilova qulfi (PIN/barmoq izi); chiqishda mahalliy baza tozalanadi.
 - **Maxfiylik:** repoga haqiqiy mijoz ma'lumoti yoki kalit yozilmaydi.
 
 ## 9. Agentlar va aniqlikni o'lchash (9-muammo hal)
@@ -156,10 +180,10 @@ Hozir faqat bitta manbali raqam bor: Aisha STT ~425 so'm/daqiqa (loyiha hujjatid
 
 | Bosqich | Mazmuni |
 |---|---|
-| **MVP (1 kun)** | Matn/ovoz kiritish, sariq qator, tasdiqlash, ikki yo'l hisob, mijoz daftari, ommaviy havola. Auth soddalashtirilgan |
-| 1 | Auth + rollar + RLS, tovar bazasi va sinonim o'rganish, narx tarixi tekshiruvi, nasiya/to'lov |
-| 2 | Rasm (spiska, nakladnoy), oflayn navbat, CSV eksport, kun oxiri tekshiruvi |
-| 3 | Xabar agenti (Telegram/SMS mijozga), PDF oldi-berdi, o'rnatish agenti, mobil ilova (agar PWA yetmasa) |
+| **MVP (1 kun)** | Expo ilova (veb havola + Expo Go): matn/ovoz kiritish, sariq qator, tasdiqlash, ikki yo'l hisob, mijoz daftari. Auth soddalashtirilgan |
+| 1 | Auth + rollar + RLS, tovar bazasi va sinonim o'rganish, narx tarixi tekshiruvi, nasiya/to'lov, **oflayn navbat (SQLite)**, Android APK tarqatish |
+| 2 | Rasm (spiska, nakladnoy), shtrix skaner, Bluetooth chop etish, CSV eksport, kun oxiri tekshiruvi, Google Play |
+| 3 | Xabar agenti (Telegram/SMS mijozga), PDF oldi-berdi, o'rnatish agenti, App Store |
 
 ## 12. Ochiq savollar
 
@@ -167,3 +191,6 @@ Hozir faqat bitta manbali raqam bor: Aisha STT ~425 so'm/daqiqa (loyiha hujjatid
 - Kirish usuli: telefon OTP yoki email.
 - Supabase tarifida kunlik zaxira bormi (tekshirish).
 - Narx tarixi chegarasi 25% to'g'rimi (savdogarlar bilan sinash).
+- Bluetooth printer modeli (savdogarlar qaysi printerdan foydalanadi).
+- Google Play va Apple hisoblari narxi va kim ochishi.
+- Veb (PC) versiya kerakli darajada qulay bo'lishi uchun qaysi ekranlar alohida moslanadi.
