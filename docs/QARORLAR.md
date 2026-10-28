@@ -13,6 +13,13 @@ Har qaror: sana, nima, nega. Yangi qaror pastga qo'shiladi.
 | 28.10.2026 | Google Sheets bazasi bekor; haqiqiy baza | Ikki qurilma, tezlik, ishonchlilik |
 | 28.10.2026 | MVP: bitta oqim (kiritish → tasdiqlash → hisob → natija) | 1 kunda ko'rsatiladigan ishlaydigan narsa kerak |
 | 28.10.2026 | "Birinchimiz" demaymiz | pDaftar va Linko qisman shunday qiladi (RAQIBLAR.md) |
+| 28.10.2026 | Stack: Next.js PWA + Supabase + Vercel, AI server tomonda | Bitta kod mobil+PC, kalit xavfsiz |
+| 28.10.2026 | Pul butun so'm, miqdor `qty_milli` butun son; yaxlitlash qator bo'yicha | Float xatosi bo'lmasin |
+| 28.10.2026 | Hisob ikki yo'l: TypeScript va Postgres SQL; farq bo'lsa blok | Haqiqiy mustaqillik |
+| 28.10.2026 | Sonni AI emas, kod o'qiydi; narx tarixidan ±25% chetga chiqsa sariq | AI noto'g'ri son o'qishidan himoya |
+| 28.10.2026 | Qoldiq jurnaldan hisoblanadi, UPDATE/DELETE taqiqlangan | Qoldiq ketib qolmasin |
+| 28.10.2026 | Ovoz/rasm 30 kun saqlanadi | Maxfiylik va xotira |
+| 28.10.2026 | Oflayn navbat MVP da yo'q, 2-bosqichda | Vaqt |
 
 ## Ochiq qarorlar
 
