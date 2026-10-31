@@ -40,3 +40,16 @@ Thumbs.db
 .vscode/
 .idea/
 *.tgz
+
+# Vercel local configuration
+.vercel/
+
+# Next.js generated files
+**/.next/
+**/out/
+**/next-env.d.ts
+**/tsconfig.tsbuildinfo
+
+# Vercel local files
+.vercel/
+**/.vercel/
