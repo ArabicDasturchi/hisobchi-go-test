@@ -1,6 +1,7 @@
 // esbuild bilan to'plash: @hisobchi/core TypeScript manba sifatida paketga qo'shiladi
 // (Node uni node_modules ichidan .ts sifatida ishga tushira olmaydi).
-//   api/index.js  — Vercel funksiyasi (default export { fetch })
+//   dist/handler.mjs — yig'ilgan funksiya; api/index.js (git'da, kichik) uni qayta eksport qiladi.
+//   (api/index.js build vaqtida yaratilsa Vercel uni funksiya sifatida topmaydi: 404.)
 //   dist/dev.mjs  — lokal server (--dev)
 import { build } from 'esbuild';
 
@@ -15,7 +16,7 @@ const common = {
   banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
 };
 
-await build({ ...common, entryPoints: ['src/vercel.ts'], outfile: 'api/index.js' });
+await build({ ...common, entryPoints: ['src/vercel.ts'], outfile: 'dist/handler.mjs' });
 if (process.argv.includes('--dev')) {
   await build({ ...common, entryPoints: ['src/dev.ts'], outfile: 'dist/dev.mjs' });
 }
