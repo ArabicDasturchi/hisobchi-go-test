@@ -11,11 +11,13 @@
     "dev:web": "npm run dev --workspace=apps/web",
     "build:web": "npm run build --workspace=apps/web",
     "lint:web": "npm run lint --workspace=apps/web",
-    "test": "npm run test --workspace=packages/core && npm run test --workspace=apps/mobile && npm run test --workspace=apps/web",
+    "test": "npm run test --workspace=packages/core && npm run test --workspace=apps/mobile && npm run test --workspace=apps/web && npm run test --workspace=apps/mcp",
     "test:core": "npm run test --workspace=packages/core",
     "test:mobile": "npm run test --workspace=apps/mobile",
     "test:web": "npm run test --workspace=apps/web",
-    "typecheck": "npm run typecheck --workspace=packages/core && npm run typecheck --workspace=apps/mobile && npm run typecheck --workspace=apps/web"
+    "typecheck": "npm run typecheck --workspace=packages/core && npm run typecheck --workspace=apps/mobile && npm run typecheck --workspace=apps/web && npm run typecheck --workspace=apps/mcp",
+    "test:mcp": "npm run test --workspace=apps/mcp",
+    "build:mcp": "npm run build --workspace=apps/mcp"
   },
   "engines": {
     "node": ">=20.9.0"
