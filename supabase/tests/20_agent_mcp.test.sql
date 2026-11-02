@@ -182,6 +182,18 @@ SELECT pg_temp.assert_eq(customer_outstanding((SELECT v FROM t WHERE k = 'shopA'
 SELECT pg_temp.assert_eq(accept_agent_draft((SELECT v FROM t WHERE k = 'dpay')), (SELECT v FROM t WHERE k = 'dpay'), 'accept_agent_draft to''lov');
 SELECT pg_temp.assert_eq(customer_outstanding((SELECT v FROM t WHERE k = 'shopA'), 'c2c2c2c2-0000-0000-0000-000000000001'), 620000::bigint, 'qarz 670000 − 50000');
 SELECT pg_temp.expect_error(format($$SELECT accept_agent_draft(%L)$$, (SELECT v FROM t WHERE k = 'dsale')), 'draft_already_decided');
+-- IKKI MARTA BOSISH: ikkinchi tasdiq na savdo, na jurnal, na to'lov yozdi
+SELECT pg_temp.assert_eq((SELECT count(*) FROM documents), 2::bigint, 'ikki marta tasdiq: bitta savdo');
+SELECT pg_temp.assert_eq((SELECT count(*) FROM ledger_entries), 2::bigint, 'ikki marta tasdiq: bitta jurnal yozuvi');
+SELECT pg_temp.expect_error(format($$SELECT accept_agent_draft(%L)$$, (SELECT v FROM t WHERE k = 'dpay')), 'draft_already_decided');
+SELECT pg_temp.assert_eq((SELECT count(*) FROM payments), 2::bigint, 'ikki marta tasdiq: bitta to''lov');
+SELECT pg_temp.assert_eq(customer_outstanding((SELECT v FROM t WHERE k = 'shopA'), 'c2c2c2c2-0000-0000-0000-000000000001'), 620000::bigint, 'ikki marta tasdiqdan keyin qarz o''zgarmadi');
+-- Veb boshqa do'kon qoralamasini ko'rmaydi va hal qila olmaydi (birinchi tomon sessiyasi, RLS)
+SELECT pg_temp.as_user('b2b2b2b2-0000-0000-0000-000000000002');
+SELECT pg_temp.assert_eq((SELECT count(*) FROM agent_drafts), 0::bigint, 'B (veb) A do''konining qoralamalarini ko''rmaydi');
+SELECT pg_temp.expect_error(format($$SELECT reject_agent_draft(%L, 'hujum')$$, (SELECT v FROM t WHERE k = 'dsale')), 'draft_not_found');
+SELECT pg_temp.as_user('a2a2a2a2-0000-0000-0000-000000000001');
+SELECT pg_temp.assert_eq((SELECT count(*) FROM agent_drafts WHERE status = 'accepted'), 2::bigint, 'A (veb) o''z tasdiqlangan qoralamalarini ko''radi');
 -- rad etish
 SELECT pg_temp.as_oauth('a2a2a2a2-0000-0000-0000-000000000001', 'claude-test');
 INSERT INTO t VALUES ('dreject', agent_draft_sale((SELECT v FROM t WHERE k = 'shopA'), 'mcp-r1', NULL, NULL,

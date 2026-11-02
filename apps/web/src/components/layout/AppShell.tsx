@@ -22,7 +22,9 @@ function displayName(user: ReturnType<typeof useAuth>['user']): string {
 
 function NavLink({ item, compact, onNavigate }: { item: NavItem; compact?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { pendingDrafts } = useShop();
   const active = isActive(pathname, item.href);
+  const badge = item.href === '/drafts' ? pendingDrafts : 0;
   return (
     <Link
       href={item.href}
@@ -39,6 +41,17 @@ function NavLink({ item, compact, onNavigate }: { item: NavItem; compact?: boole
       {active && !compact && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-emerald-500" aria-hidden />}
       <item.icon className={cn('h-4 w-4 shrink-0', active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted group-hover:text-fg')} />
       {!compact && <span className="truncate">{item.label}</span>}
+      {badge > 0 && (
+        <span
+          className={cn(
+            'rounded-full bg-amber-500 text-[10px] font-semibold leading-none text-white',
+            compact ? 'absolute right-0.5 top-0.5 h-2 w-2' : 'ml-auto px-1.5 py-1',
+          )}
+          aria-label={`${badge} ta tasdiqlanmagan qoralama`}
+        >
+          {compact ? '' : badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -222,6 +235,7 @@ function Drawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 
 function BottomNav({ onMenu }: { onMenu: () => void }) {
   const pathname = usePathname();
+  const { pendingDrafts } = useShop();
   const link = (item: NavItem) => {
     const active = isActive(pathname, item.href);
     return (
@@ -251,7 +265,10 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
         </div>
         {BOTTOM_ITEMS.slice(2).map(link)}
         <button type="button" onClick={onMenu} className="flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-medium text-muted">
-          <Menu className="h-5 w-5" />
+          <span className="relative">
+            <Menu className="h-5 w-5" />
+            {pendingDrafts > 0 && <span className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-amber-500" aria-label={`${pendingDrafts} ta tasdiqlanmagan qoralama`} />}
+          </span>
           {uz.nav.menu}
         </button>
       </div>
