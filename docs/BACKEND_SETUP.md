@@ -54,7 +54,7 @@ bilan sinashda Metro server ishlab turgan bo'lishi kerak. Ba'zi pochta ilovalari
 maxsus sxemani ochmasligi mumkin — unda havolani tizim brauzerida oching.
 
 ## 2. Migratsiyalarni qo'llash
-Tartib bilan: `001_initial_schema.sql` → `003_security_and_mvp_rpc.sql`.
+Tartib bilan: `001_initial_schema.sql` → `003_security_and_mvp_rpc.sql` → `004_mcp_agent.sql` (MCP uchun, ixtiyoriy; qayta ishga tushirish xavfsiz; `docs/MCP-AGENT.md`).
 - **Yangi (bo'sh) loyiha:** SQL Editor'da avval 001, keyin 003 ni ishga tushiring.
 - **001 allaqachon qo'llangan loyiha:** 001 ni QAYTA ishga tushirmang (indeks/siyosatlar takrorlanadi);
   faqat 003 ni ishga tushiring — u qayta ishga tushirishga xavfsiz (lokal testda ikki marta qo'llanadi).
