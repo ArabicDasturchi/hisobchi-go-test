@@ -1,0 +1,29 @@
+{
+  "name": "@hisobchi/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hisobchi Go uchun MCP server: ko'rish va qoralama yaratish (tasdiqlash faqat ilovada)",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --dev && node --env-file=.env dist/dev.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hisobchi/core": "*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@supabase/supabase-js": "^2.118.0",
+    "jose": "^6.2.15",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.21.5",
+    "typescript": "~6.0.3",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

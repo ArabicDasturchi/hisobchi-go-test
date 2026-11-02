@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { SUPABASE_ANON_KEY, SUPABASE_URL, supabaseConfigured } from './lib/env';
+import { loginNextFor } from './lib/oauthConsent';
 
 /** Kirishsiz ochiladigan sahifalar */
 const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/check-email', '/auth/'];
@@ -38,7 +39,7 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = to;
     url.search = '';
-    if (to === '/login' && path !== '/') url.searchParams.set('next', path);
+    if (to === '/login' && path !== '/') url.searchParams.set('next', loginNextFor(path, request.nextUrl.search));
     const res = NextResponse.redirect(url);
     for (const c of response.cookies.getAll()) res.cookies.set(c);
     return res;
