@@ -21,6 +21,11 @@ Har qaror: sana, nima, nega. Yangi qaror pastga qo'shiladi.
 | 28.10.2026 | Ovoz/rasm 30 kun saqlanadi | Maxfiylik va xotira |
 | 28.10.2026 | Oflayn navbat (SQLite) 1-bosqichda, MVP da yo'q | Mobil-birinchi, lekin MVP uchun vaqt |
 | 28.10.2026 | Monorepo: apps/mobile, packages/core, supabase | Hisob kodi mobil va serverda bir xil |
+| 02.11.2026 | MCP kirishi: **Supabase OAuth 2.1 server** (beta) + `apps/web` da `/oauth/consent` sahifasi. O'z OAuth proksimiz va shaxsiy token (Bearer) productionda yo'q; shaxsiy token faqat lokal dev uchun. Beta ishlamasa, boshqa variantga o'tilmaydi: ish to'xtaydi va asoschiga aytiladi | ChatGPT OAuth 2.1 + DCR talab qiladi; Supabase mavjud foydalanuvchilar va RLS ni qayta ishlatadi; o'z OAuth kodi xavfsizlik yuzasini kengaytiradi |
+| 02.11.2026 | Dynamic Client Registration faqat Claude/ChatGPT ulanayotgan paytda yoqiladi, ulangach o'chiriladi | DCR istalgan klientga loyihada ro'yxatdan o'tishga ruxsat beradi (Supabase hujjati ogohlantiradi) |
+| 02.11.2026 | MCP server Supabase loyihasi `kfrnlkwocwpezwgytcmz` (ap-south-1, `hisobchi-go`); `BACKEND_SETUP.md` dagi boshqa ikki ref eskirgan | Veb shu loyihada ishlaydi, 001 va 003 qo'llangan |
+| 02.11.2026 | MCP hosting: Vercel, `apps/web` bilan bir jamoada alohida project (root `apps/mcp`). Hobby rejasining tijoriy foydalanishga ruxsati **topilmadi** (vercel.com bu sessiyada ochilmadi); pilot davrida tekshiriladi, to'lov qarori keyin | `apps/web` allaqachon Vercel'da; stateless Streamable HTTP funksiyaga mos |
+| 02.11.2026 | MCP 1-bosqich: faqat o'qish + qoralama. Qoralamani ilovada ko'rsatish va "Tasdiqlash" keyingi vazifa; u tugamaguncha MCP foydalanishga tayyor emas | Qoralama ko'rinmasa agent ishi savdogarga yetib bormaydi |
 
 ## Ochiq qarorlar
 

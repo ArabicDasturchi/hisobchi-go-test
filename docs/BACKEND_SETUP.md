@@ -15,6 +15,10 @@ Mobil ilova bulutsiz (lokal rejimda) to'liq ishlaydi.
   bo'sh javob lokal ma'lumotni o'chira olmaydi. Hodisalar vaqt tartibida, yuborilganlar `sync_log` da.
 
 ## 0. Hozirgi holat (2026-10-30 tekshiruvi, faqat o'qish so'rovlari bilan)
+> **ESKIRGAN (02.11.2026).** Quyidagi ikki ref (`yenxvancoduazzpkuqmk`, `ftqhdcphiwyarbgibryn`) endi ishlatilmaydi.
+> Joriy loyiha: **`kfrnlkwocwpezwgytcmz`** (ap-south-1, `hisobchi-go`); veb shu yerda ishlaydi, 001 va 003 qo'llangan
+> (asoschi bildirgan, bu sessiyada tekshirilmagan). Bu bo'limning qolgani eski holat sifatida saqlangan.
+
 - `apps/mobile/.env` dagi URL: `https://yenxvancoduazzpkuqmk.supabase.co`; kalit — `sb_publishable_` (public).
   Kalit shu loyihaga tegishli (auth/v1/settings → 200).
 - Siz aytgan `https://ftqhdcphiwyarbgibryn.supabase.co` loyihasi bu kalitni rad etadi (401).
