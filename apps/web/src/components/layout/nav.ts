@@ -1,4 +1,4 @@
-import { BarChart3, HandCoins, LayoutDashboard, Package, Receipt, Settings, Users, Wallet, type LucideIcon } from 'lucide-react';
+import { BarChart3, HandCoins, LayoutDashboard, Package, Receipt, Settings, Sparkles, Users, Wallet, type LucideIcon } from 'lucide-react';
 import { uz } from '@/i18n/uz';
 
 export interface NavItem {
@@ -15,6 +15,7 @@ export interface NavGroup {
 const I = {
   dashboard: { href: '/dashboard', label: uz.nav.dashboard, icon: LayoutDashboard },
   sales: { href: '/sales', label: uz.nav.sales, icon: Receipt },
+  drafts: { href: '/drafts', label: uz.nav.drafts, icon: Sparkles },
   payments: { href: '/payments', label: uz.nav.payments, icon: Wallet },
   debts: { href: '/debts', label: uz.nav.debts, icon: HandCoins },
   customers: { href: '/customers', label: uz.nav.customers, icon: Users },
@@ -26,7 +27,7 @@ const I = {
 /** Sidebar bo'limlari (sozlamalar alohida — pastda) */
 export const NAV_GROUPS: readonly NavGroup[] = [
   { label: null, items: [I.dashboard] },
-  { label: 'Savdo va pul', items: [I.sales, I.payments, I.debts] },
+  { label: 'Savdo va pul', items: [I.sales, I.drafts, I.payments, I.debts] },
   { label: "Ma'lumotnomalar", items: [I.customers, I.products] },
   { label: 'Tahlil', items: [I.reports] },
 ];

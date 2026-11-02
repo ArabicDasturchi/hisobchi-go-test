@@ -5,9 +5,9 @@
  * Ma'lumot faqat serverdan keladi (soxta/kesh statistika yo'q).
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { listCustomers, listPayments, listProducts, listReversals, listSales, getMembership } from '@/lib/data/api';
+import { listAgentDrafts, listCustomers, listPayments, listProducts, listReversals, listSales, getMembership } from '@/lib/data/api';
 import { customerBalances, type CustomerBalance } from '@/lib/data/ledger';
-import type { Customer, Membership, Payment, Product, Reversal, SaleDoc } from '@/lib/data/types';
+import type { AgentDraft, Customer, Membership, Payment, Product, Reversal, SaleDoc } from '@/lib/data/types';
 import { errorMessage } from '@/lib/errors';
 import { getSupabase } from '@/lib/supabase/client';
 import { useAuth } from './AuthProvider';
@@ -18,6 +18,9 @@ export interface ShopData {
   sales: SaleDoc[];
   payments: Payment[];
   reversals: Reversal[];
+  /** Tasdiqlanmagan agent qoralamalari. null — yuklab bo'lmadi (masalan 004 migratsiya qo'llanmagan): boshqa sahifalar ishlayveradi */
+  drafts: AgentDraft[] | null;
+  draftsError: string | null;
 }
 
 interface Ctx {
@@ -29,6 +32,8 @@ interface Ctx {
   lastLoadedAt: Date | null;
   reload: () => Promise<void>;
   balances: Map<string, CustomerBalance>;
+  /** Menyudagi belgi uchun: tasdiqlanmagan qoralamalar soni */
+  pendingDrafts: number;
   customerById: Map<string, Customer>;
   setMembership: (m: Membership) => void;
 }
@@ -75,14 +80,19 @@ export function ShopDataProvider({ membership: initial, children }: { membership
     const p = (async () => {
       setLoading(true);
       try {
-        const [customers, products, sales, payments, reversals] = await Promise.all([
+        const [customers, products, sales, payments, reversals, draftsRes] = await Promise.all([
           listCustomers(sb, shopId),
           listProducts(sb, shopId),
           listSales(sb, shopId),
           listPayments(sb, shopId),
           listReversals(sb, shopId),
+          // Qoralamalar ixtiyoriy: xato bo'lsa butun ilova yiqilmaydi
+          listAgentDrafts(sb, shopId, { status: 'draft' }).then(
+            (drafts) => ({ drafts, draftsError: null as string | null }),
+            (e: unknown) => ({ drafts: null as AgentDraft[] | null, draftsError: errorMessage(e) }),
+          ),
         ]);
-        setData({ customers, products, sales, payments, reversals });
+        setData({ customers, products, sales, payments, reversals, drafts: draftsRes.drafts, draftsError: draftsRes.draftsError });
         setError(null);
         setLastLoadedAt(new Date());
       } catch (e) {
@@ -119,9 +129,11 @@ export function ShopDataProvider({ membership: initial, children }: { membership
   const balances = useMemo(() => (data ? customerBalances(data.sales, data.payments) : new Map<string, CustomerBalance>()), [data]);
   const customerById = useMemo(() => new Map((data?.customers ?? []).map((c) => [c.id, c])), [data]);
 
+  const pendingDrafts = data?.drafts?.length ?? 0;
+
   const value = useMemo<Ctx>(
-    () => ({ membership, shopId, data, loading, error, lastLoadedAt, reload, balances, customerById, setMembership }),
-    [membership, shopId, data, loading, error, lastLoadedAt, reload, balances, customerById],
+    () => ({ membership, shopId, data, loading, error, lastLoadedAt, reload, balances, pendingDrafts, customerById, setMembership }),
+    [membership, shopId, data, loading, error, lastLoadedAt, reload, balances, pendingDrafts, customerById],
   );
   return <ShopCtx.Provider value={value}>{children}</ShopCtx.Provider>;
 }
