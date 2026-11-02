@@ -97,3 +97,40 @@ export interface SaleDetail {
   lines: SaleLine[];
   reversal: Reversal | null;
 }
+
+// ---------------------------------------------------------------------------
+// MCP agent qoralamalari (004_mcp_agent.sql: agent_drafts)
+// ---------------------------------------------------------------------------
+
+export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected';
+
+export interface AgentDraftLine {
+  product_name: string;
+  qty_milli: bigint;
+  unit: string;
+  unit_price: bigint;
+  /** Agent yuborgan jami emas: PostgreSQL yozgan qiymat. Veb uni core formulasi bilan qayta tekshiradi */
+  line_total: bigint;
+  raw_text: string | null;
+  warnings: string[];
+}
+
+export type AgentDraftDetail =
+  | { kind: 'sale'; raw_input: string | null; lines: AgentDraftLine[] }
+  | { kind: 'payment'; method: PaymentMethod; note: string | null }
+  /** payload kutilgan shaklda emas: ko'rsatilmaydi, tasdiqlab bo'lmaydi */
+  | { kind: 'unreadable'; reason: string };
+
+export interface AgentDraft {
+  id: string;
+  status: AgentDraftStatus;
+  customer_id: string | null;
+  total: bigint;
+  /** OAuth klient UUID'i yoki 'first_party' */
+  client_id: string;
+  created_by: string;
+  created_at: string;
+  decided_at: string | null;
+  reject_reason: string | null;
+  detail: AgentDraftDetail;
+}

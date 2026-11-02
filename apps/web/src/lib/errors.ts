@@ -42,6 +42,11 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   [/failed to fetch|network ?error|fetch failed|load failed|timeout|econn|offline/, 'network', "Internet aloqasi yo'q yoki server javob bermadi. Qayta urinib ko'ring."],
   // --- RPC biznes xatolari (003 migratsiyasidagi nomlar) ---
   [/not_authenticated|jwt|28000|refresh token|auth session missing/, 'auth', 'Sessiya tugagan. Qaytadan kiring.'],
+  // --- Agent qoralamalari (004 migratsiyasi) ---
+  [/draft_already_decided/, 'conflict', 'Bu qoralama allaqachon tasdiqlangan yoki rad etilgan.'],
+  [/draft_not_found/, 'not_found', 'Qoralama topilmadi.'],
+  [/oauth_client_forbidden/, 'forbidden', 'Bu amal faqat Hisobchi Go ilovasida bajariladi.'],
+  [/draft_immutable|draft_invalid_transition/, 'conflict', "Qoralamani o'zgartirib bo'lmaydi."],
   [/calc_mismatch/, 'validation', 'Server hisobi summa bilan mos kelmadi — savdo saqlanmadi.'],
   [/already_reversed/, 'conflict', 'Bu savdo allaqachon bekor qilingan.'],
   [/customer_not_in_shop/, 'forbidden', "Mijoz bu do'konga tegishli emas."],
@@ -83,6 +88,12 @@ export function unwrap<T>(res: { data: T | null; error: unknown }): T {
   if (res.error) throw toAppError(res.error);
   if (res.data === null) throw new AppError('not_found', "Ma'lumot topilmadi.");
   return res.data;
+}
+
+/** accept/reject_agent_draft: qoralama allaqachon hal qilingan (masalan, ikki marta bosildi) */
+export function isDraftAlreadyDecided(err: unknown): boolean {
+  const shape: ErrorShape = err && typeof err === 'object' ? (err as ErrorShape) : { message: String(err) };
+  return /draft_already_decided/i.test(`${shape.message ?? ''} ${shape.details ?? ''}`);
 }
 
 export function errorMessage(err: unknown): string {

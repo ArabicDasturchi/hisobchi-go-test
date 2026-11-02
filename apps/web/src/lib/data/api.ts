@@ -9,9 +9,12 @@
  * - RPC muvaffaqiyatidan keyin natija serverdan qayta o'qib tekshiriladi.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { AppError, toAppError } from '../errors';
+import { AppError, isDraftAlreadyDecided, toAppError } from '../errors';
 import { toBig } from '../money';
+import { AGENT_DRAFT_COLS, toAgentDraft, type AgentDraftRow } from './agentDrafts';
 import type {
+  AgentDraft,
+  AgentDraftStatus,
   Customer,
   Membership,
   Payment,
@@ -369,3 +372,74 @@ export async function voidPayment(sb: SB, shopId: string, paymentId: string, rea
   if (!row) throw new AppError('unknown', "Server to'lov bekor qilinishini tasdiqlamadi.");
 }
 
+
+// ---------------------------------------------------------------------------
+// MCP agent qoralamalari (004_mcp_agent.sql)
+// ---------------------------------------------------------------------------
+
+/**
+ * Do'konning qoralamalari (yangisi birinchi). Faqat o'qish: yozish accept/reject RPC'lari orqali.
+ * RLS: begona do'kon qoralamalari ko'rinmaydi. Ochiq qoralamalar bazada 50 tadan oshmaydi.
+ */
+export async function listAgentDrafts(sb: SB, shopId: string, opts: { status?: AgentDraftStatus; limit?: number } = {}): Promise<AgentDraft[]> {
+  let q = sb.from('agent_drafts').select(AGENT_DRAFT_COLS).eq('shop_id', shopId);
+  if (opts.status) q = q.eq('status', opts.status);
+  const rows = check(await q.order('created_at', { ascending: false }).order('id').limit(opts.limit ?? 200)) as unknown as AgentDraftRow[] | null;
+  return (rows ?? []).map(toAgentDraft);
+}
+
+/**
+ * Qoralamani tasdiqlaydi: accept_agent_draft RPC (faqat oddiy sessiya; OAuth token rad etiladi).
+ * Server mavjud post_sale / record_payment ni chaqiradi: jami PostgreSQL'da qayta hisoblanadi, mos kelmasa
+ * (calc_mismatch) yoki to'lov qarzdan oshsa hech narsa saqlanmaydi va qoralama `draft` holatida qoladi.
+ *
+ * Idempotent: ikkinchi bosish yangi savdo yozmaydi (server qatorni qulflaydi, ichki client_op_id = `agent-draft:<id>`);
+ * natija 'already' bo'ladi. Muvaffaqiyatdan keyin natija serverdan qayta o'qib tekshiriladi.
+ */
+export async function acceptAgentDraft(sb: SB, shopId: string, draft: AgentDraft): Promise<'accepted' | 'already'> {
+  const res = await sb.rpc('accept_agent_draft', { p_draft_id: draft.id });
+  if (res.error) {
+    if (isDraftAlreadyDecided(res.error)) return 'already';
+    throw toAppError(res.error);
+  }
+  const state = check(await sb.from('agent_drafts').select('status').eq('shop_id', shopId).eq('id', draft.id).maybeSingle()) as { status: string } | null;
+  if (state?.status !== 'accepted') throw new AppError('unknown', "Server tasdiqlashni tasdiqlamadi. Qoralamalar ro'yxatini tekshiring.");
+  if (draft.detail.kind === 'sale') {
+    const doc = check(await sb.from('documents').select('status, subtotal::text').eq('shop_id', shopId).eq('id', draft.id).maybeSingle()) as { status: string; subtotal: string } | null;
+    if (!doc || doc.status !== 'posted' || toBig(doc.subtotal) !== draft.total) {
+      throw new AppError('unknown', "Savdo serverda kutilgan summada topilmadi. Savdolar ro'yxatini tekshiring.");
+    }
+  } else {
+    const pay = check(await sb.from('payments').select('amount::text').eq('shop_id', shopId).eq('id', draft.id).maybeSingle()) as { amount: string } | null;
+    if (!pay || toBig(pay.amount) !== draft.total) {
+      throw new AppError('unknown', "To'lov serverda kutilgan summada topilmadi. To'lovlar ro'yxatini tekshiring.");
+    }
+  }
+  return 'accepted';
+}
+
+/** Qoralamani rad etadi (hech narsa yozilmaydi). Sabab ixtiyoriy. Ikkinchi bosish 'already'. */
+export async function rejectAgentDraft(sb: SB, draftId: string, reason: string | null): Promise<'rejected' | 'already'> {
+  const res = await sb.rpc('reject_agent_draft', { p_draft_id: draftId, p_reason: reason?.trim() || null });
+  if (res.error) {
+    if (isDraftAlreadyDecided(res.error)) return 'already';
+    throw toAppError(res.error);
+  }
+  return 'rejected';
+}
+
+/**
+ * OAuth klient nomlari (client_id → nom): foydalanuvchining ruxsatlari ro'yxatidan (auth.oauth.listGrants).
+ * Faqat ko'rsatish uchun; xato bo'lsa bo'sh xarita (qisqa ID ko'rsatiladi). Qaytarib olingan ruxsatlar nomi yo'q.
+ */
+export async function listOAuthClientNames(sb: SB): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  try {
+    const { data, error } = await sb.auth.oauth.listGrants();
+    if (error || !data) return names;
+    for (const g of data) if (g.client?.id && g.client.name) names.set(g.client.id, g.client.name);
+  } catch {
+    // OAuth server yoqilmagan yoki tarmoq xatosi: nom o'rniga qisqa ID
+  }
+  return names;
+}
