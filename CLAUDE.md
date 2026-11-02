@@ -20,6 +20,7 @@ Expo (React Native) + TypeScript, Supabase, monorepo: `apps/mobile`, `packages/c
 - [docs/TZ-MVP.md](docs/TZ-MVP.md) — MVP vazifasi
 - [docs/ARXITEKTURA.md](docs/ARXITEKTURA.md) — tuzilma
 - [docs/QARORLAR.md](docs/QARORLAR.md) — qarorlar jurnali
+- [docs/MIGRATSIYA-CI.md](docs/MIGRATSIYA-CI.md) — migratsiyalar `main` ga merge bo'lganda CI orqali qo'llanadi; yangi fayl `005_nom.sql` shaklida
 - [docs/MCP-AGENT.md](docs/MCP-AGENT.md) — MCP server (`apps/mcp`): faqat o'qish + qoralama, tasdiqlash faqat ilovada
 - [docs/MUAMMOLAR.md](docs/MUAMMOLAR.md), [docs/SUHBATLAR.md](docs/SUHBATLAR.md), [docs/RAQIBLAR.md](docs/RAQIBLAR.md) — dalillar
 
