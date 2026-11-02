@@ -2,9 +2,9 @@
 
 Holat (02.11.2026): **kod yozilgan va lokal sinalgan; Supabase'ga qo'llanmagan, hostingga joylanmagan, Claude/ChatGPT bilan ulanmagan.**
 
-> **Qoralama ko'rinmaguncha MCP foydalanishga tayyor emas.** Agent yaratgan qoralama bazada turadi (`agent_drafts`),
-> lekin veb va mobil ilovada hali ro'yxat va "Tasdiqlash" tugmasi yo'q. Bu keyingi vazifa (9-bo'lim). Shu tugamaguncha
-> asoschiga MCP ni ishlatishni tavsiya etmaymiz: qoralamani savdogar ko'ra olmaydi.
+> **Qoralamalar veb panelda ko'rinadi** (`/drafts`): ro'yxat, "Tasdiqlash" va "Rad etish". **Mobil ilovada hali yo'q**: savdogar
+> qoralamani faqat veb panelda hal qila oladi (9-bo'lim). Veb panel va 004 migratsiyasi birga qo'llanishi kerak; 004
+> qo'llanmagan bo'lsa "Qoralamalar" sahifasi xabar ko'rsatadi, qolgan sahifalar ishlayveradi.
 
 ## 1. Maqsad
 
@@ -27,6 +27,7 @@ yaratish. Tasdiqlash faqat ilovada, savdogar qo'li bilan.
 | Migratsiya | `supabase/migrations/004_mcp_agent.sql` | OAuth tokenni yozuvdan to'sish, `agent_drafts`, `agent_*` RPC'lar, `customer_outstanding` tuzatildi. **Asoschi ko'rib chiqib o'zi qo'llaydi** |
 | SQL testlar | `supabase/tests/20_agent_mcp.test.sql` | `bash supabase/tests/run_local.sh` (lokal PostgreSQL, Supabase stub) |
 | Rozilik sahifasi | `apps/web/src/app/oauth/consent` | Supabase OAuth server uchun "ruxsat berish / rad etish" |
+| Qoralamalar (veb) | `apps/web/src/app/(app)/drafts`, `components/DraftCard.tsx`, `lib/data/agentDrafts.ts` | Ro'yxat, tasdiqlash (`accept_agent_draft`), rad etish (`reject_agent_draft`), menyuda belgi |
 | Qarorlar | `docs/QARORLAR.md` | 02.11.2026 qatorlari |
 
 ## 4. Arxitektura
@@ -133,12 +134,25 @@ Tartib muhim. Beta ishlamasa yoki qadam bajarilmasa, boshqa variantga o'tmang: t
 
 Lokal dev (production'ga chiqmaydi): `cp apps/mcp/.env.example apps/mcp/.env`, to'ldiring, `MCP_ALLOW_FIRST_PARTY_TOKEN=true`, `npm run dev -w apps/mcp` (port 8787). Bu rejimda oddiy sessiya tokeni qabul qilinadi; DB to'siqlari (`client_id`) bunday tokenga qo'llanmaydi, shuning uchun faqat o'zingizning dev loyihangizda ishlating.
 
-## 9. Keyingi vazifa (darhol shundan keyin)
+## 9. Qoralamalar veb panelda (bajarildi) va qolgan ish
 
-- Veb panelda "Qoralamalar" ro'yxati: `agent_drafts` (RLS bilan o'qiladi), sariq ko'rinish, qator tafsiloti va ogohlantirishlar.
-- "Tasdiqlash" → `accept_agent_draft(id)`; "Rad etish" → `reject_agent_draft(id, sabab)`. Ikkalasi faqat oddiy sessiya bilan. Qabul qilinganda hujjat/to'lov id si = qoralama id si.
-- Mobil: tasdiqlangan savdo serverda paydo bo'ladi, mobil esa SQLite'ni asosiy manba qiladi (bir tomonlama push). Serverdan telefonga tushirish (pull) mavjudligi va qoralamalarni mobilda ko'rsatish alohida hal qilinadi.
+**Veb (`/drafts`):**
+- Standart ko'rinish: tasdiqlanmagan qoralamalar (sariq kartochka). Filtr: tasdiqlangan, rad etilgan (oxirgi 100 ta).
+- Kartochka: tur, mijoz, qatorlar (miqdor, narx, summa), jami, kim yaratgan (OAuth klient nomi), vaqt. Core ogohlantirishi bor qator sariq.
+- Klient nomi `auth.oauth.listGrants()` dan olinadi (haqiqiy Supabase'da sinalmagan); topilmasa `Agent <qisqa id>`. Qaytarib olingan ruxsat nomi chiqmaydi.
+- **Tasdiqlash** `accept_agent_draft(id)` ni chaqiradi. Server mavjud `post_sale` / `record_payment` orqali yozadi: jami PostgreSQL'da qayta hisoblanadi, mos kelmasa (`calc_mismatch`) yoki to'lov qarzdan oshsa hech narsa yozilmaydi va qoralama ro'yxatda qoladi, sabab kartochkada ko'rinadi. Muvaffaqiyatdan keyin veb savdo/to'lovni serverdan qayta o'qib summani tekshiradi.
+- **Rad etish** `reject_agent_draft(id, sabab)`; sabab ixtiyoriy.
+- Veb ham qoralama jamini core formulasi bilan qayta tekshiradi; mos kelmasa "Tasdiqlash" yopiladi. Buzilgan `payload` ilovani yiqitmaydi (`unreadable`, faqat rad etish mumkin).
+- **Ikki marta bosish:** veb tugmani darhol bloklaydi; server qatorni `FOR UPDATE` bilan qulflaydi va ichki `client_op_id` = `agent-draft:<id>`. Ikkinchi chaqiruv `draft_already_decided` oladi, veb buni "allaqachon hal qilingan" deb ko'rsatadi. Parallel ikki sessiya bilan lokal sinaldi: 1 savdo, 1 jurnal yozuvi.
+- Faqat oddiy sessiya: OAuth token `accept/reject` ni chaqira olmaydi (SQL testi). Veb OAuth token bilan ishlamaydi.
+- Menyuda "Qoralamalar" va ochiq qoralamalar soni belgisi (yuklashda bitta qo'shimcha so'rov).
+- Tasdiqlangan savdoning `id` si qoralama `id` siga teng: `/sales/<id>`.
+
+**Qolgan:**
+- Mobil: qoralamalarni ko'rsatish va tasdiqlash. Mobil SQLite'ni asosiy manba qiladi (bir tomonlama push), shuning uchun veb/agent orqali tasdiqlangan savdo telefonda ko'rinishi uchun serverdan telefonga tushirish (pull) kerak; hozir bu hal qilinmagan.
+- Tasdiqlashdan oldin qatorlarni tahrirlash (alohida vazifa).
 - Ruxsatlarni ko'rish va qaytarib olish ekrani.
+- Brauzerda haqiqiy ko'rinish (dizayn) tekshirilmagan: komponent server-render testi bilan sinalgan, ekranda ko'rilmagan.
 
 ## 10. Mijozlar (client) holati — avvalgi tekshiruv (taxminan 04.2026 manba, qayta tekshirish kerak)
 
@@ -154,7 +168,8 @@ Lokal dev (production'ga chiqmaydi): `cp apps/mcp/.env.example apps/mcp/.env`, t
 - [x] 10×13 000 + 5×15 000 + 20×9 000 = 385 000 (core + MCP + SQL).
 - [x] OAuth token bilan `post_sale` rad etiladi (SQL testi).
 - [ ] Haqiqiy Supabase OAuth tokeni bilan yuqoridagilar (13-bo'lim).
-- [ ] Qoralama ilovada ko'rinadi va tasdiqlanadi (keyingi vazifa).
+- [x] Qoralama veb panelda ko'rinadi, tasdiqlanadi va rad etiladi (testlar; haqiqiy Supabase'da sinalmagan).
+- [ ] Qoralama mobil ilovada ko'rinadi (keyingi vazifa).
 
 ## 12. Ochiq savollar
 
