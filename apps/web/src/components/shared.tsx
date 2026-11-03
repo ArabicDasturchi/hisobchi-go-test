@@ -35,6 +35,17 @@ export function StatCard({ label, value, hint, icon: Icon, accent = 'emerald' }:
   );
 }
 
+/** Yozuv manbasi va arxiv belgilari: agent qo'shgan yozuv ilovada "AI qo'shdi" bilan ko'rinadi */
+export function RecordBadges({ source, archived }: { source: 'app' | 'agent'; archived?: boolean }) {
+  if (source !== 'agent' && !archived) return null;
+  return (
+    <>
+      {source === 'agent' && <Badge tone="blue">AI qo&apos;shdi</Badge>}
+      {archived && <Badge>Arxiv</Badge>}
+    </>
+  );
+}
+
 export function StatusBadge({ status }: { status: SaleStatus }) {
   return status === 'posted' ? <Badge tone="green">{uz.status.posted}</Badge> : <Badge tone="red">{uz.status.reversed}</Badge>;
 }

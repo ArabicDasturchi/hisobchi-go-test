@@ -97,7 +97,7 @@ export async function renameShop(sb: SB, shopId: string, name: string): Promise<
 // Mijozlar
 // ---------------------------------------------------------------------------
 
-const CUSTOMER_COLS = 'id, name, phone, notes, created_at, updated_at';
+const CUSTOMER_COLS = 'id, name, phone, notes, is_active, source, created_at, updated_at';
 
 export async function listCustomers(sb: SB, shopId: string): Promise<Customer[]> {
   return fetchAll<Customer>((from, to) => sb.from('customers').select(CUSTOMER_COLS).eq('shop_id', shopId).order('name').order('id').range(from, to));
@@ -143,7 +143,7 @@ export async function deleteCustomer(sb: SB, shopId: string, id: string): Promis
 // Mahsulotlar
 // ---------------------------------------------------------------------------
 
-const PRODUCT_COLS = 'id, name, unit, last_price::text, is_active, created_at, updated_at';
+const PRODUCT_COLS = 'id, name, unit, last_price::text, is_active, source, created_at, updated_at';
 
 interface ProductRow extends Omit<Product, 'last_price'> {
   last_price: string | null;
@@ -404,16 +404,31 @@ export async function acceptAgentDraft(sb: SB, shopId: string, draft: AgentDraft
   }
   const state = check(await sb.from('agent_drafts').select('status').eq('shop_id', shopId).eq('id', draft.id).maybeSingle()) as { status: string } | null;
   if (state?.status !== 'accepted') throw new AppError('unknown', "Server tasdiqlashni tasdiqlamadi. Qoralamalar ro'yxatini tekshiring.");
-  if (draft.detail.kind === 'sale') {
+  const d = draft.detail;
+  if (d.kind === 'sale') {
     const doc = check(await sb.from('documents').select('status, subtotal::text').eq('shop_id', shopId).eq('id', draft.id).maybeSingle()) as { status: string; subtotal: string } | null;
     if (!doc || doc.status !== 'posted' || toBig(doc.subtotal) !== draft.total) {
       throw new AppError('unknown', "Savdo serverda kutilgan summada topilmadi. Savdolar ro'yxatini tekshiring.");
     }
-  } else {
+  } else if (d.kind === 'payment') {
     const pay = check(await sb.from('payments').select('amount::text').eq('shop_id', shopId).eq('id', draft.id).maybeSingle()) as { amount: string } | null;
     if (!pay || toBig(pay.amount) !== draft.total) {
       throw new AppError('unknown', "To'lov serverda kutilgan summada topilmadi. To'lovlar ro'yxatini tekshiring.");
     }
+  } else if (d.kind === 'customer_update' || d.kind === 'customer_archive') {
+    const c = check(await sb.from('customers').select('name, is_active').eq('shop_id', shopId).eq('id', d.target_id).maybeSingle()) as { name: string; is_active: boolean } | null;
+    const okName = d.kind === 'customer_archive' ? c?.is_active === false : c?.name === d.name.to;
+    if (!c || !okName) throw new AppError('unknown', "Mijoz serverda kutilgan holatda emas. Mijozlar ro'yxatini tekshiring.");
+  } else if (d.kind === 'product_update' || d.kind === 'product_archive') {
+    const p = check(await sb.from('products').select('name, unit, last_price::text, is_active').eq('shop_id', shopId).eq('id', d.target_id).maybeSingle()) as { name: string; unit: string; last_price: string | null; is_active: boolean } | null;
+    let okProduct = !!p;
+    if (p && d.kind === 'product_archive') okProduct = p.is_active === false;
+    if (p && d.kind === 'product_update') {
+      if (d.name && p.name !== d.name.to) okProduct = false;
+      if (d.unit && p.unit !== d.unit.to) okProduct = false;
+      if (d.price && (p.last_price === null ? null : toBig(p.last_price)) !== d.price.to) okProduct = false;
+    }
+    if (!okProduct) throw new AppError('unknown', "Tovar serverda kutilgan holatda emas. Mahsulotlar ro'yxatini tekshiring.");
   }
   return 'accepted';
 }

@@ -56,7 +56,7 @@ function Dashboard({ data }: { data: ShopData }) {
         <StatCard label="Jami qarzdorlik" value={<Money value={totals.totalDebt} />} hint={`${totals.debtorCount} ta qarzdor mijoz`} icon={HandCoins} accent="rose" />
         <StatCard label="Qabul qilingan to'lovlar" value={<Money value={totals.totalPaid} />} hint="Bekor qilinganlarsiz" icon={Wallet} accent="emerald" />
         <Link href="/customers" className="block h-full rounded-xl focus-visible:outline-offset-4">
-          <StatCard label="Mijozlar" value={data.customers.length} hint="Barcha mijozlar" icon={Users} accent="slate" />
+          <StatCard label="Mijozlar" value={data.customers.filter((c) => c.is_active).length} hint="Faol mijozlar" icon={Users} accent="slate" />
         </Link>
         <Link href="/products" className="block h-full rounded-xl focus-visible:outline-offset-4">
           <StatCard label="Mahsulotlar" value={activeProducts} hint={`${data.products.length - activeProducts} ta arxivda`} icon={Package} accent="slate" />

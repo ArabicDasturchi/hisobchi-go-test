@@ -1,11 +1,24 @@
 import { AlertTriangle, Check, X } from 'lucide-react';
 import Link from 'next/link';
-import { integrityError } from '@/lib/data/agentDrafts';
-import type { AgentDraft } from '@/lib/data/types';
+import { draftTitle, integrityError, isCatalogDraft } from '@/lib/data/agentDrafts';
+import type { AgentDraft, Change } from '@/lib/data/types';
 import { formatDateTime } from '@/lib/dates';
 import { formatQty, formatSom } from '@/lib/money';
 import { MethodBadge, Money } from './shared';
 import { Alert, Badge, Button, Card } from './ui/primitives';
+
+const somOrDash = (v: bigint | null) => (v === null ? "yo'q" : formatSom(v));
+
+function ChangeRow({ label, change }: { label: string; change: Change<string> | Change<bigint | null> }) {
+  const show = (v: string | bigint | null) => (typeof v === 'string' ? v : somOrDash(v));
+  return (
+    <tr>
+      <td className="py-2 pr-3 text-muted">{label}</td>
+      <td className="px-3 py-2 text-muted line-through">{show(change.from)}</td>
+      <td className="py-2 pl-3 font-medium text-fg">{show(change.to)}</td>
+    </tr>
+  );
+}
 
 /**
  * Agent qoralamasi kartochkasi. Ochiq (tasdiqlanmagan) qoralama sariq; ogohlantirishli qatorlar ajratiladi;
@@ -33,16 +46,19 @@ export function DraftCard({
   const open = d.status === 'draft';
   const problem = integrityError(d);
   const isPayment = d.detail.kind === 'payment';
+  const catalog = isCatalogDraft(d);
   return (
     <Card className={open ? 'border-amber-300 bg-amber-50/40 dark:border-amber-500/30 dark:bg-amber-500/5' : undefined}>
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {open ? <Badge tone="amber">Tasdiqlanmagan</Badge> : d.status === 'accepted' ? <Badge tone="green">Tasdiqlangan</Badge> : <Badge tone="neutral">Rad etilgan</Badge>}
-            <span className="text-sm font-semibold text-fg">{isPayment ? "To'lov qoralamasi" : 'Savdo qoralamasi'}</span>
+            <span className="text-sm font-semibold text-fg">{draftTitle(d)}</span>
           </div>
           <p className="mt-1 text-xs text-muted">
-            {d.customer_id ? (
+            {catalog && d.detail.kind !== 'unreadable' && d.detail.kind !== 'sale' && d.detail.kind !== 'payment' ? (
+              <span className="font-medium text-fg">{d.detail.target_name}</span>
+            ) : d.customer_id ? (
               <Link href={`/customers/${d.customer_id}`} className="font-medium text-fg hover:underline">
                 {customerName}
               </Link>
@@ -55,7 +71,7 @@ export function DraftCard({
             {formatDateTime(d.created_at)}
           </p>
         </div>
-        <Money value={d.total} className="text-lg font-semibold text-fg" />
+        {!catalog && <Money value={d.total} className="text-lg font-semibold text-fg" />}
       </div>
 
       <div className="px-4 py-3">
@@ -106,6 +122,36 @@ export function DraftCard({
             {d.detail.note && <span>Izoh: {d.detail.note}</span>}
           </p>
         )}
+        {d.detail.kind === 'customer_update' && (
+          <table className="w-full text-left text-[13px]">
+            <tbody>
+              <ChangeRow label="Nomi" change={d.detail.name} />
+            </tbody>
+          </table>
+        )}
+        {d.detail.kind === 'product_update' && (
+          <table className="w-full text-left text-[13px]">
+            <tbody>
+              {d.detail.name && <ChangeRow label="Nomi" change={d.detail.name} />}
+              {d.detail.unit && <ChangeRow label="Birlik" change={d.detail.unit} />}
+              {d.detail.price && <ChangeRow label="Narx" change={d.detail.price} />}
+            </tbody>
+          </table>
+        )}
+        {(d.detail.kind === 'customer_archive' || d.detail.kind === 'product_archive') && (
+          <div className="space-y-2 text-sm text-muted">
+            <p>
+              {d.detail.kind === 'customer_archive' ? 'Mijoz' : 'Tovar'} <b className="text-fg">{d.detail.target_name}</b> arxivlanadi: yangi savdo tanlovida ko&apos;rinmaydi.
+              {d.detail.kind === 'customer_archive' ? " Savdo tarixi, qarz va to'lovlar saqlanadi." : ' Saqlangan savdolar o&apos;zgarmaydi.'}
+            </p>
+            {d.detail.kind === 'customer_archive' && d.detail.outstanding !== null && d.detail.outstanding > 0n && (
+              <p className="flex items-start gap-1 text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="mt-px h-4 w-4 shrink-0" />
+                Bu mijozning qarzi bor: {formatSom(d.detail.outstanding)}.
+              </p>
+            )}
+          </div>
+        )}
         {d.detail.kind === 'unreadable' && <p className="text-sm text-muted">Qoralama mazmunini o&apos;qib bo&apos;lmadi.</p>}
         {d.status === 'rejected' && d.reject_reason && <p className="mt-2 text-xs text-muted">Rad etish sababi: {d.reject_reason}</p>}
         {d.status !== 'draft' && d.decided_at && <p className="mt-2 text-xs text-muted">Hal qilingan: {formatDateTime(d.decided_at)}</p>}
@@ -129,7 +175,7 @@ export function DraftCard({
       {open && (
         <div className="flex flex-col gap-2 border-t border-line px-4 py-3 sm:flex-row-reverse">
           <Button className="w-full sm:w-auto" onClick={onAccept} loading={busy} disabled={anyBusy || problem !== null} icon={!busy ? <Check className="h-4 w-4" /> : undefined}>
-            Tasdiqlash ({formatSom(d.total)})
+            {catalog ? 'Tasdiqlash' : `Tasdiqlash (${formatSom(d.total)})`}
           </Button>
           <Button className="w-full sm:w-auto" variant="outline" onClick={onReject} disabled={anyBusy} icon={<X className="h-4 w-4" />}>
             Rad etish
