@@ -32,10 +32,17 @@ Har qaror: sana, nima, nega. Yangi qaror pastga qo'shiladi.
 | 03.11.2026 | Qoralamalar veb panelda: `/drafts`, tasdiqlash `accept_agent_draft`, rad etish `reject_agent_draft`. Yangi migratsiya kerak bo'lmadi. Idempotentlik serverda (qator qulfi + `agent-draft:<id>`); veb ikkinchi bosishni "allaqachon hal qilingan" deb ko'rsatadi | Ikki marta bosish ikki savdo yozmasligi kerak (qoida 3 va 4) |
 | 03.11.2026 | Qoralamalar yuklanmasa (masalan 004 qo'llanmagan) veb ilovaning qolgan qismi ishlayveradi; faqat "Qoralamalar" sahifasi xabar ko'rsatadi | 004 ni asoschi alohida qo'llaydi: veb 004 dan oldin ham yiqilmasligi kerak |
 | 03.11.2026 | Veb qoralama jamini core formulasi bilan qayta tekshiradi; mos kelmasa "Tasdiqlash" yopiladi | Qoida 2: hisob mos kelmasa to'xtaydi |
+| 03.11.2026 | **MVP ta'rifi:** savdogar pul to'laydigan bitta to'liq ishlaydigan qiymat. Pitchdagi ikki va'da: Q1 ovozli savdo, Q2 suratdan kirim. TZ v2 ([TZ-MVP.md](TZ-MVP.md)) v1 o'rnini bosadi | Sardor aka (IT Park, 02.11): "Mijoz buni nima uchun sotib oladi?" |
+| 03.11.2026 | Vazifalar ICE bo'yicha tartiblanadi ([VAZIFALAR-ICE.md](VAZIFALAR-ICE.md)); ishonch past bo'lsa avval HADI sinovi | HADI darsi (31.10) |
+| 03.11.2026 | Q2 (suratdan kirim) qurilishidan oldin qo'lda sinaladi (G1/H3): yuk xatini biz Claude + MCP bilan kiritib beramiz | Eng og'ir ish; talabni arzon tekshirish |
+| 03.11.2026 | AI provayder: Gemini API (AI Studio, pullik daraja), Supabase Edge Function ichida; model env bilan almashtiriladi. Audio va rasm MVP da saqlanmaydi (28.10 dagi "30 kun saqlanadi" qarori o'rniga) | Kalit serverda; saqlash = qo'shimcha maxfiylik xavfi va ish |
+| 03.11.2026 | Ish bo'linishi: Humoyun (APK, AI, ovoz, keyin surat) va Abdulloh Claude Code (migratsiya, core, ombor, veb, MCP) alohida fayl hududlarida | Ikki Claude Code bir-birining ishini buzmasin |
+| 03.11.2026 | Aniqlik: "Next.js PWA rad etildi" faqat savdogar mobil ilovasi uchun. Veb panel (`apps/web`) Next.js da qoladi | 28.10 qatori bilan joriy kod o'rtasidagi ziddiyatni yo'qotish |
+| 03.11.2026 | Eskirgan hujjatlar `docs/arxiv/` ga ko'chirildi: HOLAT-HISOBOTI, PROGRESS, DEMO_ITPARK, SERVER_XAVFSIZLIK | Yangi Claude seansi eski holatga tayanmasin |
 
 ## Ochiq qarorlar
 
-- Baza: Supabase yoki boshqa.
-- STT/OCR xizmati: sinab tanlanadi.
-- Narx: 1-oy bepul, keyin ~200 000 so'm/oy — faraz, 50 suhbatda tekshiriladi.
+- ~~Baza: Supabase yoki boshqa.~~ Hal qilindi: Supabase (02.11).
+- STT/OCR: Gemini sinaladi (H2, T7); natija bo'yicha tanlanadi.
+- Narx: 1-oy bepul, keyin ~200 000 so'm/oy — faraz, H3 va 50 suhbatda tekshiriladi.
 - Prototip kodi egaligi: Humoyun bilan yozma kelishuv kerak.

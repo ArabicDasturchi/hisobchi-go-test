@@ -1,7 +1,7 @@
 /**
  * RPC kontrakti: mobil sinxronlash yuboradigan argument nomlari va qiymat formatlari
  * supabase/migrations/003_security_and_mvp_rpc.sql dagi haqiqiy funksiya imzolariga mosligi.
- * (Jonli bazada ham aniq nomlar bilan tekshirilgan — docs/PROGRESS.md.)
+ * (Jonli bazada ham aniq nomlar bilan tekshirilgan — docs/arxiv/PROGRESS.md.)
  * Shuningdek: avtomatik sinxronlash yordamchilari va mijozni xavfsiz o'chirish.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
