@@ -74,3 +74,30 @@ Past internetda ishlash (mobil oflayn navbat mavjud), katta tugmalar, o'zbekcha 
 5. **Mijoz arxivi:** `customers.is_active` (tovardagi `is_active` bilan bir xil nom, **default**) yoki alohida `archived_at`.
 6. **Agent o'zgartira oladigan maydonlar:** mijozda faqat nom; tovarda nom, birlik, narx (**default**). Telefon va izoh agent tomonidan **qo'yilmaydi va o'zgartirilmaydi**.
 7. **Eskirgan so'rov:** o'zgartirish so'rovi yaratilgandan keyin yozuv boshqacha bo'lib qolsa, tasdiqlash `draft_stale` bilan rad etiladi (**default**), jim ustidan yozilmaydi.
+
+## 7. S2 dizayni (keyingi seans shundan boshlaydi)
+
+Amaldagi sxemadan eng kam o'zgarish bilan. Migratsiyalar: **006** (hamkor va katalog asoslari), **007** (kirim, ombor, ta'minotchi to'lovi). Har biri alohida migratsiya PR'i; mobil sxema/sync alohida kod PR'i (migratsiyalardan keyin).
+Barcha yangi jadvallar: RLS yoqilgan, a'zolik `is_shop_member`, yozuv faqat `SECURITY DEFINER` RPC (`require_shop_member` orqali OAuth rad etiladi), `<jadval>_no_oauth` RESTRICTIVE siyosati (20-test qo'riqchisi buni majburlaydi), append-only jadvallarga `prevent_append_only_change` trigger.
+
+### 006: hamkorlar va tovar narxlari
+- `suppliers`: `id`, `shop_id`, `name`, `phone`, `notes`, `is_active`, `source`, `source_client_id`, `created_at`, `updated_at` (mijozlar jadvali bilan bir xil shakl; first-party CRUD siyosati `customers` kabi).
+- `customers.kind text NOT NULL DEFAULT 'regular' CHECK (kind IN ('regular','one_time'))` + do'konga bitta tizim mijozi: partial unique `(shop_id) WHERE kind = 'one_time'`, nomi "Bir martalik mijoz". RPC `ensure_walkin_customer(shop)` (idempotent) va `create_shop` ichida chaqiriladi; mavjud do'konlar uchun migratsiya ham yaratadi. Ro'yxatlarda ko'rinishi: S4.
+- `products.cost_price bigint NULL` (oxirgi kirim tan narxi), `products.sale_price bigint NULL`. Backfill: `sale_price := last_price` (ma'lumot yo'qolmaydi). `last_price` mobil moslik uchun saqlanadi (mobil v6 ga o'tgach eskirgan deb belgilanadi). `agent_add_products`/`agent_propose_product_update` `price` ni `sale_price` ga yozadigan bo'ladi (S5 emas, shu migratsiyada `CREATE OR REPLACE`).
+- `document_lines.unit_cost bigint NULL` (savdo paytidagi tan narx snapshot'i; eski qatorlar NULL = tan narx noma'lum, foyda hisoblanmaydi).
+- `post_sale` kengayishi (eski imzo `DROP FUNCTION` bilan almashtiriladi, ikki overload qolmasin): ixtiyoriy `p_payment_method`, `p_paid` (bir martalik mijoz uchun majburiy: `p_paid = jami`, aks holda `walkin_requires_full_payment`; qarzga berilmaydi). Savdo va to'lov bitta tranzaksiyada. Qator mahsulotga `catalog_norm(nom)` bilan bog'lanadi (faqat birlik mos kelsa): `product_id` va `unit_cost = cost_price` yoziladi.
+
+### 007: kirim, ombor, ta'minotchi to'lovi
+- `purchase_documents` (savdo hujjatiga o'xshash): `id`, `shop_id`, `supplier_id NOT NULL`, `doc_date date`, `status` (posted/reversed), `subtotal`, `ts_total`, `pg_total`, `calc_match`, `client_op_id` (UNIQUE per shop), `created_by`, `posted_at`.
+- `purchase_lines`: `document_id`, `line_index`, `product_id NOT NULL` (kirimda tovar katalogdan tanlanadi), `product_name` (snapshot), `qty_milli`, `unit`, `unit_cost`, `line_total` (`CHECK` yaxlitlash formulasi bilan, 003 dagi `calculate_line_total`).
+- `supplier_payments` + `supplier_payment_voids`, `purchase_reversals`: `payments`/`payment_voids`/`document_reversals` ko'zgusi.
+- `stock_movements`: `id`, `shop_id`, `product_id`, `kind` (purchase, sale, adjustment, purchase_reversal, sale_reversal), `qty_milli` (+/-), `document_id`, `created_at`; append-only. **Qoldiq = SUM(qty_milli)** (view `product_stock`), alohida kiritilmaydi. Savdo `post_sale` ichida, kirim `post_purchase` ichida harakat yozadi; bekor qilish teskari harakat. Manfiy qoldiqqa ruxsat (CHECK yo'q); ko'rsatishda sariq.
+- RPC (hammasi `post_sale` uslubida: a'zolik, idempotent `client_op_id`, **ikki mustaqil hisob** TS jami vs PostgreSQL, mos kelmasa hech narsa saqlanmaydi): `post_purchase(shop, purchase_id, client_op_id, supplier_id, doc_date, lines jsonb, client_total, paid default 0, method, note)` (berilgan to'lov bir tranzaksiyada; `cost_price := oxirgi kirim unit_cost`), `reverse_purchase`, `record_supplier_payment`, `void_supplier_payment`.
+- Ta'minotchi balansi: `supplier_outstanding(shop, supplier)` = kirimlar (bekor qilinmagan) - to'lovlar (bekor qilinmagan), **a'zolik tekshiruvi bilan** (`customer_outstanding` xatosi takrorlanmasin).
+- Daftar: `partner_statement(shop, 'customer'|'supplier', partner_id, from, to)`: Eski (davr boshidagi qoldiq), Tovar, Jami, Berildi, Ostatka (= Eski + Tovar - Berildi). Hisob SQL'da, TS'da mustaqil (S3), taqqoslanadi.
+
+### Testlar (SQL + core)
+Kirim 100×9 000 + 50×11 000 = 1 450 000, berildi 1 000 000 -> ostatka 450 000; `reverse_purchase` ostatka va qoldiqni qaytaradi; bir martalik savdo qarz yaratmaydi; foyda 10×13 000 sotuv, 10×11 000 tan -> 20 000; manfiy qoldiq ogohlantirish; boshqa do'kon izolyatsiyasi; OAuth token yozuv RPC'larini chaqira olmaydi; mavjud 001-005 testlari o'zgarmaydi.
+
+### Mobil (keyingi kod PR'i)
+SQLite `schema.ts` v6: `suppliers`, `purchases`, `purchase_lines`, `supplier_payments`, `stock_movements`, `customers.kind/is_active/source`, `products.cost_price/sale_price`; `sync.ts` (push) va `pull.ts` yangi entity'lar, mijoz `is_active` (arxiv telefonda yashiriladi, tarix saqlanadi). Server ustunini so'raydigan pull o'zgarishi migratsiya qo'llangandan keyin merge bo'ladi.

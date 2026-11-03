@@ -6,8 +6,8 @@ Reja: [REJA-3.md](REJA-3.md). Yangilangan: 03.11.2026. Keyingi seans shu fayldan
 |---|---|---|
 | Reja | tayyor | `REJA-3.md` |
 | S1 PR-A (DB: `005_agent_catalog.sql`) | **tayyor, PR #3 ochilgan** | migratsiya, SQL testlar (110 tekshiruv, mutatsiya bilan tekshirilgan), qarorlar. Hali qo'llanmagan: `main` ga merge bo'lganda CI qo'llaydi |
-| S1 PR-B (MCP + veb) | **tayyor, PR ochiladi** | MCP: `add_customer`, `add_products`, `list_products`, `propose_change` (66 test); veb: Qoralamalarda yangi turlar, "AI qo'shdi"/"Arxiv" belgisi, arxivlangan mijoz yangi savdoda ko'rinmaydi (139 test); `docs/MCP-AGENT.md`. **PR-A (005) merge va qo'llangandan keyin merge qilinadi** |
-| S2 ma'lumotlar modeli | boshlanmagan | migratsiya 006 (kerak bo'lsa 007), mobil SQLite sxemasi va sync |
+| S1 PR-B (MCP + veb) | **tayyor, PR #4 ochilgan** | MCP: `add_customer`, `add_products`, `list_products`, `propose_change` (66 test); veb: Qoralamalarda yangi turlar, "AI qo'shdi"/"Arxiv" belgisi, arxivlangan mijoz yangi savdoda ko'rinmaydi (139 test); `docs/MCP-AGENT.md`. **PR-A (005) merge va qo'llangandan keyin merge qilinadi** |
+| S2 ma'lumotlar modeli | **dizayn tayyor, kod boshlanmagan** | `REJA-3.md` 7-band: 006 (hamkorlar, bir martalik mijoz, tan/sotuv narxi), 007 (kirim, ombor, ta'minotchi to'lovi), keyin mobil sxema/sync |
 | S3 hisob moduli | boshlanmagan | `packages/core` |
 | S4 mobil va veb | boshlanmagan | |
 | S5 MCP kengaytmasi | boshlanmagan | |
