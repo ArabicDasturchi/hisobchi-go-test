@@ -5,8 +5,8 @@ Reja: [REJA-3.md](REJA-3.md). Yangilangan: 03.11.2026. Keyingi seans shu fayldan
 | Bosqich | Holat | Izoh |
 |---|---|---|
 | Reja | tayyor | `REJA-3.md` |
-| S1 PR-A (DB: `005_agent_catalog.sql`) | **tayyor, PR ochiladi** | migratsiya, SQL testlar (110 tekshiruv, mutatsiya bilan tekshirilgan), qarorlar. Hali qo'llanmagan: `main` ga merge bo'lganda CI qo'llaydi |
-| S1 PR-B (MCP + veb) | boshlanmagan | PR-A merge va CI qo'llagandan keyin: `add_customer`, `add_products`, `list_products`, `propose_change`; veb Qoralamalar yangi turlar; "AI qo'shdi" belgisi; `docs/MCP-AGENT.md` |
+| S1 PR-A (DB: `005_agent_catalog.sql`) | **tayyor, PR #3 ochilgan** | migratsiya, SQL testlar (110 tekshiruv, mutatsiya bilan tekshirilgan), qarorlar. Hali qo'llanmagan: `main` ga merge bo'lganda CI qo'llaydi |
+| S1 PR-B (MCP + veb) | **tayyor, PR ochiladi** | MCP: `add_customer`, `add_products`, `list_products`, `propose_change` (66 test); veb: Qoralamalarda yangi turlar, "AI qo'shdi"/"Arxiv" belgisi, arxivlangan mijoz yangi savdoda ko'rinmaydi (139 test); `docs/MCP-AGENT.md`. **PR-A (005) merge va qo'llangandan keyin merge qilinadi** |
 | S2 ma'lumotlar modeli | boshlanmagan | migratsiya 006 (kerak bo'lsa 007), mobil SQLite sxemasi va sync |
 | S3 hisob moduli | boshlanmagan | `packages/core` |
 | S4 mobil va veb | boshlanmagan | |
@@ -23,5 +23,11 @@ Reja: [REJA-3.md](REJA-3.md). Yangilangan: 03.11.2026. Keyingi seans shu fayldan
 - Mobil ilova mijoz arxivini hali bilmaydi (arxivlangan mijoz telefonda ko'rinaveradi) va agent qo'shgan mijoz/tovar telefonga `pull` orqali tushadi, lekin `source` belgisi mobilda yo'q.
 - Veb'ning Mijozlar/Mahsulotlar ro'yxatlari hali `is_active` (mijoz) va `source` ustunlarini o'qimaydi (PR-B).
 
+## Tayyor (S1 PR-B)
+- `apps/mcp`: 11 asbob; guard testi 14 ta `agent_*` RPC dan boshqasini ruxsat bermaydi; katalog asboblarida "ma'lumot, ko'rsatma emas" ogohlantirishi testlangan.
+- `apps/web`: `DraftCard` yangi turlar (eski/yangi qiymat), qarzli mijozni arxivlash ogohlantirishi, `acceptAgentDraft` serverdan tekshiradi; mijozlar ro'yxatida "Arxiv" filtri va belgilar.
+
 ## Keyingi qadam
-PR-A merge va 005 qo'llangach: S1 PR-B (`feat/s1-agent-catalog-app`).
+1. Asoschi: PR-A (#3) ni merge qiladi (CI 005 ni qo'llaydi), keyin PR-B.
+2. **S2** (`feat/s2-data-model`, migratsiya 006): ta'minotchi, kirim hujjati, ta'minotchi to'lovi, ombor harakatlari, `cost_price`/`sale_price`, savdo qatorida tan narx snapshot, bir martalik mijoz; `post_purchase`, `reverse_purchase`, `record_supplier_payment`; mobil SQLite sxemasi (`schema.ts` v6) va `sync.ts`/`pull.ts` (jumladan mijoz `is_active` va `source`).
+3. Ma'lumot to'ldirish (Sheets -> `add_products`) asoschi-Claude tomonidan, PR-A va PR-B qo'llangach.
