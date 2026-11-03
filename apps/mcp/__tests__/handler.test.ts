@@ -82,13 +82,13 @@ describe('HTTP qatlami', () => {
     expect(res.status).toBe(413);
   });
 
-  it('yaroqli token: tools/list 7 ta asbob qaytaradi, DB klienti shu token bilan yaratiladi', async () => {
+  it('yaroqli token: tools/list 11 ta asbob qaytaradi, DB klienti shu token bilan yaratiladi', async () => {
     const { handle, createDb } = setup();
     const token = await signToken(keys.privateKey);
     const res = await handle(rpc(token, { jsonrpc: '2.0', id: 1, method: 'tools/list' }));
     expect(res.status).toBe(200);
     const body = (await res.json()) as { result: { tools: Array<{ name: string }> } };
-    expect(body.result.tools).toHaveLength(7);
+    expect(body.result.tools).toHaveLength(11);
     expect(createDb).toHaveBeenCalledWith(token);
   });
 

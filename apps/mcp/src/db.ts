@@ -2,6 +2,7 @@
  * Ma'lumotlar qatlami. MCP server bazaga FAQAT shu yerdagi `agent_*` RPC'lar orqali murojaat qiladi
  * (foydalanuvchining o'z tokeni bilan, RLS ostida). post_sale, reverse_sale, record_payment, void_payment,
  * accept/reject_agent_draft bu yerda yo'q va bo'lmasligi kerak (__tests__/guard.test.ts tekshiradi).
+ * Katalog (mijoz, tovar): agent_add_* QO'SHADI; o'zgartirish va arxiv faqat agent_propose_* (tasdiqlash so'rovi).
  *
  * Javoblar zod bilan tekshiriladi va faqat ma'lum maydonlar qoldiriladi: bazadan kutilmagan ustun
  * (masalan telefon) kelib qolsa ham AI ga chiqmaydi.
@@ -60,7 +61,21 @@ const dayRows = z.object({
   pg_totals: z.object({ sales_posted: bigintLike, sales_reversed: bigintLike, payments: bigintLike }),
 });
 
+const productItem = z.object({ id: uuid, name: z.string(), unit: z.string(), price: bigintLike.nullable(), is_active: z.boolean() });
+const productRow = productItem.extend({ source: z.string() });
+const addedCustomer = z.object({ id: uuid, name: z.string(), created: z.boolean(), is_active: z.boolean(), source: z.string(), replayed: z.boolean().optional() });
+const addedProducts = z.object({
+  created: z.array(productItem),
+  existing: z.array(productItem),
+  created_count: z.number().int(),
+  existing_count: z.number().int(),
+  replayed: z.boolean().optional(),
+});
+
 export type Shop = z.infer<typeof shopRow>;
+export type ProductRow = z.infer<typeof productRow>;
+export type AddedCustomer = z.infer<typeof addedCustomer>;
+export type AddedProducts = z.infer<typeof addedProducts>;
 export type CustomerRow = z.infer<typeof customerRow>;
 export type SaleListRow = z.infer<typeof saleListRow>;
 export type SaleDetail = z.infer<typeof saleDetail>;
@@ -90,6 +105,14 @@ export interface AgentDb {
   }): Promise<SaleListRow[]>;
   getSale(a: { shopId: string; saleId: string }): Promise<SaleDetail>;
   dayRows(a: { shopId: string; day: string }): Promise<DayRows>;
+  listProducts(a: { shopId: string; query: string | null; includeArchived: boolean; limit: number; offset: number }): Promise<ProductRow[]>;
+  /** Tasdiqsiz qo'shadi (katalog uchun ruxsat etilgan yagona yozuv). Dublikat bo'lsa mavjudini qaytaradi */
+  addCustomer(a: { shopId: string; requestId: string; name: string }): Promise<AddedCustomer>;
+  addProducts(a: { shopId: string; requestId: string; items: Array<{ name: string; unit: string; price: number | null }> }): Promise<AddedProducts>;
+  /** O'zgartirish/arxiv: faqat tasdiqlash so'rovi (qoralama) yaratadi, hech narsa o'zgarmaydi */
+  proposeCustomerUpdate(a: { shopId: string; requestId: string; customerId: string; name: string }): Promise<string>;
+  proposeProductUpdate(a: { shopId: string; requestId: string; productId: string; changes: { name?: string; unit?: string; price?: number | null } }): Promise<string>;
+  proposeArchive(a: { shopId: string; requestId: string; kind: 'customer' | 'product'; targetId: string }): Promise<string>;
   draftSale(a: {
     shopId: string;
     opId: string;
@@ -159,6 +182,20 @@ export function createSupabaseDb(client: RpcClient): AgentDb {
       ),
     getSale: (a) => call('agent_get_sale', { p_shop_id: a.shopId, p_sale_id: a.saleId }, saleDetail),
     dayRows: (a) => call('agent_day_rows', { p_shop_id: a.shopId, p_day: a.day }, dayRows),
+    listProducts: (a) =>
+      call(
+        'agent_list_products',
+        { p_shop_id: a.shopId, p_query: a.query, p_include_archived: a.includeArchived, p_limit: a.limit, p_offset: a.offset },
+        z.array(productRow),
+      ),
+    addCustomer: (a) => call('agent_add_customer', { p_shop_id: a.shopId, p_request_id: a.requestId, p_name: a.name }, addedCustomer),
+    addProducts: (a) => call('agent_add_products', { p_shop_id: a.shopId, p_request_id: a.requestId, p_items: a.items }, addedProducts),
+    proposeCustomerUpdate: (a) =>
+      call('agent_propose_customer_update', { p_shop_id: a.shopId, p_request_id: a.requestId, p_customer_id: a.customerId, p_name: a.name }, uuid),
+    proposeProductUpdate: (a) =>
+      call('agent_propose_product_update', { p_shop_id: a.shopId, p_request_id: a.requestId, p_product_id: a.productId, p_changes: a.changes }, uuid),
+    proposeArchive: (a) =>
+      call('agent_propose_archive', { p_shop_id: a.shopId, p_request_id: a.requestId, p_kind: a.kind, p_target_id: a.targetId }, uuid),
     draftSale: (a) =>
       call(
         'agent_draft_sale',
