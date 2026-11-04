@@ -22,9 +22,32 @@ const lineSchema = z.object({
   warnings: z.array(z.string()).max(10).optional(),
 });
 
+const methodSchema = z.enum(PAYMENT_METHODS as unknown as [PaymentMethod, ...PaymentMethod[]]);
+
 const salePayload = z.object({
   raw_input: z.string().nullable().optional(),
   lines: z.array(lineSchema).min(1).max(200),
+  // 008 dan: eski qoralamalarda yo'q
+  walkin: z.boolean().optional(),
+  paid: z.union([z.string().regex(/^\d{1,18}$/), z.null()]).optional(),
+  payment_method: z.union([methodSchema, z.null()]).optional(),
+});
+
+const purchaseLineSchema = z.object({
+  product_id: z.string().uuid(),
+  product_name: z.string().min(1).max(200),
+  unit: z.string().min(1).max(20),
+  qty_milli: intText,
+  unit_cost: intText,
+  line_total: intText,
+  warnings: z.array(z.string()).max(10).optional(),
+});
+const purchasePayload = z.object({
+  doc_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  lines: z.array(purchaseLineSchema).min(1).max(200),
+  paid: z.union([z.string().regex(/^\d{1,18}$/), z.null()]).optional(),
+  payment_method: z.union([methodSchema, z.null()]).optional(),
+  note: z.union([z.string(), z.null()]).optional(),
 });
 
 const paymentPayload = z.object({
@@ -59,6 +82,8 @@ export interface AgentDraftRow {
   kind: string;
   status: string;
   customer_id: string | null;
+  /** kirim qoralamasi: ta'minotchi; katalog so'rovi: nishon (eski qatorlarda yo'q bo'lishi mumkin) */
+  target_id?: string | null;
   total: string;
   payload: unknown;
   client_id: string;
@@ -70,9 +95,9 @@ export interface AgentDraftRow {
 
 /** Ustunlar ro'yxati: bigint "::text" bilan (aniqlik yo'qolmasin) */
 export const AGENT_DRAFT_COLS =
-  'id, kind, status, customer_id, total::text, payload, client_id, created_by, created_at, decided_at, reject_reason';
+  'id, kind, status, customer_id, target_id, total::text, payload, client_id, created_by, created_at, decided_at, reject_reason';
 
-export function parseDetail(kind: string, payload: unknown): AgentDraftDetail {
+export function parseDetail(kind: string, payload: unknown, targetId: string | null = null): AgentDraftDetail {
   if (kind === 'sale') {
     const p = salePayload.safeParse(payload);
     if (!p.success) return { kind: 'unreadable', reason: "Savdo qatorlari o'qib bo'lmadi" };
@@ -85,7 +110,35 @@ export function parseDetail(kind: string, payload: unknown): AgentDraftDetail {
       raw_text: l.raw_text ?? null,
       warnings: l.warnings ?? [],
     }));
-    return { kind: 'sale', raw_input: p.data.raw_input ?? null, lines };
+    return {
+      kind: 'sale',
+      raw_input: p.data.raw_input ?? null,
+      lines,
+      walkin: p.data.walkin === true,
+      paid: p.data.paid ? toBig(p.data.paid) : null,
+      method: p.data.payment_method ?? null,
+    };
+  }
+  if (kind === 'purchase') {
+    const p = purchasePayload.safeParse(payload);
+    if (!p.success || !targetId) return { kind: 'unreadable', reason: "Kirim qoralamasi o'qib bo'lmadi" };
+    return {
+      kind: 'purchase',
+      supplier_id: targetId,
+      doc_date: p.data.doc_date,
+      lines: p.data.lines.map((l) => ({
+        product_id: l.product_id,
+        product_name: l.product_name,
+        unit: l.unit,
+        qty_milli: toBig(l.qty_milli),
+        unit_cost: toBig(l.unit_cost),
+        line_total: toBig(l.line_total),
+        warnings: l.warnings ?? [],
+      })),
+      paid: p.data.paid ? toBig(p.data.paid) : null,
+      method: p.data.payment_method ?? null,
+      note: p.data.note ?? null,
+    };
   }
   if (kind === 'payment') {
     const p = paymentPayload.safeParse(payload);
@@ -129,13 +182,14 @@ export function toAgentDraft(r: AgentDraftRow): AgentDraft {
     id: r.id,
     status,
     customer_id: r.customer_id,
+    target_id: r.target_id ?? null,
     total: toBig(r.total),
     client_id: r.client_id,
     created_by: r.created_by,
     created_at: r.created_at,
     decided_at: r.decided_at,
     reject_reason: r.reject_reason,
-    detail: parseDetail(r.kind, r.payload),
+    detail: parseDetail(r.kind, r.payload, r.target_id ?? null),
   };
 }
 
@@ -146,6 +200,14 @@ export function toAgentDraft(r: AgentDraftRow): AgentDraft {
 export function integrityError(d: AgentDraft): string | null {
   if (d.detail.kind === 'unreadable') return d.detail.reason;
   if (d.detail.kind === 'payment') return d.total > 0n ? null : "To'lov summasi noto'g'ri";
+  if (d.detail.kind === 'purchase') {
+    for (const [i, l] of d.detail.lines.entries()) {
+      if (documentTotal([{ qtyMilli: l.qty_milli, unitPrice: l.unit_cost }]) !== l.line_total) return `${i + 1}-qator summasi mos kelmadi`;
+    }
+    const goods = documentTotal(d.detail.lines.map((l) => ({ qtyMilli: l.qty_milli, unitPrice: l.unit_cost })));
+    if (goods !== d.total) return "Kirim jami qatorlar yig'indisiga mos kelmadi";
+    return null;
+  }
   // Katalog so'rovlari pulga tegmaydi: jami 0 bo'lishi shart (aks holda payload shubhali)
   if (d.detail.kind !== 'sale') return d.total === 0n ? null : "Katalog so'rovida summa bo'lmasligi kerak";
   for (const [i, l] of d.detail.lines.entries()) {
@@ -154,7 +216,11 @@ export function integrityError(d: AgentDraft): string | null {
     }
   }
   const sum = documentTotal(d.detail.lines.map((l) => ({ qtyMilli: l.qty_milli, unitPrice: l.unit_price })));
-  return sum === d.total ? null : 'Qoralama jami qatorlar yig\'indisiga mos kelmadi';
+  if (sum !== d.total) return 'Qoralama jami qatorlar yig\'indisiga mos kelmadi';
+  // Bir martalik mijoz qarzga olmaydi: to'lov jamiga teng bo'lishi shart; to'lov jamidan oshmasin
+  if (d.detail.walkin && (d.detail.paid === null || d.detail.paid !== d.total)) return "Bir martalik savdo to'liq to'lanishi kerak";
+  if (d.detail.paid !== null && d.detail.paid > d.total) return "To'lov savdo jamidan katta";
+  return null;
 }
 
 /** Kartochka sarlavhasi */
@@ -164,6 +230,8 @@ export function draftTitle(d: AgentDraft): string {
       return 'Savdo qoralamasi';
     case 'payment':
       return "To'lov qoralamasi";
+    case 'purchase':
+      return 'Kirim qoralamasi';
     case 'customer_update':
       return "Mijoz nomini o'zgartirish";
     case 'product_update':
@@ -179,7 +247,7 @@ export function draftTitle(d: AgentDraft): string {
 
 /** Qatorlardagi ogohlantirishlar soni (sariq belgi uchun) */
 export function warningCount(d: AgentDraft): number {
-  return d.detail.kind === 'sale' ? d.detail.lines.filter((l) => l.warnings.length > 0).length : 0;
+  return d.detail.kind === 'sale' || d.detail.kind === 'purchase' ? d.detail.lines.filter((l) => l.warnings.length > 0).length : 0;
 }
 
 /** "Kim yaratgan": OAuth klient nomi (listGrants), topilmasa qisqa ID */

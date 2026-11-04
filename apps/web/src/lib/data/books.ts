@@ -186,3 +186,13 @@ export function stockView(i: StockItem): StockView {
   const margin = i.cost_price === null || i.sale_price === null ? null : lineProfit({ qtyMilli: 1000n, unitPrice: i.sale_price, unitCost: i.cost_price });
   return { level: stockLevel(i.qty_milli), margin };
 }
+
+/** Qoralama kartochkasi uchun ta'minotchi nomlari. 006 qo'llanmagan yoki xato bo'lsa bo'sh (kartochka "Ta'minotchi" deydi) */
+export async function listSupplierNames(sb: SB, shopId: string): Promise<ReadonlyMap<string, string>> {
+  try {
+    const rows = await fetchAll<{ id: string; name: string }>((from, to) => sb.from('suppliers').select('id, name').eq('shop_id', shopId).order('id').range(from, to));
+    return new Map(rows.map((r) => [r.id, r.name]));
+  } catch {
+    return new Map();
+  }
+}

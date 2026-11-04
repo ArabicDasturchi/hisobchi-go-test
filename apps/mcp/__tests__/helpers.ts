@@ -7,6 +7,9 @@ export const SUPABASE = 'https://proj.supabase.co';
 export const USER = 'a2a2a2a2-0000-0000-0000-000000000001';
 export const SHOP = '11111111-1111-4111-8111-111111111111';
 export const CUSTOMER = 'c2c2c2c2-0000-4000-8000-000000000001';
+export const SUPPLIER = 'a2a2a2a2-0000-4000-8000-000000000001';
+export const PRODUCT_UN = 'f2f2f2f2-0000-4000-8000-000000000001';
+export const PRODUCT_YOG = 'f2f2f2f2-0000-4000-8000-000000000002';
 
 export function testConfig(over: Partial<Config> = {}): Config {
   return {
@@ -72,6 +75,7 @@ export function fakeDb(over: Partial<AgentDb> = {}): { [K in keyof AgentDb]: Ret
       pg_totals: { sales_posted: 0n, sales_reversed: 0n, payments: 0n },
     })),
     listProducts: vi.fn(async () => []),
+    listSuppliers: vi.fn(async () => []),
     addCustomer: vi.fn(async () => ({ id: CUSTOMER, name: 'Rahim aka', created: true, is_active: true, source: 'agent' })),
     addProducts: vi.fn(async () => ({ created: [], existing: [], created_count: 0, existing_count: 0 })),
     proposeCustomerUpdate: vi.fn(async () => 'e4e4e4e4-0000-4000-8000-000000000001'),
@@ -79,6 +83,7 @@ export function fakeDb(over: Partial<AgentDb> = {}): { [K in keyof AgentDb]: Ret
     proposeArchive: vi.fn(async () => 'e4e4e4e4-0000-4000-8000-000000000003'),
     draftSale: vi.fn(async () => 'd3d3d3d3-0000-4000-8000-000000000001'),
     draftPayment: vi.fn(async () => 'd3d3d3d3-0000-4000-8000-000000000002'),
+    draftPurchase: vi.fn(async () => 'd3d3d3d3-0000-4000-8000-000000000003'),
     ...over,
   };
   return db as never;

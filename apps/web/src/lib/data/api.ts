@@ -423,6 +423,11 @@ export async function acceptAgentDraft(sb: SB, shopId: string, draft: AgentDraft
     if (!doc || doc.status !== 'posted' || toBig(doc.subtotal) !== draft.total) {
       throw new AppError('unknown', "Savdo serverda kutilgan summada topilmadi. Savdolar ro'yxatini tekshiring.");
     }
+  } else if (d.kind === 'purchase') {
+    const doc = check(await sb.from('purchase_documents').select('status, subtotal::text').eq('shop_id', shopId).eq('id', draft.id).maybeSingle()) as { status: string; subtotal: string } | null;
+    if (!doc || doc.status !== 'posted' || toBig(doc.subtotal) !== draft.total) {
+      throw new AppError('unknown', "Kirim serverda kutilgan summada topilmadi. Kirim daftarini tekshiring.");
+    }
   } else if (d.kind === 'payment') {
     const pay = check(await sb.from('payments').select('amount::text').eq('shop_id', shopId).eq('id', draft.id).maybeSingle()) as { amount: string } | null;
     if (!pay || toBig(pay.amount) !== draft.total) {
