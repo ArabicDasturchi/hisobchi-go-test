@@ -14,7 +14,7 @@ PSQL=(psql -X -q -v ON_ERROR_STOP=1 -w)
 cleanup() { "${PSQL[@]}" -d postgres -c "DROP DATABASE IF EXISTS $DB" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-# 003-006 ikki marta qo'llanadi — qayta ishga tushirish xavfsizligini tekshirish uchun
+# 003-007 ikki marta qo'llanadi — qayta ishga tushirish xavfsizligini tekshirish uchun
 FILES=(
   tests/00_supabase_stub.sql
   migrations/001_initial_schema.sql
@@ -27,10 +27,13 @@ FILES=(
   migrations/005_agent_catalog.sql
   migrations/006_partners_stock.sql
   migrations/006_partners_stock.sql
+  migrations/007_purchases.sql
+  migrations/007_purchases.sql
   tests/10_security_isolation.test.sql
   tests/20_agent_mcp.test.sql
   tests/30_agent_catalog.test.sql
   tests/40_partners_stock.test.sql
+  tests/50_purchases.test.sql
 )
 
 "${PSQL[@]}" -d postgres -c "CREATE DATABASE $DB" >/dev/null
