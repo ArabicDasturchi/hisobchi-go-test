@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { SUPABASE_ANON_KEY, SUPABASE_URL, supabaseConfigured } from './lib/env';
+import { DEMO_MODE, SUPABASE_ANON_KEY, SUPABASE_URL, supabaseConfigured } from './lib/env';
 import { loginNextFor } from './lib/oauthConsent';
 
 /** Kirishsiz ochiladigan sahifalar */
@@ -14,6 +14,11 @@ function isPublic(path: string) {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  if (DEMO_MODE) {
+    // Demo: sessiya doim "kirgan" (soxta klient), Supabase'ga murojaat yo'q
+    if (GUEST_ONLY.includes(path) || path === '/setup') return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.next();
+  }
   if (!supabaseConfigured) {
     return path === '/setup' ? NextResponse.next() : NextResponse.redirect(new URL('/setup', request.url));
   }

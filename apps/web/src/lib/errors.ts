@@ -42,6 +42,8 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   [/failed to fetch|network ?error|fetch failed|load failed|timeout|econn|offline/, 'network', "Internet aloqasi yo'q yoki server javob bermadi. Qayta urinib ko'ring."],
   // --- RPC biznes xatolari (003 migratsiyasidagi nomlar) ---
   [/not_authenticated|jwt|28000|refresh token|auth session missing/, 'auth', 'Sessiya tugagan. Qaytadan kiring.'],
+  // --- Demo rejimi (npm run demo) ---
+  [/demo_read_only/, 'forbidden', "Demo rejimida veb panel faqat ko'rsatadi: yozish o'chirilgan. Yozib ko'rish uchun mobil web demoni oching."],
   // --- Agent qoralamalari (004 migratsiyasi) ---
   [/draft_already_decided/, 'conflict', 'Bu qoralama allaqachon tasdiqlangan yoki rad etilgan.'],
   [/draft_not_found/, 'not_found', 'Qoralama topilmadi.'],

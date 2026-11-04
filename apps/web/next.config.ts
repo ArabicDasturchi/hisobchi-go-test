@@ -3,6 +3,8 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   // Umumiy hisob-kitob moduli (BigInt formulasi) TypeScript manba sifatida ulanadi
   transpilePackages: ['@hisobchi/core'],
+  // Demo seed (scripts/demo-seed) monorepo ildizida: repo ichidagi tashqi papkadan import qilinadi
+  experimental: { externalDir: true },
   poweredByHeader: false,
   // Next.js dev-tools indikatori (pastki chap burchakdagi "N") o'chiriladi; faqat `next dev` ga ta'sir qiladi
   devIndicators: false,

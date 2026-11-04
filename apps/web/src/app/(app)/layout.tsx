@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
+import { DemoBanner } from '@/components/DemoBanner';
 import { AppShell } from '@/components/layout/AppShell';
 import { ShopDataProvider, useMembershipLoader } from '@/components/ShopDataProvider';
 import { ErrorState, FullPageSpinner } from '@/components/ui/primitives';
@@ -33,6 +34,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <ShopDataProvider membership={membership.membership}>
       <AppShell>{children}</AppShell>
+      <DemoBanner />
     </ShopDataProvider>
   );
 }

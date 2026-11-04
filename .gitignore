@@ -57,3 +57,4 @@ Thumbs.db
 # Supabase CLI vaqtinchalik holati (link, pooler manzili va h.k.): repoga tushmasin
 supabase/.temp/
 supabase/.branches/
+apps/web/AGENTS.md
