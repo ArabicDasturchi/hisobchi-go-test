@@ -13,11 +13,34 @@ Savdogar spiskasini ovoz/rasm orqali tushunib, kod bilan hisoblaydigan ilova. Ja
 
 ## Stack
 
-Expo (React Native) + TypeScript, Supabase, monorepo: `apps/mobile`, `packages/core`, `supabase/`. Hisob kodi faqat `packages/core` da.
+Expo (React Native) + TypeScript, Supabase (Postgres, Edge Functions), monorepo: `apps/mobile` (asosiy), `apps/web` (Next.js panel), `apps/mcp`, `packages/core`, `supabase/`. Hisob kodi faqat `packages/core` da (SQL ikkinchi yo'l `supabase/migrations` da).
+
+## MVP tamoyili
+
+MVP: savdogar pul to'laydigan **bitta to'liq ishlaydigan** qiymat, o'nta yarimta funksiya emas. Har yangi ish oldidan savol: "Bu savdogarni pul to'lashga yaqinlashtiradimi?" Navbat: [docs/VAZIFALAR-ICE.md](docs/VAZIFALAR-ICE.md).
+
+## Ish uslubi: "Boil the Ocean" (ijro bosqichida) va vazifani oxirigacha tugatish
+
+**Chegara:** bu qoida faqat berilgan vazifa (yoki tasdiqlangan reja) **ichida** ishlaydi. U yuqoridagi "Eng muhim qoidalar"ni, "MVP tamoyili"ni va tasdiq bosqichlarini bekor qilmaydi: reja tasdig'i so'ralgan bo'lsa, tasdiqsiz ijroga o'tma; `main` ga o'zing merge qilma; migratsiyani production'ga o'zing qo'llama; sirlarni so'rama. "Hammasini qil" degani vazifa **chegarasini kengaytirish** emas: berilgan ishni to'liq qil, unga kirmagan yangi funksiya qo'shma.
+
+Remember when implementing: The marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that I am genuinely impressed, not politely satisfied, actually impressed.
+
+Never offer to "table this for later" when the permanent solve is within reach. Never leave a dangling thread when tying it off takes five more minutes. Never present a workaround when the real fix exists. The standard isn't "good enough", it's "holy shit, that's done." Search before building. Test before shipping. Ship the complete thing.
+
+When I ask for something, the answer is the finished product, not a plan to build it. Time is not an excuse. Fatigue is not an excuse. Complexity is not an excuse. Boil the ocean.
+
+### Tugatish qoidasi (shu loyiha uchun)
+1. **Bosqichli vazifada to'xtama.** Promptda S1, S2, S3... bo'lsa, S1 tugagach "keyingi qadam" deb to'xtab hisobot yozma: keyingi bosqichga darhol o't. Bosqichlar tartibi va bog'liqligi vazifada yozilgan.
+2. **To'xtash faqat shu hollarda:** (a) asoschi qarori yoki sir (kalit, parol) kerak; (b) keyingi bosqich hali qo'llanmagan migratsiyaga haqiqatan tayanadi va uni sensiz sinab bo'lmaydi; (c) qoida yoki qarorga zid ish chiqdi; (d) seans limiti tugayapti. Boshqa sabab (charchoq, murakkablik, "keyinroq") yo'q.
+3. **Ochiq savol to'xtatmasin:** mantiqiy default tanla, tanlovni PR tavsifida va `docs/QARORLAR.md` da yoz, ishni davom ettir. Qaytarib bo'lmaydigan va ikki xil bo'lishi mumkin bo'lgan qaror bo'lsa, tayyorgarlikni tugat, qarorni yoz va faqat o'sha joyda to'xta.
+4. **"Tayyor" degani:** kod yozilgan; `npm test` va `npm run typecheck` yashil; yangi mantiq uchun test bor (xatoni ushlashini tekshir); hujjat yangilangan; PR ochilgan; tavsifida nima o'zgargani, nima sinalmagani yozilgan. Haqiqiy Supabase, brauzer yoki telefonda sinalmagan narsani "ishlaydi" dema: "sinalmagan" deb yoz.
+5. **Seans tugashi mumkin bo'lsa:** `docs/HOLAT-3.md` (yoki shu vazifaning holat fayli) ga nima tayyor, nima qoldi, keyingi aniq qadamni yoz va commit/push qil. Keyingi seans `git status`, `git log` va shu fayldan davom etadi.
+6. **Yakuniy hisobotda** faqat haqiqatni yoz: tayyor bosqichlar, boshlanmagan bosqichlar va sababi. Chala ishni tugagan dema.
 
 ## Hujjatlar
 
-- [docs/TZ-MVP.md](docs/TZ-MVP.md) — MVP vazifasi
+- [docs/TZ-MVP.md](docs/TZ-MVP.md) — MVP vazifasi (v2: ovozli savdo, suratdan kirim)
+- [docs/VAZIFALAR-ICE.md](docs/VAZIFALAR-ICE.md) — vazifalar navbati, ish bo'linishi (kim qaysi fayllarda ishlaydi)
 - [docs/ARXITEKTURA.md](docs/ARXITEKTURA.md) — tuzilma
 - [docs/QARORLAR.md](docs/QARORLAR.md) — qarorlar jurnali
 - [docs/MIGRATSIYA-CI.md](docs/MIGRATSIYA-CI.md) — migratsiyalar `main` ga merge bo'lganda CI orqali qo'llanadi; yangi fayl `005_nom.sql` shaklida
@@ -26,7 +49,9 @@ Expo (React Native) + TypeScript, Supabase, monorepo: `apps/mobile`, `packages/c
 
 ## Ish tartibi
 
-- O'zgarishdan oldin TZ va qarorlarni o'qi; qarorga zid ish qilmaydigan bo'l.
+- O'zgarishdan oldin TZ, VAZIFALAR-ICE va qarorlarni o'qi; qarorga zid ish qilmaydigan bo'l.
+- Ikki Claude Code parallel ishlaydi: faqat o'z hududingdagi fayllarni o'zgartir (VAZIFALAR-ICE, 3-bo'lim). `main` ga o'zing merge qilma.
+- `docs/arxiv/` dagi hujjatlar eskirgan: ularga tayanma.
 - Hisob modulini har o'zgarishda testlar bilan tekshir (namuna: 10×13 000 + 5×15 000 + 20×9 000 = 385 000).
 - Faktni to'qima: topilmasa "topilmadi" deb yoz.
 - Kichik commitlar, tushunarli xabarlar.

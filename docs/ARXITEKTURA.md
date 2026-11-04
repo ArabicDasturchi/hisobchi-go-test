@@ -1,5 +1,7 @@
 # Hisobchi Go — arxitektura (v2)
 
+> **03.11.2026 eslatma:** bu reja 28.10 da yozilgan. Joriy koddan farqlar: hisobning A yo'li telefonda `packages/core` (TS), B yo'li Postgres SQL (`post_sale`); veb panel Next.js (`apps/web`); AI hali ulanmagan. Joriy holat va navbat: [TZ-MVP.md](TZ-MVP.md), [VAZIFALAR-ICE.md](VAZIFALAR-ICE.md). Ziddiyat bo'lsa ular ustun.
+
 Holat: qurishga tayyor reja. Oxirgi yangilanish: 28.10.2026. **Mobil-birinchi:** asosiy mahsulot Android va iOS ilovasi; savdogarga alohida kompyuter kerak emas. Veb (PC) versiya shu kodning o'zidan chiqadi.
 Belgilar: **[QAROR]** — shu bilan quramiz. **[SINASH]** — tanlov sinov natijasiga bog'liq. **[TAXMIN]** — o'lchanmagan.
 
