@@ -73,16 +73,13 @@ export function toCloudClient(sb: SupabaseClient): CloudClient {
       const { error } = await sb.from(table).upsert(rows, { onConflict: 'id' });
       return { data: null, error: error ? { message: error.message, code: error.code, details: error.details, hint: error.hint } : null };
     },
-    async selectAll<T>(table: string, columns: string, shopId: string) {
+    async selectAll<T>(table: string, columns: string, shopId: string, filter?: { column: string; value: string }) {
       const PAGE = 1000; // PostgREST standart maksimal qatorlar soni
       const out: T[] = [];
       for (let from = 0; ; from += PAGE) {
-        const { data, error } = await sb
-          .from(table)
-          .select(columns)
-          .eq('shop_id', shopId)
-          .order('id')
-          .range(from, from + PAGE - 1);
+        let q = sb.from(table).select(columns).eq('shop_id', shopId);
+        if (filter) q = q.eq(filter.column, filter.value);
+        const { data, error } = await q.order('id').range(from, from + PAGE - 1);
         if (error) return { data: null, error: { message: error.message, code: error.code, details: error.details, hint: error.hint } };
         out.push(...((data ?? []) as T[]));
         if (!data || data.length < PAGE) break;

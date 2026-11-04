@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { CloudClient, CloudResult, CloudTable } from '../src/backend/cloud';
 import { pullFromCloud } from '../src/backend/pull';
-import { pendingCount, pushToCloud } from '../src/backend/sync';
+import { ALL_ENTITIES, pendingCount, pushToCloud, type SyncEntity } from '../src/backend/sync';
 import { createLedger, type Ledger } from '../src/data/ledger';
 import { migrate } from '../src/data/schema';
 import { openMemoryDb } from './node-sqlite';
@@ -57,6 +57,8 @@ function webData(): Tables {
   };
 }
 
+const ZERO = Object.fromEntries(ALL_ENTITIES.map((e) => [e, 0])) as Record<SyncEntity, number>;
+
 let db: ReturnType<typeof openMemoryDb>;
 let ledger: Ledger;
 let clock = 0;
@@ -74,7 +76,7 @@ describe('pullFromCloud', () => {
   it("web'da yaratilgan mijoz, mahsulot, savdo, bekor qilish va to'lovni import qiladi; qarz to'g'ri", async () => {
     const res = await pullFromCloud(db, new FakeCloud(webData()), 'shop', deps);
     expect(res.error).toBeNull();
-    expect(res.imported).toEqual({ customer: 1, product: 1, sale: 2, reversal: 1, payment: 1, payment_void: 0 });
+    expect(res.imported).toEqual({ ...ZERO, customer: 1, product: 1, sale: 2, reversal: 1, payment: 1, payment_void: 0 });
     expect(res.rejected.map((r) => r.reason)).toEqual(["narx ko'rsatilmagan"]); // arxiv — jim o'tkazib yuboriladi
 
     const c = await ledger.getCustomer(C1);
@@ -94,7 +96,7 @@ describe('pullFromCloud', () => {
   it('qayta pull — dublikat yaratmaydi', async () => {
     await pullFromCloud(db, new FakeCloud(webData()), 'shop', deps);
     const again = await pullFromCloud(db, new FakeCloud(webData()), 'shop', deps);
-    expect(again.imported).toEqual({ customer: 0, product: 0, sale: 0, reversal: 0, payment: 0, payment_void: 0 });
+    expect(again.imported).toEqual(ZERO);
     expect([count('sales'), count('sale_lines'), count('ledger_entries'), count('payments')]).toEqual([2, 2, 2, 1]);
   });
 
@@ -217,5 +219,88 @@ describe("pull: web'da o'chirilgan / arxivlangan yozuvlar", () => {
     const local = await ledger.createCustomer({ name: 'Faqat telefonda' });
     await pullFromCloud(db, new FakeCloud(webData()), 'shop', deps);
     expect(await ledger.getCustomer(local)).not.toBeNull();
+  });
+
+  describe('kirim, ta\'minotchi, bir martalik mijoz', () => {
+    const SUP = '55555555-5555-4555-8555-555555555555';
+    const PUR = '66666666-6666-4666-8666-666666666666';
+    const purchasing = (): Tables => ({
+      ...webData(),
+      suppliers: [{ id: SUP, name: 'Baraka', phone: null, notes: null, is_active: true, created_at: T0, updated_at: T0 }],
+      purchase_documents: [{ id: PUR, client_op_id: 'web-pur', supplier_id: SUP, doc_date: '2026-10-30', status: 'posted', subtotal: '1450000', created_at: T0 }],
+      purchase_lines: [
+        { document_id: PUR, line_index: 0, product_id: 'pr-1', product_name: 'Guruch', qty_milli: '100000', unit: 'kg', unit_cost: '9000', line_total: '900000' },
+        { document_id: PUR, line_index: 1, product_id: 'pr-1', product_name: 'Guruch', qty_milli: '50000', unit: 'kg', unit_cost: '11000', line_total: '550000' },
+      ],
+      supplier_payments: [{ id: 'sp-1', client_op_id: 'web-sp', supplier_id: SUP, amount: '1000000', method: 'naqd', note: null, created_at: T0 }],
+    });
+
+    it("ta'minotchi, kirim va to'lov import qilinadi: ostatka 450 000, ombor 150", async () => {
+      const { createPurchasing } = await import('../src/data/purchasing');
+      const buy = createPurchasing(db, deps);
+      const res = await pullFromCloud(db, new FakeCloud(purchasing()), 'shop', deps);
+      expect(res.error).toBeNull();
+      expect(res.rejected.filter((r) => r.entity !== 'product')).toEqual([]); // 'Narxsiz' mahsulot fixture'da ataylab rad etiladi
+      expect(res.imported).toMatchObject({ supplier: 1, purchase: 1, supplier_payment: 1 });
+      expect((await buy.getSupplier(SUP))).toMatchObject({ goods: 1450000n, paid: 1000000n, outstanding: 450000n });
+      expect(await buy.stockOf('pr-1')).toBe(150000n);
+      const again = await pullFromCloud(db, new FakeCloud(purchasing()), 'shop', deps);
+      expect(again.imported).toEqual(ZERO);
+      expect(count('purchases')).toBe(1);
+    });
+
+    it("kirim jami server hisobiga mos kelmasa import qilinmaydi", async () => {
+      const t = purchasing();
+      t.purchase_documents![0] = { ...t.purchase_documents![0], subtotal: '1450001' };
+      const res = await pullFromCloud(db, new FakeCloud(t), 'shop', deps);
+      expect(res.imported.purchase).toBe(0);
+      expect(res.rejected.find((r) => r.entity === 'purchase')?.reason).toMatch(/jami mos emas/);
+    });
+
+    it("serverdagi bir martalik mijoz lokal tizim mijoziga moslanadi, ikkinchisi yaratilmaydi", async () => {
+      const w = await ledger.ensureWalkinCustomer();
+      const SW = '77777777-7777-4777-8777-777777777777';
+      const SD = '88888888-8888-4888-8888-888888888888';
+      const t: Tables = {
+        customers: [{ id: SW, name: 'Bir martalik mijoz', phone: null, notes: null, kind: 'one_time', is_active: true, source: 'system', created_at: T0, updated_at: T0 }],
+        documents: [{ id: SD, client_op_id: 'web-w', customer_id: SW, status: 'posted', subtotal: '5000', created_at: T0 }],
+        document_lines: [{ document_id: SD, line_index: 0, product_name: 'Non', qty_milli: '1000', unit: 'dona', unit_price: '5000', line_total: '5000', raw_text: null }],
+        payments: [{ id: 'wp', client_op_id: 'sale-pay:web-w', customer_id: SW, amount: '5000', method: 'naqd', note: null, created_at: T0 }],
+      };
+      const res = await pullFromCloud(db, new FakeCloud(t), 'shop', deps);
+      expect(res.rejected).toEqual([]);
+      expect(count('customers')).toBe(1);
+      expect((db.raw.prepare('SELECT customer_id AS c FROM sales WHERE id = ?').get(SD) as { c: string }).c).toBe(w);
+      expect((await ledger.getCustomer(w))!.outstanding).toBe(0n);
+    });
+
+    it("telefonda push qilingan savdo bilan birga yozilgan to'lov qayta pull'da dublikat/xato bermaydi", async () => {
+      const w = await ledger.ensureWalkinCustomer();
+      const r = await ledger.postSale({ clientOpId: 'wx', customerId: w, rawInput: null, lines: [{ productName: 'Non', qtyMilli: 1000n, unit: 'dona', unitPrice: 5000n, rawText: null }], paid: { method: 'naqd', amount: 5000n } });
+      await ledger.reverseSale({ saleId: r.saleId, reason: 'qaytarildi', clientOpId: 'wxr' });
+      const SW = '77777777-7777-4777-8777-777777777777';
+      const t: Tables = {
+        customers: [{ id: SW, name: 'Bir martalik mijoz', phone: null, notes: null, kind: 'one_time', is_active: true, source: 'system', created_at: T0, updated_at: T0 }],
+        documents: [{ id: r.saleId, client_op_id: 'wx', customer_id: SW, status: 'reversed', subtotal: '5000', created_at: T0 }],
+        document_lines: [{ document_id: r.saleId, line_index: 0, product_name: 'Non', qty_milli: '1000', unit: 'dona', unit_price: '5000', line_total: '5000', raw_text: null }],
+        payments: [{ id: 'server-pay-id', client_op_id: 'sale-pay:wx', customer_id: SW, amount: '5000', method: 'naqd', note: null, created_at: T0 }],
+        payment_voids: [{ id: 'server-void', payment_id: 'server-pay-id', reason: 'savdo bekor qilindi', created_at: T0 }],
+      };
+      const res = await pullFromCloud(db, new FakeCloud(t), 'shop', deps);
+      expect(res.rejected).toEqual([]);
+      expect(count('payments')).toBe(1);
+      expect(count('payment_voids')).toBe(1);
+    });
+
+    it("tarixi bor tovar bulutda arxivlansa o'chirilmaydi, lokal arxivlanadi", async () => {
+      const { createPurchasing } = await import('../src/data/purchasing');
+      await pullFromCloud(db, new FakeCloud(purchasing()), 'shop', deps);
+      const t = purchasing();
+      t.products![0] = { ...t.products![0], is_active: false };
+      const res = await pullFromCloud(db, new FakeCloud(t), 'shop', deps);
+      expect(res.error).toBeNull();
+      expect((db.raw.prepare("SELECT is_active AS a FROM products WHERE id = 'pr-1'").get() as { a: number }).a).toBe(0);
+      expect(await createPurchasing(db, deps).stockOf('pr-1')).toBe(150000n);
+    });
   });
 });

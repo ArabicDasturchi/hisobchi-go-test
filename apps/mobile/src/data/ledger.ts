@@ -594,8 +594,12 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
       const reason = input.reason.trim();
       if (reason.length < 3) throw new PaymentError('Sababni yozing (kamida 3 ta belgi)');
       await db.transaction(async (tx) => {
-        const p = await tx.get<{ id: string }>('SELECT id FROM payments WHERE id = ?', [input.paymentId]);
+        const p = await tx.get<{ id: string; client_op_id: string; kind: CustomerKind }>(
+          'SELECT p.id, p.client_op_id, c.kind FROM payments p JOIN customers c ON c.id = p.customer_id WHERE p.id = ?',
+          [input.paymentId],
+        );
         if (!p) throw new PaymentError("To'lov topilmadi");
+        if (p.kind === 'one_time') throw new PaymentError("Bir martalik mijoz to'lovini alohida bekor qilib bo'lmaydi: savdoni bekor qiling");
         const v = await tx.get<{ id: string }>('SELECT id FROM payment_voids WHERE payment_id = ?', [input.paymentId]);
         if (v) throw new PaymentError("Bu to'lov allaqachon bekor qilingan");
         await tx.run('INSERT INTO payment_voids (id, payment_id, reason, created_at) VALUES (?, ?, ?, ?)', [

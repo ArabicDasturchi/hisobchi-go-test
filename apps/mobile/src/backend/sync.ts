@@ -11,7 +11,19 @@
 import type { SqlDb } from '../data/db';
 import { CloudError, toCloudError, unwrap, type CloudClient } from './cloud';
 
-export type SyncEntity = 'customer' | 'product' | 'sale' | 'reversal' | 'payment' | 'payment_void';
+export type SyncEntity =
+  | 'customer'
+  | 'product'
+  | 'supplier'
+  | 'sale'
+  | 'reversal'
+  | 'payment'
+  | 'payment_void'
+  | 'purchase'
+  | 'purchase_reversal'
+  | 'supplier_payment'
+  | 'supplier_payment_void'
+  | 'stock_adjustment';
 
 export interface PushResult {
   pushed: Record<SyncEntity, number>;
@@ -20,25 +32,49 @@ export interface PushResult {
   error: CloudError | null;
 }
 
-type Event =
-  | { kind: 'sale'; id: string; at: string }
-  | { kind: 'reversal'; id: string; at: string }
-  | { kind: 'payment'; id: string; at: string }
-  | { kind: 'payment_void'; id: string; at: string };
+type EventKind = Exclude<SyncEntity, 'customer' | 'product' | 'supplier'>;
+type Event = { kind: EventKind; id: string; at: string };
 
-const RANK: Record<Event['kind'], number> = { sale: 0, reversal: 1, payment: 2, payment_void: 3 };
+/** Bir vaqtdagi hodisalar tartibi: hujjat → uning bekori → to'lov → to'lov bekori */
+const RANK: Record<EventKind, number> = {
+  sale: 0, reversal: 1, payment: 2, payment_void: 3,
+  purchase: 4, purchase_reversal: 5, supplier_payment: 6, supplier_payment_void: 7, stock_adjustment: 8,
+};
+
+/**
+ * Savdo/kirim bilan birga yozilgan to'lov (client_op_id 'sale-pay:' / 'purchase-pay:') serverda post_sale /
+ * post_purchase ichida o'zi yaratiladi — alohida yuborilmaydi. Bir martalik savdo bekor qilinganda server
+ * to'lovni o'zi bekor qiladi (reverse_sale), shuning uchun mahalliy avto-bekor ham alohida yuborilmaydi.
+ */
+const EMBEDDED_PAYMENT = "(p.client_op_id LIKE 'sale-pay:%')";
+const AUTO_WALKIN_VOID = `EXISTS (SELECT 1 FROM payments p JOIN customers c ON c.id = p.customer_id
+  WHERE p.id = v.payment_id AND p.client_op_id LIKE 'sale-pay:%' AND c.kind = 'one_time')`;
+
+/** Yuborilishi kerak bo'lgan hodisalar (SQL shartlari pendingCount va pushToCloud uchun bir xil) */
+const EVENT_SOURCES: { kind: EventKind; sql: string }[] = [
+  { kind: 'sale', sql: 'SELECT s.id AS id, s.created_at AS at FROM sales s' },
+  { kind: 'reversal', sql: 'SELECT r.id AS id, r.created_at AS at FROM sale_reversals r' },
+  { kind: 'payment', sql: `SELECT p.id AS id, p.created_at AS at FROM payments p WHERE NOT ${EMBEDDED_PAYMENT}` },
+  { kind: 'payment_void', sql: `SELECT v.id AS id, v.created_at AS at FROM payment_voids v WHERE NOT ${AUTO_WALKIN_VOID}` },
+  { kind: 'purchase', sql: 'SELECT p.id AS id, p.created_at AS at FROM purchases p' },
+  { kind: 'purchase_reversal', sql: 'SELECT r.id AS id, r.created_at AS at FROM purchase_reversals r' },
+  { kind: 'supplier_payment', sql: "SELECT p.id AS id, p.created_at AS at FROM supplier_payments p WHERE p.client_op_id NOT LIKE 'purchase-pay:%'" },
+  { kind: 'supplier_payment_void', sql: 'SELECT v.id AS id, v.created_at AS at FROM supplier_payment_voids v' },
+  { kind: 'stock_adjustment', sql: 'SELECT a.id AS id, a.created_at AS at FROM stock_adjustments a' },
+];
 
 export async function pendingCount(db: SqlDb, shopId: string): Promise<number> {
-  const row = await db.get<{ n: number }>(
-    `SELECT
-       (SELECT COUNT(*) FROM sales s WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = 'sale' AND l.local_id = s.id))
-     + (SELECT COUNT(*) FROM sale_reversals r WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = 'reversal' AND l.local_id = r.id))
-     + (SELECT COUNT(*) FROM payments p WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = 'payment' AND l.local_id = p.id))
-     + (SELECT COUNT(*) FROM payment_voids v WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = 'payment_void' AND l.local_id = v.id)) AS n`,
-    [shopId, shopId, shopId, shopId],
+  const parts = EVENT_SOURCES.map(
+    (e) => `(SELECT COUNT(*) FROM (${e.sql}) x WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = '${e.kind}' AND l.local_id = x.id))`,
   );
+  const row = await db.get<{ n: number }>(`SELECT ${parts.join(' + ')} AS n`, EVENT_SOURCES.map(() => shopId));
   return row?.n ?? 0;
 }
+
+export const ALL_ENTITIES: SyncEntity[] = [
+  'customer', 'product', 'supplier', 'sale', 'reversal', 'payment', 'payment_void',
+  'purchase', 'purchase_reversal', 'supplier_payment', 'supplier_payment_void', 'stock_adjustment',
+];
 
 export async function pushToCloud(
   db: SqlDb,
@@ -46,7 +82,7 @@ export async function pushToCloud(
   shopId: string,
   deps: { now: () => string; onProgress?: (done: number, total: number) => void },
 ): Promise<PushResult> {
-  const pushed: PushResult['pushed'] = { customer: 0, product: 0, sale: 0, reversal: 0, payment: 0, payment_void: 0 };
+  const pushed = Object.fromEntries(ALL_ENTITIES.map((e) => [e, 0])) as PushResult['pushed'];
   let skipped = 0;
   const logged = async (entity: SyncEntity, id: string) =>
     (await db.get<{ x: number }>('SELECT 1 AS x FROM sync_log2 WHERE shop_id = ? AND entity = ? AND local_id = ?', [shopId, entity, id])) !== null;
@@ -59,7 +95,7 @@ export async function pushToCloud(
     const changedSql = (table: string, entity: SyncEntity) =>
       `SELECT t.* FROM ${table} t
        LEFT JOIN sync_log2 l ON l.shop_id = ? AND l.entity = '${entity}' AND l.local_id = t.id
-       WHERE l.local_id IS NULL OR t.updated_at > l.pushed_at
+       WHERE (l.local_id IS NULL OR t.updated_at > l.pushed_at)${table === 'customers' ? " AND t.kind = 'regular'" : ''}
        ORDER BY t.created_at`;
     const markSynced = (entity: SyncEntity, id: string) =>
       db.run(
@@ -67,16 +103,16 @@ export async function pushToCloud(
          ON CONFLICT(shop_id, entity, local_id) DO UPDATE SET pushed_at = excluded.pushed_at`,
         [shopId, entity, id, deps.now()],
       );
-    const customers = await db.all<{ id: string; name: string; phone: string | null; note: string | null }>(
+    const customers = await db.all<{ id: string; name: string; phone: string | null; note: string | null; is_active: number }>(
       changedSql('customers', 'customer'),
       [shopId],
     );
     if (customers.length > 0) {
-      await unwrap(cloud.upsert('customers', customers.map((c) => ({ id: c.id, shop_id: shopId, name: c.name, phone: c.phone, notes: c.note }))));
+      await unwrap(cloud.upsert('customers', customers.map((c) => ({ id: c.id, shop_id: shopId, name: c.name, phone: c.phone, notes: c.note, is_active: c.is_active === 1 }))));
       for (const c of customers) await markSynced('customer', c.id);
       pushed.customer = customers.length;
     }
-    const products = await db.all<{ id: string; name: string; unit: string; unit_price: number }>(changedSql('products', 'product'), [
+    const products = await db.all<{ id: string; name: string; unit: string; unit_price: number; is_active: number }>(changedSql('products', 'product'), [
       shopId,
     ]);
     if (products.length > 0) {
@@ -86,19 +122,29 @@ export async function pushToCloud(
       );
       const priceOf = new Map(prices.map((x) => [x.id, x.p]));
       await unwrap(
-        cloud.upsert('products', products.map((x) => ({ id: x.id, shop_id: shopId, name: x.name, unit: x.unit, last_price: priceOf.get(x.id) }))),
+        cloud.upsert('products', products.map((x) => ({ id: x.id, shop_id: shopId, name: x.name, unit: x.unit, last_price: priceOf.get(x.id), is_active: x.is_active === 1 }))),
       );
       for (const x of products) await markSynced('product', x.id);
       pushed.product = products.length;
     }
 
+    const suppliers = await db.all<{ id: string; name: string; phone: string | null; note: string | null; is_active: number }>(
+      changedSql('suppliers', 'supplier'),
+      [shopId],
+    );
+    if (suppliers.length > 0) {
+      await unwrap(cloud.upsert('suppliers', suppliers.map((x) => ({ id: x.id, shop_id: shopId, name: x.name, phone: x.phone, notes: x.note, is_active: x.is_active === 1 }))));
+      for (const x of suppliers) await markSynced('supplier', x.id);
+      pushed.supplier = suppliers.length;
+    }
+
     // 2. Moliyaviy hodisalar — vaqt tartibida
-    const events: Event[] = [
-      ...(await db.all<{ id: string; at: string }>('SELECT id, created_at AS at FROM sales')).map((r) => ({ kind: 'sale' as const, ...r })),
-      ...(await db.all<{ id: string; at: string }>('SELECT id, created_at AS at FROM sale_reversals')).map((r) => ({ kind: 'reversal' as const, ...r })),
-      ...(await db.all<{ id: string; at: string }>('SELECT id, created_at AS at FROM payments')).map((r) => ({ kind: 'payment' as const, ...r })),
-      ...(await db.all<{ id: string; at: string }>('SELECT id, created_at AS at FROM payment_voids')).map((r) => ({ kind: 'payment_void' as const, ...r })),
-    ].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : RANK[a.kind] - RANK[b.kind]));
+    const events: Event[] = [];
+    for (const src of EVENT_SOURCES) {
+      for (const r of await db.all<{ id: string; at: string }>(src.sql)) events.push({ kind: src.kind, ...r });
+    }
+    events.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : RANK[a.kind] - RANK[b.kind]));
+    const walkin = { id: null as string | null };
 
     let done = 0;
     for (const ev of events) {
@@ -108,7 +154,7 @@ export async function pushToCloud(
         done++;
         continue;
       }
-      await pushEvent(db, cloud, shopId, ev);
+      await pushEvent(db, cloud, shopId, ev, walkin);
       await markPushed(ev.kind, ev.id);
       pushed[ev.kind]++;
       done++;
@@ -120,65 +166,149 @@ export async function pushToCloud(
   }
 }
 
-async function pushEvent(db: SqlDb, cloud: CloudClient, shopId: string, ev: Event): Promise<void> {
-  if (ev.kind === 'sale') {
-    const sale = await db.get<{ id: string; client_op_id: string; customer_id: string | null; raw_input: string | null; total: string; created_at: string }>(
-      'SELECT id, client_op_id, customer_id, raw_input, CAST(total AS TEXT) AS total, created_at FROM sales WHERE id = ?',
-      [ev.id],
-    );
-    if (!sale) return;
-    const lines = await db.all<{ product_name: string; qty_milli: string; unit: string; unit_price: string; raw_text: string | null }>(
-      `SELECT product_name, CAST(qty_milli AS TEXT) AS qty_milli, unit, CAST(unit_price AS TEXT) AS unit_price, raw_text
-       FROM sale_lines WHERE sale_id = ? ORDER BY line_index`,
-      [ev.id],
-    );
-    await unwrap(
-      cloud.rpc('post_sale', {
-        p_shop_id: shopId,
-        p_sale_id: sale.id,
-        p_client_op_id: sale.client_op_id,
-        p_customer_id: sale.customer_id,
-        p_raw_input: sale.raw_input,
-        // Pul va miqdor — string (BigInt JSON number'ga sig'masligi mumkin); server o'zi qayta hisoblaydi
-        p_lines: lines,
-        p_client_total: sale.total,
-        p_created_at: sale.created_at,
-      }),
-    );
-    return;
+/** Server tomondagi (post_sale/post_purchase ichida yaratilgan) to'lov id'si — client_op_id bo'yicha */
+async function serverPaymentId(cloud: CloudClient, shopId: string, table: 'payments' | 'supplier_payments', clientOpId: string): Promise<string> {
+  const rows = await unwrap(cloud.selectAll<{ id: string }>(table, 'id', shopId, { column: 'client_op_id', value: clientOpId }));
+  const id = rows?.[0]?.id;
+  if (!id) throw new CloudError('conflict', "Serverda to'lov topilmadi — avval savdo/kirim yuborilishi kerak.");
+  return id;
+}
+
+async function pushEvent(db: SqlDb, cloud: CloudClient, shopId: string, ev: Event, walkin: { id: string | null }): Promise<void> {
+  switch (ev.kind) {
+    case 'sale': {
+      const sale = await db.get<{ id: string; client_op_id: string; customer_id: string | null; raw_input: string | null; total: string; created_at: string; kind: string | null }>(
+        `SELECT s.id, s.client_op_id, s.customer_id, s.raw_input, CAST(s.total AS TEXT) AS total, s.created_at, c.kind AS kind
+         FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.id = ?`,
+        [ev.id],
+      );
+      if (!sale) return;
+      const lines = await db.all<{ product_name: string; qty_milli: string; unit: string; unit_price: string; raw_text: string | null; product_id: string | null; unit_cost: string | null }>(
+        `SELECT product_name, CAST(qty_milli AS TEXT) AS qty_milli, unit, CAST(unit_price AS TEXT) AS unit_price, raw_text,
+                product_id, CAST(unit_cost AS TEXT) AS unit_cost
+         FROM sale_lines WHERE sale_id = ? ORDER BY line_index`,
+        [ev.id],
+      );
+      const pay = await db.get<{ amount: string; method: string }>(
+        "SELECT CAST(amount AS TEXT) AS amount, method FROM payments WHERE client_op_id = ?",
+        [`sale-pay:${sale.client_op_id}`],
+      );
+      let customerId = sale.customer_id;
+      if (sale.kind === 'one_time') {
+        // Bir martalik mijoz serverda har do'konda bitta (o'z id'si bilan) — lokal id yuborilmaydi
+        if (!walkin.id) walkin.id = (await unwrap<string>(cloud.rpc<string>('ensure_walkin_customer', { p_shop_id: shopId }))) ?? null;
+        if (!walkin.id) throw new CloudError('unknown', "Bir martalik mijoz serverda yaratilmadi");
+        customerId = walkin.id;
+      }
+      await unwrap(
+        cloud.rpc('post_sale', {
+          p_shop_id: shopId,
+          p_sale_id: sale.id,
+          p_client_op_id: sale.client_op_id,
+          p_customer_id: customerId,
+          p_raw_input: sale.raw_input,
+          // Pul va miqdor — string (BigInt JSON number'ga sig'masligi mumkin); server o'zi qayta hisoblaydi
+          p_lines: lines,
+          p_client_total: sale.total,
+          p_created_at: sale.created_at,
+          p_payment_method: pay?.method ?? null,
+          p_paid: pay?.amount ?? null,
+        }),
+      );
+      return;
+    }
+    case 'reversal': {
+      const r = await db.get<{ sale_id: string; client_op_id: string; reason: string }>('SELECT sale_id, client_op_id, reason FROM sale_reversals WHERE id = ?', [ev.id]);
+      if (!r) return;
+      await unwrap(cloud.rpc('reverse_sale', { p_shop_id: shopId, p_document_id: r.sale_id, p_client_op_id: r.client_op_id, p_reason: r.reason }));
+      return;
+    }
+    case 'payment': {
+      const p = await db.get<{ id: string; client_op_id: string; customer_id: string; amount: string; method: string; note: string | null; created_at: string }>(
+        'SELECT id, client_op_id, customer_id, CAST(amount AS TEXT) AS amount, method, note, created_at FROM payments WHERE id = ?',
+        [ev.id],
+      );
+      if (!p) return;
+      await unwrap(
+        cloud.rpc('record_payment', {
+          p_shop_id: shopId, p_payment_id: p.id, p_client_op_id: p.client_op_id, p_customer_id: p.customer_id,
+          p_amount: p.amount, p_method: p.method, p_note: p.note, p_created_at: p.created_at,
+        }),
+      );
+      return;
+    }
+    case 'payment_void': {
+      const v = await db.get<{ payment_id: string; reason: string; op: string }>(
+        'SELECT v.payment_id, v.reason, p.client_op_id AS op FROM payment_voids v JOIN payments p ON p.id = v.payment_id WHERE v.id = ?',
+        [ev.id],
+      );
+      if (!v) return;
+      // Savdo bilan birga yozilgan to'lovning serverdagi id'si boshqa: client_op_id bo'yicha topiladi
+      const paymentId = v.op.startsWith('sale-pay:') ? await serverPaymentId(cloud, shopId, 'payments', v.op) : v.payment_id;
+      await unwrap(cloud.rpc('void_payment', { p_shop_id: shopId, p_payment_id: paymentId, p_reason: v.reason }));
+      return;
+    }
+    case 'purchase': {
+      const p = await db.get<{ id: string; client_op_id: string; supplier_id: string; doc_date: string; total: string; created_at: string }>(
+        'SELECT id, client_op_id, supplier_id, doc_date, CAST(total AS TEXT) AS total, created_at FROM purchases WHERE id = ?',
+        [ev.id],
+      );
+      if (!p) return;
+      const lines = await db.all<{ product_id: string; product_name: string; qty_milli: string; unit: string; unit_cost: string }>(
+        `SELECT product_id, product_name, CAST(qty_milli AS TEXT) AS qty_milli, unit, CAST(unit_cost AS TEXT) AS unit_cost
+         FROM purchase_lines WHERE purchase_id = ? ORDER BY line_index`,
+        [ev.id],
+      );
+      const pay = await db.get<{ amount: string; method: string }>('SELECT CAST(amount AS TEXT) AS amount, method FROM supplier_payments WHERE client_op_id = ?', [`purchase-pay:${p.client_op_id}`]);
+      await unwrap(
+        cloud.rpc('post_purchase', {
+          p_shop_id: shopId, p_purchase_id: p.id, p_client_op_id: p.client_op_id, p_supplier_id: p.supplier_id, p_doc_date: p.doc_date,
+          p_lines: lines, p_client_total: p.total, p_created_at: p.created_at,
+          p_payment_method: pay?.method ?? null, p_paid: pay?.amount ?? null,
+        }),
+      );
+      return;
+    }
+    case 'purchase_reversal': {
+      const r = await db.get<{ purchase_id: string; client_op_id: string; reason: string }>('SELECT purchase_id, client_op_id, reason FROM purchase_reversals WHERE id = ?', [ev.id]);
+      if (!r) return;
+      await unwrap(cloud.rpc('reverse_purchase', { p_shop_id: shopId, p_document_id: r.purchase_id, p_client_op_id: r.client_op_id, p_reason: r.reason }));
+      return;
+    }
+    case 'supplier_payment': {
+      const p = await db.get<{ id: string; client_op_id: string; supplier_id: string; amount: string; method: string; note: string | null; created_at: string }>(
+        'SELECT id, client_op_id, supplier_id, CAST(amount AS TEXT) AS amount, method, note, created_at FROM supplier_payments WHERE id = ?',
+        [ev.id],
+      );
+      if (!p) return;
+      await unwrap(
+        cloud.rpc('record_supplier_payment', {
+          p_shop_id: shopId, p_payment_id: p.id, p_client_op_id: p.client_op_id, p_supplier_id: p.supplier_id,
+          p_amount: p.amount, p_method: p.method, p_note: p.note, p_created_at: p.created_at,
+        }),
+      );
+      return;
+    }
+    case 'supplier_payment_void': {
+      const v = await db.get<{ payment_id: string; reason: string; op: string }>(
+        'SELECT v.payment_id, v.reason, p.client_op_id AS op FROM supplier_payment_voids v JOIN supplier_payments p ON p.id = v.payment_id WHERE v.id = ?',
+        [ev.id],
+      );
+      if (!v) return;
+      const paymentId = v.op.startsWith('purchase-pay:') ? await serverPaymentId(cloud, shopId, 'supplier_payments', v.op) : v.payment_id;
+      await unwrap(cloud.rpc('void_supplier_payment', { p_shop_id: shopId, p_payment_id: paymentId, p_reason: v.reason }));
+      return;
+    }
+    case 'stock_adjustment': {
+      const a = await db.get<{ product_id: string; client_op_id: string; qty_milli: string; reason: string }>(
+        'SELECT product_id, client_op_id, CAST(qty_milli AS TEXT) AS qty_milli, reason FROM stock_adjustments WHERE id = ?',
+        [ev.id],
+      );
+      if (!a) return;
+      await unwrap(cloud.rpc('adjust_stock', { p_shop_id: shopId, p_product_id: a.product_id, p_client_op_id: a.client_op_id, p_qty_milli: a.qty_milli, p_reason: a.reason }));
+      return;
+    }
   }
-  if (ev.kind === 'reversal') {
-    const r = await db.get<{ sale_id: string; client_op_id: string; reason: string }>(
-      'SELECT sale_id, client_op_id, reason FROM sale_reversals WHERE id = ?',
-      [ev.id],
-    );
-    if (!r) return;
-    await unwrap(cloud.rpc('reverse_sale', { p_shop_id: shopId, p_document_id: r.sale_id, p_client_op_id: r.client_op_id, p_reason: r.reason }));
-    return;
-  }
-  if (ev.kind === 'payment') {
-    const p = await db.get<{ id: string; client_op_id: string; customer_id: string; amount: string; method: string; note: string | null; created_at: string }>(
-      'SELECT id, client_op_id, customer_id, CAST(amount AS TEXT) AS amount, method, note, created_at FROM payments WHERE id = ?',
-      [ev.id],
-    );
-    if (!p) return;
-    await unwrap(
-      cloud.rpc('record_payment', {
-        p_shop_id: shopId,
-        p_payment_id: p.id,
-        p_client_op_id: p.client_op_id,
-        p_customer_id: p.customer_id,
-        p_amount: p.amount,
-        p_method: p.method,
-        p_note: p.note,
-        p_created_at: p.created_at,
-      }),
-    );
-    return;
-  }
-  const v = await db.get<{ payment_id: string; reason: string }>('SELECT payment_id, reason FROM payment_voids WHERE id = ?', [ev.id]);
-  if (!v) return;
-  await unwrap(cloud.rpc('void_payment', { p_shop_id: shopId, p_payment_id: v.payment_id, p_reason: v.reason }));
 }
 
 // ---------------------------------------------------------------------------
