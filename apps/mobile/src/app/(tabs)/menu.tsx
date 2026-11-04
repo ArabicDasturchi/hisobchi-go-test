@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../backend/AuthProvider';
 import { useCatalog } from '../../data/LedgerProvider';
+import { SyncStatus } from '../../features/SyncStatus';
 import { useFocusData } from '../../features/useAsync';
 import { Card, ListRow, SectionTitle } from '../../ui/components';
 import { colors, space, type } from '../../ui/theme';
@@ -20,6 +21,18 @@ export default function MenuScreen() {
         <Text style={type.title}>{settings?.shop_name || 'Do\'kon nomi kiritilmagan'}</Text>
         {settings?.shop_phone ? <Text style={type.caption}>{settings.shop_phone}</Text> : null}
       </Card>
+
+      <View style={s.group}>
+        <SectionTitle>Daftarlar va ombor</SectionTitle>
+        <View style={s.list}>
+          <ListRow title="Ombor" subtitle="Qoldiq, tan narx, kirim qilish" onPress={() => router.push('/warehouse')} />
+          <ListRow title="Kirim daftari" subtitle="Ta'minotchidan olingan tovarlar" onPress={() => router.push('/books/in')} />
+          <ListRow title="Chiqim daftari" subtitle="Sotilgan tovarlar" onPress={() => router.push('/books/out')} />
+          <ListRow title="Ta'minotchilar" subtitle="Qarz va to'lovlar" onPress={() => router.push('/suppliers')} />
+          <ListRow title="Mijozlar" subtitle="Doimiy va bir martalik mijozlar" onPress={() => router.push('/customers')} />
+          <ListRow title="Qoralamalar" subtitle="Tugallanmagan hisob" onPress={() => router.push('/drafts')} />
+        </View>
+      </View>
 
       <View style={s.group}>
         <SectionTitle>Boshqaruv</SectionTitle>
@@ -41,6 +54,8 @@ export default function MenuScreen() {
           />
         </View>
       </View>
+
+      <SyncStatus />
 
       <Text style={s.version}>Hisobchi Go · versiya {version}</Text>
     </ScrollView>

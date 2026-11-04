@@ -135,7 +135,7 @@ describe('tranzaksiya ulanishi', () => {
     const tx = db.transaction(async (t) => {
       order.push('tx-start');
       await gate;
-      await t.run("INSERT INTO customers VALUES ('c1', 'A', NULL, NULL, 'x', 'x')");
+      await t.run("INSERT INTO customers (id, name, phone, note, created_at, updated_at) VALUES ('c1', 'A', NULL, NULL, 'x', 'x')");
       order.push('tx-end');
     });
     const read = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM customers').then((r) => {

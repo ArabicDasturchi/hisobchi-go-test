@@ -1,7 +1,7 @@
 'use client';
 import { Archive, ArchiveRestore, Package, Pencil, Plus } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
-import { DataGate, Money, ResponsiveTable } from '@/components/shared';
+import { DataGate, Money, RecordBadges, ResponsiveTable } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Modal } from '@/components/ui/Modal';
 import { Alert, Badge, Button, Card, EmptyState, Input, PageHeader, SearchInput, Segmented, Select, TableSkeleton } from '@/components/ui/primitives';
@@ -219,7 +219,7 @@ function Products({ data }: { data: ShopData }) {
               <div key={p.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 truncate text-sm font-medium text-fg">
-                    {p.name} {!p.is_active && <Badge>Arxiv</Badge>}
+                    {p.name} <RecordBadges source={p.source} archived={!p.is_active} />
                   </p>
                   <p className="text-xs text-muted">
                     {p.last_price !== null ? <Money value={p.last_price} /> : "Narx yo'q"} / {uz.units[p.unit] ?? p.unit}
@@ -231,7 +231,11 @@ function Products({ data }: { data: ShopData }) {
           >
             {rows.map((p) => (
               <tr key={p.id} className="transition-colors hover:bg-surface-2">
-                <td className="px-4 py-2.5 font-medium text-fg">{p.name}</td>
+                <td className="px-4 py-2.5 font-medium text-fg">
+                  <span className="inline-flex items-center gap-1.5">
+                    {p.name} <RecordBadges source={p.source} />
+                  </span>
+                </td>
                 <td className="px-4 py-2.5 text-muted">{uz.units[p.unit] ?? p.unit}</td>
                 <td className="px-4 py-2.5 text-right">{p.last_price !== null ? <Money value={p.last_price} className="text-fg" /> : <span className="text-muted">—</span>}</td>
                 <td className="px-4 py-2.5">{p.is_active ? <Badge tone="green">Faol</Badge> : <Badge>Arxiv</Badge>}</td>

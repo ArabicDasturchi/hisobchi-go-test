@@ -16,6 +16,7 @@ import { shortNumber } from '@/lib/dates';
 import { toAppError } from '@/lib/errors';
 import { formatMoneyInput } from '@/lib/money';
 import { buildSalePlan, checkLine, isBlank, type DraftLine, type LineCheck, type PayMode, type SalePlan } from '@/lib/saleForm';
+import { selectableCustomers } from '@/lib/data/customers';
 import { getSupabase } from '@/lib/supabase/client';
 
 const newLine = (): DraftLine => ({ key: crypto.randomUUID(), productName: '', qty: '', unit: 'dona', price: '' });
@@ -36,7 +37,7 @@ function NewSale({ data }: { data: ShopData }) {
   const { shopId, reload, balances } = useShop();
 
   const initialCustomer = params.get('customer');
-  const [customerId, setCustomerId] = useState(initialCustomer && data.customers.some((c) => c.id === initialCustomer) ? initialCustomer : '');
+  const [customerId, setCustomerId] = useState(initialCustomer && data.customers.some((c) => c.id === initialCustomer && c.is_active) ? initialCustomer : '');
   const [lines, setLines] = useState<DraftLine[]>(() => [newLine()]);
   const [mode, setMode] = useState<PayMode>('debt');
   const [method, setMethod] = useState<PaymentMethod>('naqd');
@@ -53,7 +54,8 @@ function NewSale({ data }: { data: ShopData }) {
 
   const activeProducts = useMemo(() => data.products.filter((p) => p.is_active), [data.products]);
   const productByName = useMemo(() => new Map(activeProducts.map((p) => [p.name.toLocaleLowerCase('uz'), p])), [activeProducts]);
-  const customers = useMemo(() => [...data.customers].sort((a, b) => a.name.localeCompare(b.name, 'uz')), [data.customers]);
+  // Arxivlangan mijoz yangi savdo tanlovida ko'rinmaydi (tarixi va qarzi saqlanadi)
+  const customers = useMemo(() => selectableCustomers(data.customers), [data.customers]);
 
   const checks = lines.map((l) => (isBlank(l) ? null : checkLine(l)));
   const total = checks.reduce((s, c) => s + (c?.total ?? 0n), 0n);

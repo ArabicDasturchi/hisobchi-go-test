@@ -13,6 +13,11 @@ export interface Product {
   name: string;
   unit: AllowedUnit;
   unitPrice: bigint;
+  /** Tan narx = oxirgi kirim narxi (faqat kirim orqali o'zgaradi); kirim bo'lmasa null */
+  costPrice: bigint | null;
+  isActive: boolean;
+  /** 'app' | 'agent' — qaysi yo'l bilan qo'shilgan */
+  source: string;
   updatedAt: string;
 }
 
@@ -38,14 +43,27 @@ function validateProduct(input: ProductInput): string {
 
 export function createCatalog(db: SqlDb, deps: { newId: () => string; now: () => string }) {
   return {
-    async listProducts(search = ''): Promise<Product[]> {
+    async listProducts(search = '', opts: { includeArchived?: boolean } = {}): Promise<Product[]> {
       const q = search.trim();
-      const rows = await db.all<{ id: string; name: string; unit: AllowedUnit; unit_price: string; updated_at: string }>(
-        `SELECT id, name, unit, CAST(unit_price AS TEXT) AS unit_price, updated_at FROM products
-         ${q ? 'WHERE name LIKE ? COLLATE NOCASE' : ''} ORDER BY name COLLATE NOCASE`,
+      const conds: string[] = [];
+      if (!opts.includeArchived) conds.push('is_active = 1');
+      if (q) conds.push('name LIKE ? COLLATE NOCASE');
+      const rows = await db.all<{
+        id: string; name: string; unit: AllowedUnit; unit_price: string; cost: string | null; is_active: number; source: string; updated_at: string;
+      }>(
+        `SELECT id, name, unit, CAST(unit_price AS TEXT) AS unit_price, CAST(cost_price AS TEXT) AS cost, is_active, source, updated_at FROM products
+         ${conds.length ? `WHERE ${conds.join(' AND ')}` : ''} ORDER BY name COLLATE NOCASE`,
         q ? [`%${q}%`] : [],
       );
-      return rows.map((r) => ({ id: r.id, name: r.name, unit: r.unit, unitPrice: BigInt(r.unit_price), updatedAt: r.updated_at }));
+      return rows.map((r) => ({
+        id: r.id, name: r.name, unit: r.unit, unitPrice: BigInt(r.unit_price), costPrice: r.cost === null ? null : BigInt(r.cost),
+        isActive: r.is_active === 1, source: r.source, updatedAt: r.updated_at,
+      }));
+    },
+
+    /** Arxivlash: tarix (kirim/savdo) saqlanadi, tovar ro'yxat va tezkor savdoda ko'rinmaydi */
+    async setProductActive(id: string, active: boolean): Promise<void> {
+      await db.run('UPDATE products SET is_active = ?, updated_at = ? WHERE id = ?', [active ? 1 : 0, deps.now(), id]);
     },
 
     /** Yangi mahsulot yoki mavjudini tahrirlash (id berilsa). Nom takrorlanmasligi kerak. */
@@ -78,6 +96,12 @@ export function createCatalog(db: SqlDb, deps: { newId: () => string; now: () =>
 
     /** Katalogdan o'chirish — saqlangan savdolar o'zgarmaydi (ularda nusxa bor) */
     async deleteProduct(id: string): Promise<void> {
+      const used = await db.get<{ n: number }>(
+        `SELECT (SELECT COUNT(*) FROM purchase_lines WHERE product_id = ?) + (SELECT COUNT(*) FROM sale_lines WHERE product_id = ?)
+                + (SELECT COUNT(*) FROM stock_adjustments WHERE product_id = ?) AS n`,
+        [id, id, id],
+      );
+      if ((used?.n ?? 0) > 0) throw new SaleValidationError("Tovarda kirim/savdo tarixi bor: o'chirib bo'lmaydi, arxivlang");
       await db.run('DELETE FROM products WHERE id = ?', [id]);
     },
 

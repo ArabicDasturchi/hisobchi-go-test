@@ -45,6 +45,9 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   // --- Agent qoralamalari (004 migratsiyasi) ---
   [/draft_already_decided/, 'conflict', 'Bu qoralama allaqachon tasdiqlangan yoki rad etilgan.'],
   [/draft_not_found/, 'not_found', 'Qoralama topilmadi.'],
+  [/draft_stale/, 'conflict', "Yozuv so'rov yaratilgandan keyin o'zgargan. Bu so'rovni rad eting, kerak bo'lsa AI dan qaytadan so'rang."],
+  [/name_taken/, 'conflict', 'Bunday nomli tovar allaqachon bor.'],
+  [/target_not_found/, 'not_found', 'Mijoz yoki tovar topilmadi.'],
   [/oauth_client_forbidden/, 'forbidden', 'Bu amal faqat Hisobchi Go ilovasida bajariladi.'],
   [/draft_immutable|draft_invalid_transition/, 'conflict', "Qoralamani o'zgartirib bo'lmaydi."],
   [/calc_mismatch/, 'validation', 'Server hisobi summa bilan mos kelmadi — savdo saqlanmadi.'],

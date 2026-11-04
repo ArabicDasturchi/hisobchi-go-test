@@ -19,12 +19,12 @@ export interface CloudResult<T> {
 export interface CloudClient {
   rpc<T = unknown>(fn: string, args: Record<string, unknown>): Promise<CloudResult<T>>;
   /** id bo'yicha upsert (mijoz, mahsulot) — RLS shop_id'ni tekshiradi */
-  upsert(table: 'customers' | 'products', rows: Record<string, unknown>[]): Promise<CloudResult<unknown>>;
+  upsert(table: 'customers' | 'products' | 'suppliers', rows: Record<string, unknown>[]): Promise<CloudResult<unknown>>;
   /**
    * Shu do'konning barcha qatorlari (RLS ham cheklaydi). `columns` — PostgREST select ro'yxati;
    * bigint ustunlar `col::text` bilan o'qiladi (JSON number aniqligini yo'qotmaslik uchun).
    */
-  selectAll<T>(table: CloudTable, columns: string, shopId: string): Promise<CloudResult<T[]>>;
+  selectAll<T>(table: CloudTable, columns: string, shopId: string, filter?: { column: string; value: string }): Promise<CloudResult<T[]>>;
 }
 
 export type CloudTable =
@@ -34,7 +34,13 @@ export type CloudTable =
   | 'document_lines'
   | 'document_reversals'
   | 'payments'
-  | 'payment_voids';
+  | 'payment_voids'
+  | 'suppliers'
+  | 'purchase_documents'
+  | 'purchase_lines'
+  | 'purchase_reversals'
+  | 'supplier_payments'
+  | 'supplier_payment_voids';
 
 export type CloudErrorKind = 'network' | 'auth' | 'forbidden' | 'conflict' | 'validation' | 'unknown';
 
@@ -69,6 +75,9 @@ export function toCloudError(err: unknown): CloudError {
   }
   if (/calc_mismatch/.test(m)) {
     return new CloudError('validation', "Server hisobi telefondagi summa bilan mos kelmadi — savdo yuborilmadi.", raw);
+  }
+  if (/walkin_requires_full_payment/.test(m)) {
+    return new CloudError('validation', "Serverda bir martalik savdo to'liq to'lanmagan deb topildi — savdo yuborilmadi.", raw);
   }
   if (/payment_exceeds_debt/.test(m)) {
     return new CloudError('validation', "Serverda to'lov qarzdan katta chiqdi — to'lov yuborilmadi.", raw);

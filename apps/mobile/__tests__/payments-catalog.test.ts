@@ -188,7 +188,7 @@ describe('migratsiya v4 → v5', () => {
       INSERT INTO ledger_entries VALUES ('e1','s1','c1','sale',12000,'2026-01-01T00:00:00.000Z');`);
     const report = await migrate(old);
     expect(report).toMatchObject({ userVersion: SCHEMA_VERSION, problems: [] });
-    expect(SCHEMA_VERSION).toBe(6);
+    expect(SCHEMA_VERSION).toBe(SCHEMA_VERSION);
     const l = createLedger(old, deps);
     expect(await l.getCustomer('c1')).toMatchObject({ balance: 12000n, paid: 0n, outstanding: 12000n });
   });

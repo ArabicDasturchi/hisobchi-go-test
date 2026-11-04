@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { CloudError, toCloudError, type CloudClient, type CloudResult } from '../src/backend/cloud';
-import { pendingCount, pushToCloud } from '../src/backend/sync';
+import { ALL_ENTITIES, pendingCount, pushToCloud, type SyncEntity } from '../src/backend/sync';
 import { createCatalog } from '../src/data/catalog';
 import { createLedger, type Ledger, type SaleLineInput } from '../src/data/ledger';
 import { migrate } from '../src/data/schema';
@@ -30,6 +30,8 @@ class FakeCloud implements CloudClient {
     return { data: [], error: null };
   }
 }
+
+const ZERO = Object.fromEntries(ALL_ENTITIES.map((e) => [e, 0])) as Record<SyncEntity, number>;
 
 let db: ReturnType<typeof openMemoryDb>;
 let ledger: Ledger;
@@ -59,7 +61,7 @@ describe('pushToCloud', () => {
     const cloud = new FakeCloud();
     const res = await pushToCloud(db, cloud, 'shop-1', { now });
     expect(res.error).toBeNull();
-    expect(res.pushed).toEqual({ customer: 1, product: 1, sale: 1, reversal: 1, payment: 1, payment_void: 1 });
+    expect(res.pushed).toEqual({ ...ZERO, customer: 1, product: 1, sale: 1, reversal: 1, payment: 1, payment_void: 1 });
     expect(cloud.calls.map((c) => c.fn)).toEqual([
       'upsert:customers',
       'upsert:products',
@@ -70,9 +72,42 @@ describe('pushToCloud', () => {
     ]);
     const post = cloud.calls[2].args;
     expect(post).toMatchObject({ p_shop_id: 'shop-1', p_sale_id: sale.saleId, p_client_op_id: 'op-s', p_customer_id: cid, p_client_total: '10000' });
-    expect(post.p_lines).toEqual([{ product_name: 'non', qty_milli: '1000', unit: 'dona', unit_price: '10000', raw_text: null }]);
+    expect(post.p_lines).toEqual([{ product_name: 'non', qty_milli: '1000', unit: 'dona', unit_price: '10000', raw_text: null, product_id: null, unit_cost: null }]);
     expect(cloud.calls[3].args).toMatchObject({ p_amount: '10000', p_method: 'naqd' });
-    expect((cloud.calls[0].args.rows as Record<string, unknown>[])[0]).toEqual({ id: cid, shop_id: 'shop-1', name: 'Akmal', phone: '901', notes: 'Chorsu' });
+    expect((cloud.calls[0].args.rows as Record<string, unknown>[])[0]).toEqual({ id: cid, shop_id: 'shop-1', name: 'Akmal', phone: '901', notes: 'Chorsu', is_active: true });
+    expect(await pendingCount(db, 'shop-1')).toBe(0);
+  });
+
+  it("bir martalik savdo: serverdagi tizim mijozi ishlatiladi, to'lov savdoga qo'shiladi, avto-bekor alohida yuborilmaydi", async () => {
+    const w = await ledger.ensureWalkinCustomer();
+    const r = await ledger.postSale({ clientOpId: 'w1', customerId: w, rawInput: null, lines: [line('non', 5000n)], paid: { method: 'naqd', amount: 5000n } });
+    await ledger.reverseSale({ saleId: r.saleId, reason: 'qaytarildi', clientOpId: 'w1r' });
+    const cloud = new FakeCloud();
+    expect(await pendingCount(db, 'shop-1')).toBe(2); // sale + reversal; to'lov va uning avto-bekori sanalmaydi
+    const res = await pushToCloud(db, cloud, 'shop-1', { now });
+    expect(res.error).toBeNull();
+    expect(cloud.calls.map((c) => c.fn)).toEqual(['ensure_walkin_customer', 'post_sale', 'reverse_sale']);
+    const post = cloud.calls[1].args;
+    expect(post.p_customer_id).toBe('id-1'); // serverning ensure_walkin_customer javobi, lokal id emas
+    expect(post.p_customer_id).not.toBe(w);
+    expect(post).toMatchObject({ p_paid: '5000', p_payment_method: 'naqd' });
+    expect(await pendingCount(db, 'shop-1')).toBe(0);
+  });
+
+  it("kirim sinxronlanadi: ta'minotchi, kirim (to'lov bilan), to'lov va bekor — to'g'ri tartibda", async () => {
+    const { createPurchasing } = await import('../src/data/purchasing');
+    const buy = createPurchasing(db, { newId: () => randomUUID(), now });
+    const sup = await buy.saveSupplier({ name: 'Baraka' });
+    const pid = await createCatalog(db, { newId: () => randomUUID(), now }).saveProduct({ name: 'Un', unit: 'kg', unitPrice: 13000n });
+    const k = await buy.postPurchase({ clientOpId: 'k1', supplierId: sup, lines: [{ productId: pid, qtyMilli: 100000n, unitCost: 9000n }, { productId: pid, qtyMilli: 50000n, unitCost: 11000n }], paid: { method: 'naqd', amount: 1000000n } });
+    expect(k.total).toBe(1450000n);
+    await buy.reversePurchase({ purchaseId: k.purchaseId, reason: 'xato kirim', clientOpId: 'kr' });
+    const cloud = new FakeCloud();
+    const res = await pushToCloud(db, cloud, 'shop-1', { now });
+    expect(res.error).toBeNull();
+    expect(res.pushed).toEqual({ ...ZERO, supplier: 1, product: 1, purchase: 1, purchase_reversal: 1 });
+    expect(cloud.calls.map((c) => c.fn)).toEqual(['upsert:products', 'upsert:suppliers', 'post_purchase', 'reverse_purchase']);
+    expect(cloud.calls[2].args).toMatchObject({ p_client_total: '1450000', p_paid: '1000000', p_payment_method: 'naqd' });
     expect(await pendingCount(db, 'shop-1')).toBe(0);
   });
 
@@ -123,7 +158,7 @@ describe('pushToCloud', () => {
   it("bo'sh lokal baza — hech narsa yuborilmaydi", async () => {
     const cloud = new FakeCloud();
     const res = await pushToCloud(db, cloud, 'shop-1', { now });
-    expect(res).toEqual({ pushed: { customer: 0, product: 0, sale: 0, reversal: 0, payment: 0, payment_void: 0 }, skipped: 0, error: null });
+    expect(res).toEqual({ pushed: ZERO, skipped: 0, error: null });
     expect(cloud.calls).toEqual([]);
   });
 });

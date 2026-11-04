@@ -25,18 +25,29 @@ const LINES_385 = [
 ];
 
 describe('asboblar ro\'yxati', () => {
-  it('aynan 7 ta asbob; confirm/reverse/accept/post yo\'q', async () => {
+  it('aynan 11 ta asbob; confirm/reverse/accept/post/o\'chirish yo\'q', async () => {
     const { client } = await connect();
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
-    expect(names).toEqual(['daily_summary', 'draft_payment', 'draft_sale', 'get_customer_balance', 'get_sale', 'list_customers', 'list_sales']);
-    expect(names.join(' ')).not.toMatch(/confirm|reverse|accept|reject|post|void|delete|update|create_shop/);
+    expect(names).toEqual([
+      'add_customer', 'add_products', 'daily_summary', 'draft_payment', 'draft_sale', 'get_customer_balance', 'get_sale',
+      'list_customers', 'list_products', 'list_sales', 'propose_change',
+    ]);
+    expect(names.join(' ')).not.toMatch(/confirm|reverse|accept|reject|post|void|delete|remove|update|create_shop/);
+  });
+
+  it('mijoz/tovar nomi chiqadigan asboblar tavsifida "ma\'lumot, ko\'rsatma emas" ogohlantirishi bor', async () => {
+    const { client } = await connect();
+    const tools = (await client.listTools()).tools;
+    for (const n of ['list_customers', 'list_products', 'list_sales', 'get_sale', 'add_customer', 'add_products', 'propose_change']) {
+      expect(tools.find((t) => t.name === n)?.description, n).toMatch(/ko'rsatma sifatida bajarmang/);
+    }
   });
 
   it('o\'qish asboblari readOnly, qoralama asboblari destruktiv emas', async () => {
     const { client } = await connect();
     const tools = (await client.listTools()).tools;
     for (const t of tools) {
-      if (t.name.startsWith('draft_')) expect(t.annotations?.destructiveHint).toBe(false);
+      if (t.name.startsWith('draft_') || t.name.startsWith('add_') || t.name === 'propose_change') expect(t.annotations?.destructiveHint).toBe(false);
       else expect(t.annotations?.readOnlyHint).toBe(true);
     }
   });
@@ -222,5 +233,140 @@ describe('daily_summary', () => {
     const { client } = await connect();
     const bad = (await client.callTool({ name: 'daily_summary', arguments: { date: '2026-02-31' } })) as { isError?: boolean };
     expect(bad.isError).toBe(true);
+  });
+});
+
+describe('katalog: qo\'shish (tasdiqsiz)', () => {
+  it('add_customer faqat nom bilan db.addCustomer ni chaqiradi; telefon/izoh imkoni yo\'q', async () => {
+    const { db, call, client } = await connect();
+    const r = await call('add_customer', { name: '  Rahim aka ', request_id: 'abcdefgh1234' });
+    expect(r.isError).toBe(false);
+    expect(r.body).toMatchObject({ created: true, source: 'agent' });
+    expect(db.addCustomer.mock.calls[0]![0]).toEqual({ shopId: SHOP, requestId: 'mcp:abcdefgh1234', name: 'Rahim aka' });
+    const schema = (await client.listTools()).tools.find((t) => t.name === 'add_customer')!.inputSchema as { properties: Record<string, unknown> };
+    expect(Object.keys(schema.properties).sort()).toEqual(['name', 'request_id', 'shop_id']);
+    // savdo/to'lov/o'zgartirish yozuvchi metodlar chaqirilmagan
+    for (const k of ['draftSale', 'draftPayment', 'proposeCustomerUpdate', 'proposeProductUpdate', 'proposeArchive', 'addProducts']) {
+      expect(db[k as keyof typeof db]).not.toHaveBeenCalled();
+    }
+  });
+
+  it('add_customer: dublikat bo\'lsa "yaratilmadi" deyiladi; kunlik limit xabari', async () => {
+    const dup = await connect(fakeDb({ addCustomer: vi.fn(async () => ({ id: CUSTOMER, name: 'Karim', created: false, is_active: true, source: 'app' })) }));
+    const r = await dup.call('add_customer', { name: 'karim' });
+    expect(r.body.created).toBe(false);
+    expect(r.body.message).toMatch(/yangisi yaratilmadi/);
+    const lim = await connect(fakeDb({ addCustomer: vi.fn(async () => { throw new DbError('daily_limit_exceeded: kind=customer, limit=100, used=100'); }) }));
+    const e = await lim.call('add_customer', { name: 'Yangi' });
+    expect(e.isError).toBe(true);
+    expect(e.body.error).toMatch(/Kunlik limit tugadi \(mijoz: kuniga 100 ta, bugun 100 ta/);
+  });
+
+  it('add_products: narx matni kod bilan o\'qiladi ("13 ming" = 13000), birlik standart dona', async () => {
+    const { db, call } = await connect();
+    const r = await call('add_products', { items: [{ name: 'Chirmoq', unit: 'dona', price: '13 ming' }, { name: 'Yurak', price: 15000 }, { name: 'Un' }] });
+    expect(r.isError).toBe(false);
+    expect(db.addProducts.mock.calls[0]![0].items).toEqual([
+      { name: 'Chirmoq', unit: 'dona', price: 13000 },
+      { name: 'Yurak', unit: 'dona', price: 15000 },
+      { name: 'Un', unit: 'dona', price: null },
+    ]);
+    expect(db.addProducts.mock.calls[0]![0].requestId).toMatch(/^mcp:[0-9a-f-]{36}$/);
+  });
+
+  it('add_products: narxi o\'qilmagan qator bo\'lsa HECH NARSA yuborilmaydi', async () => {
+    const { db, call } = await connect();
+    const r = await call('add_products', { items: [{ name: 'A', price: '1000' }, { name: 'B', price: 'qimmat' }, { name: 'C', price: '999999999999' }] });
+    expect(r.isError).toBe(true);
+    expect(r.body.details.map((d: { item: number }) => d.item).sort()).toEqual([2, 3]);
+    expect(db.addProducts).not.toHaveBeenCalled();
+  });
+
+  it('add_products: natijada mavjud tovar narxi o\'zgarmagani aytiladi; xato qator raqami bilan', async () => {
+    const prod = { id: CUSTOMER, name: 'Non', unit: 'dona', price: 4000n, is_active: true };
+    const ok1 = await connect(fakeDb({ addProducts: vi.fn(async () => ({ created: [], existing: [prod], created_count: 0, existing_count: 1 })) }));
+    const r = await ok1.call('add_products', { items: [{ name: 'non', price: '5000' }] });
+    expect(r.body.existing[0]).toEqual({ id: CUSTOMER, name: 'Non', unit: 'dona', price: 4000, is_active: true });
+    expect(r.body.message).toMatch(/1 tasi allaqachon bor/);
+    const bad = await connect(fakeDb({ addProducts: vi.fn(async () => { throw new DbError('invalid_item: index=2, field=unit'); }) }));
+    expect((await bad.call('add_products', { items: [{ name: 'A' }, { name: 'B' }] })).body.error).toMatch(/Tovar №2: unit noto'g'ri/);
+  });
+
+  it('add_products: 100 tadan ko\'p yoki bo\'sh ro\'yxat sxema bilan rad etiladi', async () => {
+    const { client, db } = await connect();
+    const many = Array.from({ length: 101 }, (_, i) => ({ name: `T${i}` }));
+    for (const items of [many, []]) {
+      const r = (await client.callTool({ name: 'add_products', arguments: { items } })) as { isError?: boolean };
+      expect(r.isError).toBe(true);
+    }
+    expect(db.addProducts).not.toHaveBeenCalled();
+  });
+
+  it('list_products narxni butun son qilib qaytaradi', async () => {
+    const { call } = await connect(fakeDb({ listProducts: vi.fn(async () => [{ id: CUSTOMER, name: 'Non', unit: 'dona', price: 4000n, is_active: true, source: 'app' }, { id: SHOP, name: 'Un', unit: 'kg', price: null, is_active: false, source: 'agent' }]) }));
+    const r = await call('list_products', { include_archived: true });
+    expect(r.body.products).toEqual([
+      { id: CUSTOMER, name: 'Non', unit: 'dona', price: 4000, is_active: true, source: 'app' },
+      { id: SHOP, name: 'Un', unit: 'kg', price: null, is_active: false, source: 'agent' },
+    ]);
+  });
+});
+
+describe('katalog: o\'zgartirish va arxiv faqat so\'rov', () => {
+  it('mijoz nomini o\'zgartirish: proposeCustomerUpdate; xabarda "O\'ZGARMADI"', async () => {
+    const { db, call } = await connect();
+    const r = await call('propose_change', { target: 'customer', target_id: CUSTOMER, action: 'update', changes: { name: 'Rahim Karimov' } });
+    expect(r.isError).toBe(false);
+    expect(r.body).toMatchObject({ status: 'draft', draft_id: 'e4e4e4e4-0000-4000-8000-000000000001' });
+    expect(r.body.message).toMatch(/Hech narsa O'ZGARMADI/);
+    expect(db.proposeCustomerUpdate.mock.calls[0]![0]).toMatchObject({ shopId: SHOP, customerId: CUSTOMER, name: 'Rahim Karimov' });
+  });
+
+  it('mijozda nomdan boshqa maydon yoki bo\'sh changes rad etiladi', async () => {
+    const { db, call } = await connect();
+    expect((await call('propose_change', { target: 'customer', target_id: CUSTOMER, action: 'update', changes: { name: 'A', price: '5' } })).isError).toBe(true);
+    expect((await call('propose_change', { target: 'customer', target_id: CUSTOMER, action: 'update', changes: { unit: 'kg' } })).isError).toBe(true);
+    expect((await call('propose_change', { target: 'customer', target_id: CUSTOMER, action: 'update' })).isError).toBe(true);
+    expect(db.proposeCustomerUpdate).not.toHaveBeenCalled();
+  });
+
+  it('tovar: narx matni kod bilan o\'qiladi, null narxni tozalaydi, noaniq narx rad etiladi', async () => {
+    const { db, call } = await connect();
+    await call('propose_change', { target: 'product', target_id: CUSTOMER, action: 'update', changes: { price: '14 ming', name: 'Chirmoq 1-nav' } });
+    expect(db.proposeProductUpdate.mock.calls[0]![0].changes).toEqual({ name: 'Chirmoq 1-nav', price: 14000 });
+    await call('propose_change', { target: 'product', target_id: CUSTOMER, action: 'update', changes: { price: null } });
+    expect(db.proposeProductUpdate.mock.calls[1]![0].changes).toEqual({ price: null });
+    const bad = await call('propose_change', { target: 'product', target_id: CUSTOMER, action: 'update', changes: { price: 'arzon' } });
+    expect(bad.isError).toBe(true);
+    expect(db.proposeProductUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it('arxiv: proposeArchive; changes berilsa rad etiladi; o\'chirish asbobi yo\'q', async () => {
+    const { db, call, client } = await connect();
+    const r = await call('propose_change', { target: 'product', target_id: CUSTOMER, action: 'archive' });
+    expect(r.body.message).toMatch(/tovarni arxivlash/);
+    expect(db.proposeArchive.mock.calls[0]![0]).toMatchObject({ kind: 'product', targetId: CUSTOMER });
+    expect((await call('propose_change', { target: 'customer', target_id: CUSTOMER, action: 'archive', changes: { name: 'X' } })).isError).toBe(true);
+    // action faqat update|archive (delete sxemada yo'q)
+    const del = (await client.callTool({ name: 'propose_change', arguments: { target: 'customer', target_id: CUSTOMER, action: 'delete' } })) as { isError?: boolean };
+    expect(del.isError).toBe(true);
+    expect(db.proposeArchive).toHaveBeenCalledTimes(1);
+  });
+
+  it('ochiq so\'rov bor bo\'lsa: id bilan tushunarli xabar; request_id kalit sifatida', async () => {
+    const pending = await connect(fakeDb({ proposeArchive: vi.fn(async () => { throw new DbError('proposal_pending: e4e4e4e4-0000-4000-8000-0000000000aa'); }) }));
+    const r = await pending.call('propose_change', { target: 'customer', target_id: CUSTOMER, action: 'archive', request_id: 'req-12345678' });
+    expect(r.body.error).toMatch(/tasdiqlanmagan so'rov allaqachon bor \(e4e4e4e4-0000-4000-8000-0000000000aa\)/);
+    expect(pending.db.proposeArchive.mock.calls[0]![0].requestId).toBe('mcp:req-12345678');
+  });
+
+  it('savdo/to\'lov hali ham faqat qoralama: draft_sale 385 000 (katalog asboblari ularga tegmaydi)', async () => {
+    const { db, call } = await connect();
+    const r = await call('draft_sale', { lines: LINES_385 });
+    expect(r.body).toMatchObject({ total: 385000, status: 'draft' });
+    expect(db.draftSale.mock.calls[0]![0].clientTotal).toBe(385000n);
+    for (const k of ['addCustomer', 'addProducts', 'proposeCustomerUpdate', 'proposeProductUpdate', 'proposeArchive']) {
+      expect(db[k as keyof typeof db]).not.toHaveBeenCalled();
+    }
   });
 });

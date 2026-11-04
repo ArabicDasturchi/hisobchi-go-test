@@ -15,8 +15,9 @@ describe('MCP manba kodi qo\'riqchisi', () => {
   it('bazaga faqat shu agent_* RPC\'lar orqali murojaat qiladi', () => {
     const used = [...code('db.ts').matchAll(/call\(\s*'([a-z_]+)'/g)].map((m) => m[1]).sort();
     expect(used).toEqual([
-      'agent_customer_balance', 'agent_day_rows', 'agent_draft_payment', 'agent_draft_sale',
-      'agent_get_sale', 'agent_list_customers', 'agent_list_sales', 'agent_whoami',
+      'agent_add_customer', 'agent_add_products', 'agent_customer_balance', 'agent_day_rows', 'agent_draft_payment', 'agent_draft_sale',
+      'agent_get_sale', 'agent_list_customers', 'agent_list_products', 'agent_list_sales', 'agent_propose_archive',
+      'agent_propose_customer_update', 'agent_propose_product_update', 'agent_whoami',
     ]);
     // .rpc() faqat db.ts ichida
     for (const f of files.filter((x) => x !== 'db.ts')) expect(code(f), f).not.toMatch(/\.rpc\(/);

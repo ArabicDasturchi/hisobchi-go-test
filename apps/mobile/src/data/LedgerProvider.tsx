@@ -6,11 +6,13 @@ import { createDraftStore, type DraftStore } from './drafts';
 import type { SqlDb } from './db';
 import { fromExpoSqlite } from './expo-db';
 import { createLedger, type Ledger } from './ledger';
+import { createPurchasing, type Purchasing } from './purchasing';
 
 interface DataContextValue {
   ledger: Ledger;
   drafts: DraftStore;
   catalog: Catalog;
+  purchasing: Purchasing;
   sql: SqlDb;
 }
 
@@ -26,6 +28,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       ledger: createLedger(sql, { newId: randomUUID, now }),
       drafts: createDraftStore(sql, { now }),
       catalog: createCatalog(sql, { newId: randomUUID, now }),
+      purchasing: createPurchasing(sql, { newId: randomUUID, now }),
       sql,
     };
   }, [db]);
@@ -48,6 +51,10 @@ export function useDraftStore(): DraftStore {
 
 export function useCatalog(): Catalog {
   return useData().catalog;
+}
+
+export function usePurchasing(): Purchasing {
+  return useData().purchasing;
 }
 
 /** Bulutga push uchun — ledger bilan bir xil navbatli ulanish */

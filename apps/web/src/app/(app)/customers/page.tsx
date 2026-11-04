@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
 import { CustomerFormModal } from '@/components/forms/CustomerFormModal';
-import { DataGate, Money, ResponsiveTable } from '@/components/shared';
+import { DataGate, Money, RecordBadges, ResponsiveTable } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Avatar, Button, Card, EmptyState, PageHeader, SearchInput, Segmented, Select, TableSkeleton } from '@/components/ui/primitives';
+import { activeCustomerCount, inCustomerView } from '@/lib/data/customers';
 import { balanceOf } from '@/lib/data/ledger';
 import { formatDate } from '@/lib/dates';
 
-type Filter = 'all' | 'debt' | 'clear';
+type Filter = 'all' | 'debt' | 'clear' | 'archived';
 type Sort = 'name' | 'debt' | 'recent';
 
 const norm = (s: string) => s.toLocaleLowerCase('uz').replace(/[ʻʼ‘’`']/g, "'").trim();
@@ -29,6 +30,8 @@ function Customers({ data }: { data: ShopData }) {
     const list = data.customers
       .map((c) => ({ c, b: balanceOf(balances, c.id) }))
       .filter(({ c, b }) => {
+        // Arxivlangan mijozlar faqat "Arxiv" filtrida ko'rinadi (tarix va qarz saqlanadi)
+        if (!inCustomerView(c, filter === 'archived')) return false;
         if (filter === 'debt' && b.debt <= 0n) return false;
         if (filter === 'clear' && b.debt > 0n) return false;
         if (!q) return true;
@@ -46,7 +49,7 @@ function Customers({ data }: { data: ShopData }) {
     <>
       <PageHeader
         title="Mijozlar"
-        description={`${data.customers.length} ta mijoz`}
+        description={`${activeCustomerCount(data.customers)} ta mijoz`}
         actions={
           <Button onClick={() => setAdding(true)} icon={<Plus className="h-4 w-4" />}>
             Mijoz qo&apos;shish
@@ -65,6 +68,7 @@ function Customers({ data }: { data: ShopData }) {
                 { value: 'all', label: 'Hammasi' },
                 { value: 'debt', label: 'Qarzdorlar' },
                 { value: 'clear', label: 'Qarzsiz' },
+                { value: 'archived', label: 'Arxiv' },
               ]}
             />
             <Select aria-label="Saralash" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="h-9 w-auto py-0 text-xs sm:text-sm">
@@ -104,7 +108,10 @@ function Customers({ data }: { data: ShopData }) {
               <Link key={c.id} href={`/customers/${c.id}`} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2">
                 <Avatar name={c.name} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-fg">{c.name}</p>
+                  <p className="flex items-center gap-1.5 truncate text-sm font-medium text-fg">
+                    <span className="truncate">{c.name}</span>
+                    <RecordBadges source={c.source} archived={!c.is_active} />
+                  </p>
                   <p className="truncate text-xs text-muted">{c.phone ?? `${b.saleCount} ta savdo`}</p>
                 </div>
                 <div className="text-right">
@@ -120,7 +127,10 @@ function Customers({ data }: { data: ShopData }) {
                   <Link href={`/customers/${c.id}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                     <Avatar name={c.name} />
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-fg">{c.name}</p>
+                      <p className="flex items-center gap-1.5 truncate font-medium text-fg">
+                        <span className="truncate">{c.name}</span>
+                        <RecordBadges source={c.source} archived={!c.is_active} />
+                      </p>
                       <p className="text-xs text-muted">Qo&apos;shilgan: {formatDate(c.created_at)}</p>
                     </div>
                   </Link>
