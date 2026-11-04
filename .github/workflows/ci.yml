@@ -1,0 +1,101 @@
+# Har pull request va main uchun tekshiruv. Branch himoyasi (Settings > Branches > Require status checks)
+# shu ish nomlariga tayanadi: "CI / Testlar", "CI / Veb build", "CI / Mobil bundle", "CI / SQL testlar".
+# Sirlar kerak emas (Supabase'ga ulanmaydi). Migratsiyani production'ga qo'llash: migrate.yml (faqat main).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Bir PR'ga yangi commit tushsa, eskisi bekor qilinadi (main'da bekor qilinmaydi)
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # npm ci + typecheck + barcha testlar (core, mobil, veb, mcp, CI skriptlari)
+  test:
+    name: Testlar
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Testlar
+        run: npm test
+
+  # Veb panel yig'iladimi (Next.js build). Kalitsiz: sahifalar /setup'ga yo'naltiriladi, build baribir o'tadi.
+  web-build:
+    name: Veb build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Next.js build
+        run: npm run build:web
+
+  # Mobil ilova Metro bundle'ga yig'iladimi (import/sintaksis xatolarini telefonsiz ushlaydi)
+  mobile-bundle:
+    name: Mobil bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Expo export (android)
+        run: npm run export:android --workspace=apps/mobile -- --output-dir "$RUNNER_TEMP/expo-android"
+
+  # Migratsiyalar (001 dan oxirgisigacha, 003+ ikki marta) va xavfsizlik testlari, lokal PostgreSQL'da.
+  # Faqat lokal konteyner: production bazaga tegmaydi.
+  sql:
+    name: SQL testlar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Migratsiya va xavfsizlik testlari
+        run: |
+          command -v psql >/dev/null || { sudo apt-get update && sudo apt-get install -y postgresql-client; }
+          bash supabase/tests/run_local.sh
