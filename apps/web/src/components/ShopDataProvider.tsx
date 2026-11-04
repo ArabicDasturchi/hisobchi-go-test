@@ -13,7 +13,10 @@ import { getSupabase } from '@/lib/supabase/client';
 import { useAuth } from './AuthProvider';
 
 export interface ShopData {
+  /** Doimiy mijozlar. Bir martalik (tizim) mijoz bu yerda yo'q: `walkin` */
   customers: Customer[];
+  /** Bir martalik tizim mijozi (savdo nomlari uchun); 006 qo'llanmagan yoki hali savdo bo'lmasa null */
+  walkin: Customer | null;
   products: Product[];
   sales: SaleDoc[];
   payments: Payment[];
@@ -80,7 +83,7 @@ export function ShopDataProvider({ membership: initial, children }: { membership
     const p = (async () => {
       setLoading(true);
       try {
-        const [customers, products, sales, payments, reversals, draftsRes] = await Promise.all([
+        const [allCustomers, products, sales, payments, reversals, draftsRes] = await Promise.all([
           listCustomers(sb, shopId),
           listProducts(sb, shopId),
           listSales(sb, shopId),
@@ -92,7 +95,9 @@ export function ShopDataProvider({ membership: initial, children }: { membership
             (e: unknown) => ({ drafts: null as AgentDraft[] | null, draftsError: errorMessage(e) }),
           ),
         ]);
-        setData({ customers, products, sales, payments, reversals, drafts: draftsRes.drafts, draftsError: draftsRes.draftsError });
+        const customers = allCustomers.filter((c) => c.kind !== 'one_time');
+        const walkin = allCustomers.find((c) => c.kind === 'one_time') ?? null;
+        setData({ customers, walkin, products, sales, payments, reversals, drafts: draftsRes.drafts, draftsError: draftsRes.draftsError });
         setError(null);
         setLastLoadedAt(new Date());
       } catch (e) {
@@ -127,7 +132,7 @@ export function ShopDataProvider({ membership: initial, children }: { membership
   }, [reload]);
 
   const balances = useMemo(() => (data ? customerBalances(data.sales, data.payments) : new Map<string, CustomerBalance>()), [data]);
-  const customerById = useMemo(() => new Map((data?.customers ?? []).map((c) => [c.id, c])), [data]);
+  const customerById = useMemo(() => new Map([...(data?.customers ?? []), ...(data?.walkin ? [data.walkin] : [])].map((c) => [c.id, c])), [data]);
 
   const pendingDrafts = data?.drafts?.length ?? 0;
 

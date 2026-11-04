@@ -99,8 +99,21 @@ export async function renameShop(sb: SB, shopId: string, name: string): Promise<
 
 const CUSTOMER_COLS = 'id, name, phone, notes, is_active, source, created_at, updated_at';
 
+/**
+ * `kind` ustuni 006 migratsiyasi bilan keladi. U qo'llanmagan bo'lsa (ustun yo'q) ilova avvalgidek ishlashi kerak:
+ * avval ustunni sinab ko'ramiz, yo'q bo'lsa eski ro'yxat bilan davom etamiz.
+ */
+export async function hasCustomerKind(sb: SB, shopId: string): Promise<boolean> {
+  const { error } = await sb.from('customers').select('kind').eq('shop_id', shopId).limit(1);
+  if (!error) return true;
+  const e = error as { code?: string; message?: string };
+  if (e.code === '42703' || /column .*kind.* does not exist|kind.*does not exist/i.test(e.message ?? '')) return false;
+  throw toAppError(error);
+}
+
 export async function listCustomers(sb: SB, shopId: string): Promise<Customer[]> {
-  return fetchAll<Customer>((from, to) => sb.from('customers').select(CUSTOMER_COLS).eq('shop_id', shopId).order('name').order('id').range(from, to));
+  const cols: string = (await hasCustomerKind(sb, shopId)) ? `${CUSTOMER_COLS}, kind` : CUSTOMER_COLS;
+  return fetchAll<Customer>((from, to) => sb.from('customers').select(cols).eq('shop_id', shopId).order('name').order('id').range(from, to) as unknown as Res<Customer>);
 }
 
 export interface CustomerInput {

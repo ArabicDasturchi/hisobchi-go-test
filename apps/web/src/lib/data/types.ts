@@ -32,6 +32,8 @@ export interface Customer {
   /** false = arxivlangan (tarix, savdo va qarz saqlanadi, yangi savdo tanlovida ko'rinmaydi) */
   is_active: boolean;
   source: RecordSource;
+  /** 006 migratsiyasidan: 'one_time' = bir martalik mijoz (tizim mijozi, ro'yxatlarda ko'rsatilmaydi). Ustun bo'lmasa undefined */
+  kind?: 'regular' | 'one_time';
   created_at: string;
   updated_at: string;
 }
