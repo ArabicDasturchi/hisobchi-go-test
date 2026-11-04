@@ -26,10 +26,11 @@ yaratish. Tasdiqlash faqat ilovada, savdogar qo'li bilan.
 
 | Qism | Joyi | Mazmuni |
 |---|---|---|
-| MCP server | `apps/mcp` | Streamable HTTP (stateless, JSON javob), rasmiy MCP SDK, 11 asbob (7 + katalog uchun 4) |
+| MCP server | `apps/mcp` | Streamable HTTP (stateless, JSON javob), rasmiy MCP SDK, 13 asbob (7 + katalog uchun 4 + `list_suppliers`, `draft_purchase`) |
 | Migratsiya | `supabase/migrations/004_mcp_agent.sql` | OAuth tokenni yozuvdan to'sish, `agent_drafts`, `agent_*` RPC'lar, `customer_outstanding` tuzatildi. **Asoschi ko'rib chiqib o'zi qo'llaydi** |
 | Migratsiya (katalog) | `supabase/migrations/005_agent_catalog.sql` | `agent_add_customer`, `agent_add_products`, `agent_list_products`, `agent_propose_*`, `agent_requests`, `is_active`/`source` ustunlari, `accept_agent_draft` kengayishi |
-| SQL testlar | `supabase/tests/20_agent_mcp.test.sql`, `30_agent_catalog.test.sql` | `bash supabase/tests/run_local.sh` (lokal PostgreSQL, Supabase stub) |
+| Migratsiya (kirim qoralamasi) | `supabase/migrations/008_agent_purchases.sql` (alohida PR) | `agent_list_suppliers`, `agent_draft_purchase`, `agent_list_products` (qoldiq, tan narx), `agent_draft_sale` (bir martalik mijoz, to'lov), `accept_agent_draft` kengayishi. **Asoschi o'zi qo'llaydi (CI merge'dan keyin)** |
+| SQL testlar | `supabase/tests/20_agent_mcp.test.sql`, `30_agent_catalog.test.sql`, `60_agent_purchases.test.sql` | `bash supabase/tests/run_local.sh` (lokal PostgreSQL, Supabase stub) |
 | Rozilik sahifasi | `apps/web/src/app/oauth/consent` | Supabase OAuth server uchun "ruxsat berish / rad etish" |
 | Qoralamalar (veb) | `apps/web/src/app/(app)/drafts`, `components/DraftCard.tsx`, `lib/data/agentDrafts.ts` | Ro'yxat, tasdiqlash (`accept_agent_draft`), rad etish (`reject_agent_draft`), menyuda belgi |
 | Qarorlar | `docs/QARORLAR.md` | 02.11.2026 qatorlari |
@@ -107,15 +108,27 @@ Mobil va veb uni RPC sifatida chaqirmaydi (qarzni o'zlari hisoblaydi), shuning u
 | `get_customer_balance` | o'qish | `customer_outstanding` qoidasi: savdolar (bekor qilinmaganlar) − to'lovlar (bekor qilinmaganlar) |
 | `list_sales`, `get_sale` | o'qish | Sana Toshkent vaqti (UTC+5). `raw_input`/`raw_text` qaytarilmaydi |
 | `daily_summary` | o'qish | Jami kodda (BigInt) hisoblanadi, bazaning mustaqil yig'indisi bilan solishtiriladi, farq bo'lsa hisobot berilmaydi |
-| `draft_sale` | qoralama | `qty` va `price` MATN (masalan "10", "13 ming"): core o'qiydi, AI emas. Noaniq qator bo'lsa qoralama yaratilmaydi, savdogardan so'rash aytiladi |
+| `draft_sale` | qoralama | `qty` va `price` MATN (masalan "10", "13 ming"): core o'qiydi, AI emas. Noaniq qator bo'lsa qoralama yaratilmaydi, savdogardan so'rash aytiladi. **Bir martalik mijoz:** `walkin: true` + `payment_method` (mijoz bermang; qarzga olmaydi, jami to'liq to'lanadi). Doimiy mijozda ixtiyoriy `paid` + `payment_method` (jamidan oshmaydi). Tizim mijozini agent yaratmaydi: u tasdiqlashda yaratiladi |
 | `draft_payment` | qoralama | Summa matn ("50 ming"); qarzdan oshmasin (tasdiqda yana tekshiriladi) |
-| `list_products` | o'qish | Tovar: nom, birlik, narx, arxiv va manba. Standart: arxivlanmaganlar |
+| `list_products` | o'qish | Tovar: nom, birlik, sotuv narxi, **ombor qoldig'i** (`stock_milli`, 1000 = 1 birlik, manfiy bo'lishi mumkin, `negative_stock`), **tan narx** (`cost_price`, oxirgi kirim; yo'q = null), arxiv va manba. 008 qo'llanmaguncha qoldiq/tan narx `null` ("noma'lum", nol emas) |
+| `list_suppliers` | o'qish | Ta'minotchi: `id`, `name`, `outstanding` (biz unga qarz, so'm). Telefon va izoh qaytarilmaydi. Arxivlanganlar ko'rinmaydi |
+| `draft_purchase` | qoralama | Ta'minotchidan **kirim** qoralamasi: `supplier_id` (list_suppliers), qatorlar `product_id` + `qty` + `unit_cost` (MATN, core o'qiydi), ixtiyoriy `doc_date`, `paid` + `payment_method`, `note`. Jami kodda (core) hisoblanadi va PostgreSQL mustaqil qayta hisoblaydi. Kirim, ombor, tan narx va ta'minotchi qarzi **o'zgarmaydi**; savdogar ilovada/veb panelda tasdiqlaydi (`post_purchase`). Noaniq qator bo'lsa qoralama yaratilmaydi |
 | `add_customer` | **qo'shadi** (tasdiqsiz) | Faqat nom. Dublikat bo'lsa mavjud qaytariladi. Kuniga 100 |
 | `add_products` | **qo'shadi** (tasdiqsiz) | 1-100 tovar; narx MATN ("13 ming") core bilan o'qiladi; mavjud tovar o'zgarmaydi. Kuniga 500 |
 | `propose_change` | so'rov (qoralama) | `target` customer/product, `action` update/archive. Mijozda faqat nom; tovarda nom, birlik, narx. Hech narsa o'zgarmaydi: savdogar ilovada tasdiqlaydi |
 | `confirm_*`, `reverse_*`, har qanday o'chirish | **yo'q** | Tasdiqlash, bekor qilish faqat ilovada; DELETE yo'q |
 
 Bir nechta do'kon bo'lsa `shop_id` talab qilinadi. `request_id` bir xil bo'lsa takroriy qoralama yaratilmaydi.
+
+### 6.1. Kirim qoralamasi va bir martalik savdo (S5)
+
+- Agent faqat **qoralama** yaratadi va **o'qiydi**; `post_purchase`, `post_sale`, `adjust_stock`, `ensure_walkin_customer` MCP kodida yo'q (`guard.test.ts` tekshiradi).
+- `agent_drafts.kind = 'purchase'`: ta'minotchi `target_id` da, qatorlar tovar id bilan (nom va birlik serverda tovardan olinadi, agent yubormaydi). Qoralama ledger, ombor, tan narx va qarzga tegmaydi (SQL testi).
+- Tasdiqlash (faqat birinchi tomon sessiyasi): `accept_agent_draft` -> mavjud `post_purchase` (ikki mustaqil hisob, to'lov qarzdan oshmasligi). Qoralama yaratilgandan keyin ta'minotchi yoki tovar arxivlansa `draft_stale`: hech narsa yozilmaydi.
+- Bir martalik savdo: qoralamada `walkin: true`, mijoz id yo'q; tizim mijozi tasdiqlash paytida `ensure_walkin_customer` bilan olinadi. To'lov jamiga teng bo'lishi shart (`walkin_requires_full_payment`).
+- Veb `/drafts` yangi turlarni ko'rsatadi (kirim jadvali, bir martalik mijoz, to'lov) va core bilan qayta tekshiradi; mos kelmasa "Tasdiqlash" yopiladi.
+- **Eski baza bilan moslik:** MCP yangi ixtiyoriy argumentlarni faqat kerak bo'lganda yuboradi; 008 qo'llanmaguncha `list_products` qoldiq/tan narxsiz ishlaydi, `list_suppliers` va `draft_purchase` xato qaytaradi (RPC yo'q).
+- Sinalmagan: haqiqiy Supabase va haqiqiy MCP klientlari (Claude/ChatGPT) bilan.
 
 ## 7. Sinov holati
 

@@ -9,6 +9,7 @@ import { Alert, Button, Card, EmptyState, ErrorState, PageHeader, Segmented, Ske
 import { useToast } from '@/components/ui/Toast';
 import { clientLabel, draftTitle, isCatalogDraft } from '@/lib/data/agentDrafts';
 import { acceptAgentDraft, listAgentDrafts, listOAuthClientNames, rejectAgentDraft } from '@/lib/data/api';
+import { listSupplierNames } from '@/lib/data/books';
 import type { AgentDraft, AgentDraftStatus } from '@/lib/data/types';
 import { errorMessage } from '@/lib/errors';
 import { formatSom } from '@/lib/money';
@@ -27,6 +28,7 @@ function Drafts({ data }: { data: ShopData }) {
   const [hist, setHist] = useState<Hist>({ status: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
+  const [suppliers, setSuppliers] = useState<ReadonlyMap<string, string>>(new Map());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rejecting, setRejecting] = useState<AgentDraft | null>(null);
@@ -36,10 +38,11 @@ function Drafts({ data }: { data: ShopData }) {
   useEffect(() => {
     let active = true;
     void listOAuthClientNames(getSupabase()).then((m) => active && setNames(m));
+    void listSupplierNames(getSupabase(), shopId).then((m) => active && setSuppliers(m));
     return () => {
       active = false;
     };
-  }, []);
+  }, [shopId]);
 
   useEffect(() => {
     if (filter === 'draft') return;
@@ -137,7 +140,7 @@ function Drafts({ data }: { data: ShopData }) {
           <EmptyState
             icon={<Sparkles className="h-6 w-6" />}
             title={filter === 'draft' ? "Tasdiqlanmagan qoralama yo'q" : filter === 'accepted' ? "Tasdiqlangan qoralama yo'q" : "Rad etilgan qoralama yo'q"}
-            description={filter === 'draft' ? 'AI orqali yaratilgan savdo va to\'lov qoralamalari shu yerda paydo bo\'ladi.' : undefined}
+            description={filter === 'draft' ? 'AI orqali yaratilgan savdo, to\'lov va kirim qoralamalari shu yerda paydo bo\'ladi.' : undefined}
           />
         </Card>
       )}
@@ -148,6 +151,7 @@ function Drafts({ data }: { data: ShopData }) {
             key={d.id}
             draft={d}
             customerName={d.customer_id ? (customerById.get(d.customer_id)?.name ?? "Noma'lum mijoz") : null}
+            supplierName={d.detail.kind === 'purchase' ? (suppliers.get(d.detail.supplier_id) ?? null) : null}
             source={clientLabel(d.client_id, names)}
             busy={busyId === d.id}
             anyBusy={busyId !== null}

@@ -62,7 +62,16 @@ const dayRows = z.object({
 });
 
 const productItem = z.object({ id: uuid, name: z.string(), unit: z.string(), price: bigintLike.nullable(), is_active: z.boolean() });
-const productRow = productItem.extend({ source: z.string() });
+/**
+ * stock_milli / cost_price 008 migratsiyasi bilan keladi; migratsiya qo'llanmaguncha ular yo'q — server baribir ishlaydi.
+ * Miqdor mingdan bir aniqlikda (1000 = 1 birlik), manfiy bo'lishi mumkin.
+ */
+const productRow = productItem.extend({
+  source: z.string(),
+  stock_milli: bigintLike.nullable().optional(),
+  cost_price: bigintLike.nullable().optional(),
+});
+const supplierRow = z.object({ id: uuid, name: z.string(), outstanding: bigintLike });
 const addedCustomer = z.object({ id: uuid, name: z.string(), created: z.boolean(), is_active: z.boolean(), source: z.string(), replayed: z.boolean().optional() });
 const addedProducts = z.object({
   created: z.array(productItem),
@@ -77,6 +86,7 @@ export type ProductRow = z.infer<typeof productRow>;
 export type AddedCustomer = z.infer<typeof addedCustomer>;
 export type AddedProducts = z.infer<typeof addedProducts>;
 export type CustomerRow = z.infer<typeof customerRow>;
+export type SupplierRow = z.infer<typeof supplierRow>;
 export type SaleListRow = z.infer<typeof saleListRow>;
 export type SaleDetail = z.infer<typeof saleDetail>;
 export type DayRows = z.infer<typeof dayRows>;
@@ -87,6 +97,13 @@ export interface DraftLine {
   unit: string;
   unit_price: string;
   raw_text: string | null;
+  warnings: string[];
+}
+
+export interface PurchaseDraftLine {
+  product_id: string;
+  qty_milli: string;
+  unit_cost: string;
   warnings: string[];
 }
 
@@ -106,6 +123,7 @@ export interface AgentDb {
   getSale(a: { shopId: string; saleId: string }): Promise<SaleDetail>;
   dayRows(a: { shopId: string; day: string }): Promise<DayRows>;
   listProducts(a: { shopId: string; query: string | null; includeArchived: boolean; limit: number; offset: number }): Promise<ProductRow[]>;
+  listSuppliers(a: { shopId: string; query: string | null; limit: number; offset: number }): Promise<SupplierRow[]>;
   /** Tasdiqsiz qo'shadi (katalog uchun ruxsat etilgan yagona yozuv). Dublikat bo'lsa mavjudini qaytaradi */
   addCustomer(a: { shopId: string; requestId: string; name: string }): Promise<AddedCustomer>;
   addProducts(a: { shopId: string; requestId: string; items: Array<{ name: string; unit: string; price: number | null }> }): Promise<AddedProducts>;
@@ -120,6 +138,23 @@ export interface AgentDb {
     rawInput: string | null;
     lines: DraftLine[];
     clientTotal: bigint;
+    /** Bir martalik mijoz (qarzga olmaydi, to'liq to'lanadi); customerId bo'lmaydi */
+    walkin?: boolean;
+    paymentMethod?: 'naqd' | 'karta' | 'otkazma' | null;
+    /** Doimiy mijoz uchun savdo bilan birga to'lov (bir martalikda jamiga teng, server o'zi qo'yadi) */
+    paid?: bigint | null;
+  }): Promise<string>;
+  /** Kirim QORALAMASI: kirim, ombor va ta'minotchi qarziga tegmaydi; savdogar ilovada tasdiqlaydi */
+  draftPurchase(a: {
+    shopId: string;
+    opId: string;
+    supplierId: string;
+    docDate: string | null;
+    lines: PurchaseDraftLine[];
+    clientTotal: bigint;
+    paymentMethod: 'naqd' | 'karta' | 'otkazma' | null;
+    paid: bigint | null;
+    note: string | null;
   }): Promise<string>;
   draftPayment(a: {
     shopId: string;
@@ -188,6 +223,8 @@ export function createSupabaseDb(client: RpcClient): AgentDb {
         { p_shop_id: a.shopId, p_query: a.query, p_include_archived: a.includeArchived, p_limit: a.limit, p_offset: a.offset },
         z.array(productRow),
       ),
+    listSuppliers: (a) =>
+      call('agent_list_suppliers', { p_shop_id: a.shopId, p_query: a.query, p_limit: a.limit, p_offset: a.offset }, z.array(supplierRow)),
     addCustomer: (a) => call('agent_add_customer', { p_shop_id: a.shopId, p_request_id: a.requestId, p_name: a.name }, addedCustomer),
     addProducts: (a) => call('agent_add_products', { p_shop_id: a.shopId, p_request_id: a.requestId, p_items: a.items }, addedProducts),
     proposeCustomerUpdate: (a) =>
@@ -206,6 +243,26 @@ export function createSupabaseDb(client: RpcClient): AgentDb {
           p_raw_input: a.rawInput,
           p_lines: a.lines,
           p_client_total: Number(a.clientTotal),
+          // Yangi ixtiyoriy argumentlar faqat kerak bo'lganda yuboriladi: 008 qo'llanmagan bazada eski chaqiruv ishlayveradi
+          ...(a.walkin ? { p_walkin: true } : {}),
+          ...(a.paymentMethod ? { p_payment_method: a.paymentMethod } : {}),
+          ...(a.paid != null ? { p_paid: Number(a.paid) } : {}),
+        },
+        uuid,
+      ),
+    draftPurchase: (a) =>
+      call(
+        'agent_draft_purchase',
+        {
+          p_shop_id: a.shopId,
+          p_client_op_id: a.opId,
+          p_supplier_id: a.supplierId,
+          p_doc_date: a.docDate,
+          p_lines: a.lines,
+          p_client_total: Number(a.clientTotal),
+          p_payment_method: a.paymentMethod,
+          p_paid: a.paid === null ? null : Number(a.paid),
+          p_note: a.note,
         },
         uuid,
       ),
