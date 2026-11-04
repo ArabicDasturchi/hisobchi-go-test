@@ -53,3 +53,7 @@ Thumbs.db
 # Vercel local files
 .vercel/
 **/.vercel/
+
+# Supabase CLI vaqtinchalik holati (link, pooler manzili va h.k.): repoga tushmasin
+supabase/.temp/
+supabase/.branches/

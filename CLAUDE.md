@@ -43,6 +43,7 @@ When I ask for something, the answer is the finished product, not a plan to buil
 - [docs/VAZIFALAR-ICE.md](docs/VAZIFALAR-ICE.md) — vazifalar navbati, ish bo'linishi (kim qaysi fayllarda ishlaydi)
 - [docs/ARXITEKTURA.md](docs/ARXITEKTURA.md) — tuzilma
 - [docs/QARORLAR.md](docs/QARORLAR.md) — qarorlar jurnali
+- [docs/MIGRATSIYA-CI.md](docs/MIGRATSIYA-CI.md) — migratsiyalar `main` ga merge bo'lganda CI orqali qo'llanadi; yangi fayl `005_nom.sql` shaklida
 - [docs/MCP-AGENT.md](docs/MCP-AGENT.md) — MCP server (`apps/mcp`): faqat o'qish + qoralama, tasdiqlash faqat ilovada
 - [docs/MUAMMOLAR.md](docs/MUAMMOLAR.md), [docs/SUHBATLAR.md](docs/SUHBATLAR.md), [docs/RAQIBLAR.md](docs/RAQIBLAR.md) — dalillar
 

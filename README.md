@@ -49,6 +49,7 @@ Unikorumlar: Abdulloh Ismoilov (mahsulot, savdogarlar bilan sinov), Humoyun Anva
 | [docs/ARXITEKTURA.md](docs/ARXITEKTURA.md) | Tuzilma, himoya qatlamlari |
 | [docs/MCP-AGENT.md](docs/MCP-AGENT.md) | MCP server (Claude/ChatGPT) |
 | [docs/GEMINI-LLM.md](docs/GEMINI-LLM.md) | AI provayder tadqiqoti |
+| [docs/MIGRATSIYA-CI.md](docs/MIGRATSIYA-CI.md) | Migratsiyalar avtomatik qo'llanishi (GitHub Actions) |
 | [docs/BACKEND_SETUP.md](docs/BACKEND_SETUP.md) | Supabase, sinxronizatsiya |
 | [docs/TELEFONDA_SINASH.md](docs/TELEFONDA_SINASH.md) | Telefonda ishga tushirish |
 | [docs/MUAMMOLAR.md](docs/MUAMMOLAR.md), [docs/SUHBATLAR.md](docs/SUHBATLAR.md), [docs/RAQIBLAR.md](docs/RAQIBLAR.md), [docs/BOZOR-TAM-SAM-SOM.md](docs/BOZOR-TAM-SAM-SOM.md) | Dalillar: muammolar, 15 suhbat, raqiblar, bozor hajmi |
