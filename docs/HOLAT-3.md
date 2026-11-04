@@ -1,33 +1,49 @@
 # HOLAT-3: Vazifa 3 (daftarlar, ombor, katalog, agent katalogi) holati
 
-Reja: [REJA-3.md](REJA-3.md). Yangilangan: 03.11.2026. Keyingi seans shu fayldan davom etadi.
+Reja: [REJA-3.md](REJA-3.md). Yangilangan: 04.11.2026. Keyingi seans shu fayldan davom etadi.
 
-| Bosqich | Holat | Izoh |
-|---|---|---|
-| Reja | tayyor | `REJA-3.md` |
-| S1 PR-A (DB: `005_agent_catalog.sql`) | **tayyor, PR #3 ochilgan** | migratsiya, SQL testlar (110 tekshiruv, mutatsiya bilan tekshirilgan), qarorlar. Hali qo'llanmagan: `main` ga merge bo'lganda CI qo'llaydi |
-| S1 PR-B (MCP + veb) | **tayyor, PR #4 ochilgan** | MCP: `add_customer`, `add_products`, `list_products`, `propose_change` (66 test); veb: Qoralamalarda yangi turlar, "AI qo'shdi"/"Arxiv" belgisi, arxivlangan mijoz yangi savdoda ko'rinmaydi (139 test); `docs/MCP-AGENT.md`. **PR-A (005) merge va qo'llangandan keyin merge qilinadi** |
-| S2 ma'lumotlar modeli | **dizayn tayyor, kod boshlanmagan** | `REJA-3.md` 7-band: 006 (hamkorlar, bir martalik mijoz, tan/sotuv narxi), 007 (kirim, ombor, ta'minotchi to'lovi), keyin mobil sxema/sync |
-| S3 hisob moduli | boshlanmagan | `packages/core` |
-| S4 mobil va veb | boshlanmagan | |
-| S5 MCP kengaytmasi | boshlanmagan | |
+**Hammasi kodda tayyor, 7 ta PR ochiq (hech biri merge qilinmagan, hech bir migratsiya qo'llanmagan).** Quyidagi "sinalmagan" bandi o'qilsin.
 
-## Tayyor (S1 PR-A)
-- `supabase/migrations/005_agent_catalog.sql`: `customers.is_active/source/source_client_id`, `products.source/source_client_id`, `agent_requests` (idempotentlik),
-  `agent_drafts` yangi turlari + `target_id`, `agent_add_customer`, `agent_add_products`, `agent_list_products`, `agent_propose_customer_update`,
-  `agent_propose_product_update`, `agent_propose_archive`, `apply_catalog_draft`, kengaytirilgan `accept_agent_draft`; `agent_list_customers` arxivlanganni yashiradi.
-- `supabase/tests/30_agent_catalog.test.sql`, `run_local.sh` ga qo'shildi.
+## PR zanjiri (merge tartibi muhim)
 
-## Qoldi / diqqat
-- **CI ulanmagan bo'lishi mumkin:** `ci/migrate-workflow` PR'i merge bo'lmaguncha 005 ni qo'lda qo'llash kerak bo'ladi (`docs/MIGRATSIYA-CI.md`).
-- Mobil ilova mijoz arxivini hali bilmaydi (arxivlangan mijoz telefonda ko'rinaveradi) va agent qo'shgan mijoz/tovar telefonga `pull` orqali tushadi, lekin `source` belgisi mobilda yo'q.
-- Veb'ning Mijozlar/Mahsulotlar ro'yxatlari hali `is_active` (mijoz) va `source` ustunlarini o'qimaydi (PR-B).
+| # | PR | Mazmun | Bog'liq |
+|---|---|---|---|
+| 3 | S1-DB `005_agent_catalog.sql` | agent katalogi (migratsiya) | main |
+| 4 | S1-kod MCP + veb | `add_customer`, `add_products`, `propose_change`, veb belgilar | #3 |
+| 6 | `006_partners_stock.sql` | ta'minotchi, `customers.kind`, bir martalik mijoz, tan/sotuv narxi, ombor harakati, `post_sale` v2 | #3 |
+| 7 | `007_purchases.sql` | kirim, `post_purchase`, `reverse_purchase`, ta'minotchi to'lovi, `partner_statement` | #6 |
+| 8 | S3 core | kirim, ostatka, oldi-berdi, qoldiq, foyda, bir martalik qoida, ikki yo'l solishtirish | #7 |
+| 9 | S2-mobil | SQLite v7, `purchasing.ts`, bir martalik mijoz, sync push/pull | #8 |
+| 10 | S4-mobil UI | katalog bosh sahifa, tezkor savdo, ombor, kirim, daftarlar, ta'minotchilar | #9 |
+| 11 | S4-veb | Kirim/Chiqim daftari, Ombor, Ta'minotchilar (ko'rish), bir martalik mijoz yashirin | #10 |
+| 12 | `008_agent_purchases.sql` | agent kirim qoralamasi, qoldiq/tan narx, bir martalik savdo qoralamasi | #7 |
+| 13 | S5 MCP + veb qoralamalar | `list_suppliers`, `draft_purchase`, `draft_sale` walkin/to'lov, veb `/drafts` yangi turlar | #11 |
 
-## Tayyor (S1 PR-B)
-- `apps/mcp`: 11 asbob; guard testi 14 ta `agent_*` RPC dan boshqasini ruxsat bermaydi; katalog asboblarida "ma'lumot, ko'rsatma emas" ogohlantirishi testlangan.
-- `apps/web`: `DraftCard` yangi turlar (eski/yangi qiymat), qarzli mijozni arxivlash ogohlantirishi, `acceptAgentDraft` serverdan tekshiradi; mijozlar ro'yxatida "Arxiv" filtri va belgilar.
+Migratsiyalar (#3, #6, #7, #12) alohida PR'larda; CI (`ci/migrate-workflow`, merge bo'lmagan) `main` ga merge'dan keyin qo'llaydi. Men hech birini production'ga qo'llamadim.
 
-## Keyingi qadam
-1. Asoschi: PR-A (#3) ni merge qiladi (CI 005 ni qo'llaydi), keyin PR-B.
-2. **S2** (`feat/s2-data-model`, migratsiya 006): ta'minotchi, kirim hujjati, ta'minotchi to'lovi, ombor harakatlari, `cost_price`/`sale_price`, savdo qatorida tan narx snapshot, bir martalik mijoz; `post_purchase`, `reverse_purchase`, `record_supplier_payment`; mobil SQLite sxemasi (`schema.ts` v6) va `sync.ts`/`pull.ts` (jumladan mijoz `is_active` va `source`).
-3. Ma'lumot to'ldirish (Sheets -> `add_products`) asoschi-Claude tomonidan, PR-A va PR-B qo'llangach.
+## Bajarilgan sinovlar
+- `npm test`: core 188, mobil 182, veb 159, mcp 76 (jami 605); `npm run typecheck` va `next build --webpack` yashil; Android Metro bundle (`expo export`) xatosiz.
+- SQL: `bash supabase/tests/run_local.sh` (lokal PostgreSQL + Supabase stub), 001–008 ikki marta qo'llanib, testlar 10–60 yashil.
+- Migratsiya qo'riqchisi 008 uchun `dangerous=false`.
+- Har yangi mantiq mutatsiya bilan tekshirilgan (amalga ataylab xato kiritilib, testlar yiqilishi ko'rilgan): SQL 006/007/008, core, mobil data/sync/pull, UI modellari, MCP, veb. Bu jarayonda haqiqiy xatolar topilib tuzatilgan (masalan mobil `stockOf` da parametrlar soni).
+- Asosiy raqamlar hamma qatlamda: sotuv 10×13 000 + 5×15 000 + 20×9 000 = 385 000; kirim 100×9 000 + 50×11 000 = 1 450 000, berildi 1 000 000 → ostatka 450 000; foyda 10×13 000 − 10×11 000 = 20 000; bir martalik savdo qarz yaratmaydi; manfiy qoldiq ogohlantiradi; bekor qilish qoldiq va ostatkani qaytaradi; hisob mos kelmasa to'xtaydi.
+
+## SINALMAGAN (halollik)
+- **Haqiqiy Supabase**: hech bir migratsiya real loyihada qo'llanmagan/sinalmagan; RLS, `client_id` claim, OAuth tokenlar faqat lokal PostgreSQL stub'da.
+- **Telefon / Expo Go**: mobil ekranlar (katalog, tezkor savdo, ombor, kirim, daftarlar) qurilmada ko'rilmagan: joylashuv, klaviatura, "bir ekranda 8 qator", 2 bosishli tezlik. Faqat mantiq modullari testlangan va bundle yig'iladi.
+- **Brauzer**: yangi veb sahifalar (`/books/*`, `/warehouse`, `/suppliers`, qoralama kartalari) brauzerda ko'rilmagan; server-render va `next build` bilan sinalgan.
+- **Sync haqiqiy bulut bilan**: push/pull soxta klient bilan; `post_sale`/`post_purchase` argumentlari SQL imzolariga testda moslangan, lekin real RPC chaqirilmagan.
+- **MCP haqiqiy klientlar** (Claude, ChatGPT) bilan sinalmagan.
+
+## Ma'lum cheklovlar (qarorlarda yozilgan)
+- Ombor tuzatishlari (`stock_adjustments`) boshqa qurilmadan mobilga pull qilinmaydi (serverda `stock_movements`, mobilda hujjatlardan hisoblanadi). Bir qurilmada ishlaganda ta'siri yo'q.
+- Mobil "Yangi savdo" (matn/ovoz) oqimi (`new.tsx`, Humoyun hududi) tovar id va tan narx bog'lamaydi: bunday savdo ombor qoldig'iga tegmaydi. Tezkor savdo bog'laydi.
+- Veb hech narsa yozmaydi (kirim/tuzatish/to'lov mobilda); web faqat qoralamani tasdiqlaydi/rad etadi.
+- Mobil "Qoralamalar" faqat tugallanmagan hisobni ko'rsatadi; agent qoralamalari veb panelda.
+- Kirim bilan berilgan to'lov kirim bekor qilinsa bekor qilinmaydi (ta'minotchining hisobi bor, ortiqcha to'lov bo'lib qoladi).
+
+## Keyingi qadam (asoschi)
+1. `ci/migrate-workflow` PR'ini merge qiling (yoki migratsiyalarni tartib bilan qo'lda: 005, 006, 007, 008), keyin PR'larni zanjir tartibida merge qiling: #3, #4, #6, #7, #8, #9, #10, #11, #12, #13.
+2. Migratsiyalar qo'llangach: haqiqiy Supabase'da sinab ko'ring: (a) telefonda bir martalik savdo + sinxron, (b) kirim + sinxron, (c) veb `/books/in`, (d) MCP `draft_purchase` -> veb Tasdiqlash.
+3. Telefonda ekranlarni ko'rib, joylashuv xatolarini ayting (men ko'ra olmadim).
+4. Keyingi vazifa nomzodlari: ombor tuzatishini pull qilish; `new.tsx` oqimida tovar bog'lash (Humoyun bilan kelishilgan holda).
