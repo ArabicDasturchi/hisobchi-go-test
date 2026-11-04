@@ -218,3 +218,12 @@ describe('oldi-berdi (Eski / Tovar / Jami / Berildi / Ostatka) va teskari yozuv'
     expect(() => tashkentDate('yo\'q')).toThrow();
   });
 });
+
+describe('sumAmounts', () => {
+  it("yig'indi va manfiy summani rad etish", async () => {
+    const { sumAmounts } = await import('../src/index');
+    expect(sumAmounts([])).toBe(0n);
+    expect(sumAmounts([130000n, 75000n, 180000n])).toBe(385000n);
+    expect(() => sumAmounts([1n, -1n])).toThrow(/Manfiy/);
+  });
+});

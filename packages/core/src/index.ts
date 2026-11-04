@@ -47,7 +47,7 @@ export { parseProductList, parseQtyMilli, parseUnitPriceText } from './parse-lis
 
 // Kirim, oldi-berdi, ombor, foyda, to'lov qoidalari (Vazifa 3, S3)
 export type { PurchaseLineInput, PurchaseLineResult, PurchaseResult, Settlement, PurchasePaymentCheck } from './purchase.js';
-export { calculatePurchase, settle, settlePurchase } from './purchase.js';
+export { calculatePurchase, settle, settlePurchase, sumAmounts } from './purchase.js';
 export type { StatementEntry } from './statement.js';
 export { partnerStatement, partnerBalance, tashkentDate } from './statement.js';
 export type { StockMovement, StockMovementKind, StockLevel, SaleStockLine } from './stock.js';

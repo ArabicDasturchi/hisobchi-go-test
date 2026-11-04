@@ -390,6 +390,13 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
       });
     },
 
+    /** Bir martalik mijoz xulosasi (yaratilmagan bo'lsa null): savdolar soni va jami */
+    async getWalkinSummary(): Promise<{ id: string; saleCount: number; balance: bigint } | null> {
+      const rows = await listCustomersQuery(db, "WHERE c.kind = 'one_time'", []);
+      const w = rows[0];
+      return w ? { id: w.id, saleCount: w.saleCount, balance: w.balance } : null;
+    },
+
     async createCustomer(input: { name: string; phone?: string; note?: string }): Promise<string> {
       const name = input.name.trim();
       if (!name) throw new SaleValidationError('Mijoz ismi kiritilmagan');

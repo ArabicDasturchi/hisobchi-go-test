@@ -65,3 +65,13 @@ export function settlePurchase(opening: bigint, lines: readonly PurchaseLineInpu
   }
   return { ok: true, settlement: s };
 }
+
+/** Summalar yig'indisi (kun/davr jami). Manfiy summa mumkin emas — jimgina qabul qilinmaydi. */
+export function sumAmounts(values: readonly bigint[]): bigint {
+  let sum = 0n;
+  for (const v of values) {
+    if (v < 0n) throw new Error(`Manfiy summa: ${v}`);
+    sum += v;
+  }
+  return sum;
+}
