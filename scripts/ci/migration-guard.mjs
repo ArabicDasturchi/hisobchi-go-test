@@ -19,6 +19,13 @@ import { fileURLToPath } from 'node:url';
 /** SQL Editor'da qo'lda qo'llangan migratsiyalar. CI ularni HECH QACHON o'zi qo'llamaydi. */
 export const BASELINE_VERSIONS = ['001', '002', '003', '004'];
 
+/**
+ * 001 va 003 oldin Supabase MCP `apply_migration` orqali qo'llangan: bazada ular vaqt belgisi bilan yozilgan
+ * (001_initial_schema, 003_security_and_mvp_rpc), repoda esa 001/003 nomi bilan. Bular aynan o'sha SQL.
+ * Baseline ularni tarixdan "bekor" deb belgilaydi (faqat tarix yozuvi, SQL bajarilmaydi), keyin 001-004 "qo'llangan".
+ */
+export const LEGACY_REMOTE_VERSIONS = ['20261031102214', '20261031104302'];
+
 /** "004_mcp_agent.sql" → "004" */
 export const versionOf = (file) => /^(\d+)_/.exec(file)?.[1] ?? null;
 
@@ -56,7 +63,16 @@ export function parseMigrationList(output) {
       }
     }
   }
-  return null;
+  // `supabase migration list` odatda jadval chiqaradi: " `001` | ` ` | `001` " (backtick'lar bilan).
+  const rows = [];
+  for (const line of output.split('\n')) {
+    const cells = line.split('|').map((c) => c.replace(/`/g, '').trim());
+    if (cells.length < 3 || /^local$/i.test(cells[0]) || /^-+$/.test(cells[0])) continue;
+    if (!/^\d*$/.test(cells[0]) || !/^\d*$/.test(cells[1])) continue;
+    if (cells[0] === '' && cells[1] === '') continue;
+    rows.push({ local: cells[0], remote: cells[1] });
+  }
+  return rows.length > 0 ? rows : null;
 }
 
 /** Izohlarni olib tashlaydi, qator raqamlarini saqlaydi (satrlar o'zgarmaydi: ichidagi so'zlar ham tekshiriladi, ehtiyot uchun). */
@@ -138,8 +154,11 @@ function main() {
     const local = new Set(list.map((m) => m.local).filter(Boolean));
     const missing = BASELINE_VERSIONS.filter((v) => local.has(v) && !list.some((m) => m.local === v && m.remote === v));
     const remoteOnly = list.filter((m) => m.remote && !m.local).map((m) => m.remote);
-    if (remoteOnly.length > 0) fail(`Bazada tarixi bor, lekin repoda fayli yo'q migratsiyalar: ${remoteOnly.join(', ')}. Avval ularni aniqlang.`);
-    setOutputs({ versions: missing.join(' '), count: missing.length });
+    const unknown = remoteOnly.filter((v) => !LEGACY_REMOTE_VERSIONS.includes(v));
+    if (unknown.length > 0) fail(`Bazada tarixi bor, lekin repoda fayli yo'q migratsiyalar: ${unknown.join(', ')}. Avval ularni aniqlang.`);
+    const revert = remoteOnly.filter((v) => LEGACY_REMOTE_VERSIONS.includes(v));
+    setOutputs({ versions: missing.join(' '), count: missing.length, revert: revert.join(' ') });
+    if (revert.length > 0) console.log(`Eski vaqt belgili yozuvlar (bekor deb belgilanadi): ${revert.join(' ')}`);
     console.log(`Tarixda yo'q (belgilanadi): ${missing.join(' ') || "yo'q, baseline kerak emas"}`);
     return;
   }

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
-import { analyze, BASELINE_VERSIONS, findDangerous, parseMigrationList, parsePending, versionOf } from './migration-guard.mjs';
+import { analyze, BASELINE_VERSIONS, LEGACY_REMOTE_VERSIONS, findDangerous, parseMigrationList, parsePending, versionOf } from './migration-guard.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, 'migration-guard.mjs');
@@ -43,6 +43,37 @@ describe('parseMigrationList / versionOf', () => {
   it('bo\'sh tarix', () => assert.equal(parseMigrationList(LIST_EMPTY_HISTORY).filter((m) => m.remote === '').length, 4));
   it('repair dan keyin', () => assert.equal(parseMigrationList(LIST_REPAIRED).filter((m) => m.remote === '').length, 0));
   it('tushunarsiz chiqish', () => assert.equal(parseMigrationList('xato'), null));
+  it('jadval ko\'rinishi (haqiqiy CLI chiqishi)', () => {
+    const TABLE = `Target: project hisobchi-go (x) · production
+
+   Local | Remote           | Time (UTC)            
+  -------|------------------|-----------------------
+   \`001\` | \` \`              | \`001\`                 
+   \`002\` | \` \`              | \`002\`                 
+   \`003\` | \` \`              | \`003\`                 
+   \`004\` | \` \`              | \`004\`                 
+   \` \`   | \`20261031102214\` | \`2026-10-31 10:22:14\` 
+   \` \`   | \`20261031104302\` | \`2026-10-31 10:43:02\` 
+`;
+    const l = parseMigrationList(TABLE);
+    assert.equal(l.length, 6);
+    assert.equal(l.filter((m) => m.local && !m.remote).length, 4);
+    assert.deepEqual(l.filter((m) => !m.local).map((m) => m.remote), LEGACY_REMOTE_VERSIONS);
+  });
+  it('baseline: eski vaqt belgilar bekor, 001-004 belgilanadi; noma\'lum remote-only rad etiladi', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'bl-'));
+    const t = (extra) => `   Local | Remote | Time (UTC)\n  ------|--------|----\n   \`001\` | \` \` | \`001\`\n   \`002\` | \` \` | \`002\`\n   \`003\` | \` \` | \`003\`\n   \`004\` | \` \` | \`004\`\n   \` \` | \`20261031102214\` | \`x\`\n${extra}`;
+    writeFileSync(path.join(dir, 'a.txt'), t(''));
+    writeFileSync(path.join(dir, 'b.txt'), t('   ` ` | `20990101000000` | `y`\n'));
+    const out = path.join(dir, 'o.txt');
+    writeFileSync(out, '');
+    const env = { ...process.env, GITHUB_OUTPUT: out };
+    assert.equal(spawnSync('node', [SCRIPT, 'baseline', '--list-file', path.join(dir, 'a.txt')], { env }).status, 0);
+    const o = readFileSync(out, 'utf8');
+    assert.match(o, /versions=001 002 003 004/);
+    assert.match(o, /revert=20261031102214/);
+    assert.notEqual(spawnSync('node', [SCRIPT, 'baseline', '--list-file', path.join(dir, 'b.txt')], { env }).status, 0);
+  });
   it('versiya', () => {
     assert.equal(versionOf('004_mcp_agent.sql'), '004');
     assert.equal(versionOf('20261103120000_x.sql'), '20261103120000');
