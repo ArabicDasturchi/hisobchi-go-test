@@ -110,6 +110,8 @@ jobs:
           exit $missing
       - name: Loyihaga ulanish
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: IPv4 pooler manzilini yozish (runner IPv6 ni qo'llamaydi)
+        run: bash scripts/ci/set-pooler.sh
       - name: Bazadagi migratsiya tarixi
         run: supabase migration list --remote
       - name: Zaxira holati (ma'lumot uchun; topilmasa ham davom etadi)
@@ -154,6 +156,8 @@ jobs:
           exit $missing
       - name: Loyihaga ulanish
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: IPv4 pooler manzilini yozish (runner IPv6 ni qo'llamaydi)
+        run: bash scripts/ci/set-pooler.sh
       - name: Tasdiq va qo'llash orasida reja o'zgarmaganini tekshirish
         run: |
           set -o pipefail
@@ -205,6 +209,8 @@ jobs:
           exit $missing
       - name: Loyihaga ulanish
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: IPv4 pooler manzilini yozish (runner IPv6 ni qo'llamaydi)
+        run: bash scripts/ci/set-pooler.sh
       - name: Bazadagi migratsiya tarixi (oldin)
         run: |
           set -o pipefail
