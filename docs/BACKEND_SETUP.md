@@ -54,6 +54,8 @@ bilan sinashda Metro server ishlab turgan bo'lishi kerak. Ba'zi pochta ilovalari
 maxsus sxemani ochmasligi mumkin — unda havolani tizim brauzerida oching.
 
 ## 2. Migratsiyalarni qo'llash
+> **03.11.2026:** endi migratsiyalar `main` ga merge bo'lganda GitHub Actions orqali avtomatik qo'llanadi (`docs/MIGRATSIYA-CI.md`). Quyidagi qo'lda yo'l faqat favqulodda holat uchun.
+
 Tartib bilan: `001_initial_schema.sql` → `003_security_and_mvp_rpc.sql` → `004_mcp_agent.sql` (MCP uchun, ixtiyoriy; qayta ishga tushirish xavfsiz; `docs/MCP-AGENT.md`).
 - **Yangi (bo'sh) loyiha:** SQL Editor'da avval 001, keyin 003 ni ishga tushiring.
 - **001 allaqachon qo'llangan loyiha:** 001 ni QAYTA ishga tushirmang (indeks/siyosatlar takrorlanadi);

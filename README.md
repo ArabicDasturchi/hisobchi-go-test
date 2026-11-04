@@ -19,6 +19,7 @@ Unikorumlar — Abdulloh Ismoilov, Humoyun Anvarjon. IT Park Andijon inkubatsiya
 | [docs/TZ-MVP.md](docs/TZ-MVP.md) | MVP texnik topshiriq |
 | [docs/ARXITEKTURA.md](docs/ARXITEKTURA.md) | Tuzilma, agentlar, himoya qatlamlari |
 | [docs/QARORLAR.md](docs/QARORLAR.md) | Qabul qilingan qarorlar |
+| [docs/MIGRATSIYA-CI.md](docs/MIGRATSIYA-CI.md) | Migratsiyalar avtomatik qo'llanishi (GitHub Actions) |
 | [docs/MCP-AGENT.md](docs/MCP-AGENT.md) | MCP server (Claude/ChatGPT): holat, xavfsizlik, ishga tushirish |
 | [docs/MUAMMOLAR.md](docs/MUAMMOLAR.md) | Savdogar muammolari |
 | [docs/SUHBATLAR.md](docs/SUHBATLAR.md) | 15 ta mijoz suhbati |
