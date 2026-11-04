@@ -41,7 +41,7 @@ describe("C: migratsiya v1 → eng so'nggi", () => {
 
     const report = await migrate(old);
     expect(report.userVersion).toBe(SCHEMA_VERSION);
-    expect(SCHEMA_VERSION).toBe(6);
+    expect(SCHEMA_VERSION).toBe(7);
     expect(report.problems).toEqual([]);
     const ledger = createLedger(old, deps);
     expect((await ledger.getCustomer(cid))?.balance).toBe(12000n);

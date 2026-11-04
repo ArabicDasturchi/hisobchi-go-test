@@ -13,9 +13,12 @@
 
 import {
   ALLOWED_UNITS,
+  MAX_UNIT_PRICE,
   calculateDocument,
+  checkSalePayment,
   validateDocument,
   type AllowedUnit,
+  type CustomerKind,
 } from '@hisobchi/core';
 import type { SqlConn, SqlDb, SqlParam } from './db';
 import { deleteDraftForOp } from './drafts';
@@ -26,6 +29,10 @@ export interface SaleLineInput {
   unit: AllowedUnit;
   unitPrice: bigint;
   rawText: string | null;
+  /** Katalogdagi tovar (ombor qoldig'i va foyda uchun); bo'lmasa qator qoldiqqa tegmaydi */
+  productId?: string | null;
+  /** Savdo paytidagi tan narx (snapshot, so'm). Foyda faqat kodda hisoblanadi. */
+  unitCost?: bigint | null;
 }
 
 export interface PostSaleInput {
@@ -33,6 +40,8 @@ export interface PostSaleInput {
   customerId: string | null;
   rawInput: string | null;
   lines: SaleLineInput[];
+  /** Savdo bilan birga olingan to'lov. Bir martalik mijoz uchun majburiy va jamiga teng. */
+  paid?: { method: PaymentMethod; amount: bigint } | null;
 }
 
 export interface PostSaleResult {
@@ -265,13 +274,34 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
 
         assertPostable(input.lines);
 
+        let kind: CustomerKind = 'regular';
         if (input.customerId) {
-          const c = await tx.get<{ id: string }>('SELECT id FROM customers WHERE id = ?', [input.customerId]);
+          const c = await tx.get<{ id: string; kind: CustomerKind; is_active: number }>('SELECT id, kind, is_active FROM customers WHERE id = ?', [input.customerId]);
           if (!c) throw new SaleValidationError('Tanlangan mijoz topilmadi');
+          if (c.is_active !== 1) throw new SaleValidationError('Mijoz arxivlangan');
+          kind = c.kind;
+        }
+        for (const l of input.lines) {
+          if (l.productId) {
+            if (!(await tx.get<{ id: string }>('SELECT id FROM products WHERE id = ?', [l.productId]))) {
+              throw new SaleValidationError('Tovar katalogda topilmadi');
+            }
+          }
+          if (l.unitCost != null && (l.unitCost < 0n || l.unitCost > MAX_UNIT_PRICE)) throw new SaleValidationError("Tan narx noto'g'ri");
         }
 
         const check = await verifyTotals(tx, input.lines, opts?.tsOverride);
         if (!check.match) throw new CalculationMismatchError(check);
+
+        const paidAmount = input.paid?.amount ?? null;
+        if (paidAmount !== null && paidAmount > 0n && !input.customerId) {
+          throw new PaymentError("To'lov uchun mijoz tanlanishi kerak");
+        }
+        const rule = checkSalePayment({ kind, total: check.tsTotal, paid: paidAmount });
+        if (!rule.ok) throw new PaymentError(rule.message);
+        if (paidAmount !== null && paidAmount > 0n && !PAYMENT_METHODS.includes(input.paid!.method)) {
+          throw new PaymentError("Noma'lum to'lov usuli");
+        }
 
         const saleId = deps.newId();
         const createdAt = deps.now();
@@ -295,8 +325,8 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
         for (let i = 0; i < input.lines.length; i++) {
           const l = input.lines[i];
           await tx.run(
-            `INSERT INTO sale_lines (id, sale_id, line_index, product_name, qty_milli, unit, unit_price, line_total, raw_text)
-             VALUES (?, ?, ?, ?, CAST(? AS INTEGER), ?, CAST(? AS INTEGER), CAST(? AS INTEGER), ?)`,
+            `INSERT INTO sale_lines (id, sale_id, line_index, product_name, qty_milli, unit, unit_price, line_total, raw_text, product_id, unit_cost)
+             VALUES (?, ?, ?, ?, CAST(? AS INTEGER), ?, CAST(? AS INTEGER), CAST(? AS INTEGER), ?, ?, CAST(? AS INTEGER))`,
             [
               deps.newId(),
               saleId,
@@ -307,6 +337,8 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
               l.unitPrice.toString(),
               check.tsLineTotals[i].toString(),
               l.rawText,
+              l.productId ?? null,
+              l.unitCost == null ? null : l.unitCost.toString(),
             ],
           );
         }
@@ -328,10 +360,33 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
           [deps.newId(), saleId, input.customerId, total, createdAt],
         );
 
+        if (paidAmount !== null && paidAmount > 0n) {
+          await tx.run(
+            `INSERT INTO payments (id, client_op_id, customer_id, amount, method, note, created_at)
+             VALUES (?, ?, ?, CAST(? AS INTEGER), ?, 'savdo bilan', ?)`,
+            [deps.newId(), `sale-pay:${input.clientOpId}`, input.customerId, paidAmount.toString(), input.paid!.method, createdAt],
+          );
+        }
+
         // Shu savdoning qoralamasi — o'sha tranzaksiyada o'chiriladi
         await deleteDraftForOp(tx, input.clientOpId);
 
         return { saleId, total: check.tsTotal, duplicate: false };
+      });
+    },
+
+    /** Bir martalik mijoz: har qurilmada bitta tizim mijozi, nom so'ralmaydi, qarzga olmaydi */
+    async ensureWalkinCustomer(): Promise<string> {
+      return db.transaction(async (tx) => {
+        const found = await tx.get<{ id: string }>("SELECT id FROM customers WHERE kind = 'one_time'");
+        if (found) return found.id;
+        const id = deps.newId();
+        const now = deps.now();
+        await tx.run(
+          "INSERT INTO customers (id, name, created_at, updated_at, kind, source) VALUES (?, 'Bir martalik mijoz', ?, ?, 'one_time', 'system')",
+          [id, now, now],
+        );
+        return id;
       });
     },
 
@@ -359,7 +414,7 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
         const usage = await tx.get<{ sales: number; payments: number; pushed: number }>(
           `SELECT (SELECT COUNT(*) FROM sales WHERE customer_id = ?) AS sales,
                   (SELECT COUNT(*) FROM payments WHERE customer_id = ?) AS payments,
-                  (SELECT COUNT(*) FROM sync_log WHERE entity = 'customer' AND local_id = ?) AS pushed`,
+                  (SELECT COUNT(*) FROM sync_log2 WHERE entity = 'customer' AND local_id = ?) AS pushed`,
           [id, id, id],
         );
         if ((usage?.sales ?? 0) > 0 || (usage?.payments ?? 0) > 0) {
@@ -392,8 +447,8 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
     listCustomers(search = ''): Promise<CustomerWithBalance[]> {
       const q = search.trim();
       return q
-        ? listCustomersQuery(db, 'WHERE c.name LIKE ? COLLATE NOCASE OR c.phone LIKE ?', [`%${q}%`, `%${q}%`])
-        : listCustomersQuery(db, '', []);
+        ? listCustomersQuery(db, "WHERE c.kind = 'regular' AND c.is_active = 1 AND (c.name LIKE ? COLLATE NOCASE OR c.phone LIKE ?)", [`%${q}%`, `%${q}%`])
+        : listCustomersQuery(db, "WHERE c.kind = 'regular' AND c.is_active = 1", []);
     },
 
     async listSales(opts: ListSalesOptions = {}): Promise<SaleSummary[]> {
@@ -663,8 +718,8 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
           if (sameOp.sale_id !== input.saleId) throw new SaleValidationError('Amal identifikatori boshqa savdoga tegishli');
           return { reversalId: sameOp.id, duplicate: true };
         }
-        const sale = await tx.get<{ total: string; customer_id: string | null }>(
-          'SELECT CAST(total AS TEXT) AS total, customer_id FROM sales WHERE id = ?',
+        const sale = await tx.get<{ total: string; customer_id: string | null; client_op_id: string }>(
+          'SELECT CAST(total AS TEXT) AS total, customer_id, client_op_id FROM sales WHERE id = ?',
           [input.saleId],
         );
         if (!sale) throw new SaleValidationError('Savdo topilmadi');
@@ -676,6 +731,19 @@ export function createLedger(db: SqlDb, deps: LedgerDeps) {
            VALUES (?, ?, ?, ?, CAST(? AS INTEGER), ?, ?)`,
           [reversalId, input.saleId, input.clientOpId, sale.customer_id, sale.total, reason, deps.now()],
         );
+        // Bir martalik mijozning savdo bilan olingan puli qaytariladi (uning hisobi yo'q): to'lov bekor qilinadi
+        const walkin = sale.customer_id
+          ? await tx.get<{ id: string }>("SELECT id FROM customers WHERE id = ? AND kind = 'one_time'", [sale.customer_id])
+          : undefined;
+        if (walkin) {
+          const pay = await tx.get<{ id: string }>(
+            'SELECT p.id FROM payments p WHERE p.client_op_id = ? AND NOT EXISTS (SELECT 1 FROM payment_voids v WHERE v.payment_id = p.id)',
+            [`sale-pay:${sale.client_op_id}`],
+          );
+          if (pay) {
+            await tx.run('INSERT INTO payment_voids (id, payment_id, reason, created_at) VALUES (?, ?, ?, ?)', [deps.newId(), pay.id, `savdo bekor qilindi: ${reason}`, deps.now()]);
+          }
+        }
         return { reversalId, duplicate: false };
       });
     },

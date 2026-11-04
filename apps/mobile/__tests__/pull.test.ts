@@ -132,7 +132,7 @@ describe('pullFromCloud', () => {
   });
 
   it("nomi telefondagi boshqa mahsulot bilan bir xil mahsulot import qilinmaydi", async () => {
-    db.raw.exec("INSERT INTO products VALUES ('local-1','GURUCH','kg',17000,'t','t')");
+    db.raw.exec("INSERT INTO products (id, name, unit, unit_price, created_at, updated_at) VALUES ('local-1','GURUCH','kg',17000,'t','t')");
     const res = await pullFromCloud(db, new FakeCloud(webData()), 'shop', deps);
     expect(res.rejected.find((r) => r.id === 'pr-1')?.reason).toMatch(/boshqa mahsulot/);
     expect((db.raw.prepare("SELECT unit_price FROM products WHERE id = 'local-1'").get() as { unit_price: number }).unit_price).toBe(17000);

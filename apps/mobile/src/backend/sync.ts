@@ -31,10 +31,10 @@ const RANK: Record<Event['kind'], number> = { sale: 0, reversal: 1, payment: 2, 
 export async function pendingCount(db: SqlDb, shopId: string): Promise<number> {
   const row = await db.get<{ n: number }>(
     `SELECT
-       (SELECT COUNT(*) FROM sales s WHERE NOT EXISTS (SELECT 1 FROM sync_log l WHERE l.shop_id = ? AND l.entity = 'sale' AND l.local_id = s.id))
-     + (SELECT COUNT(*) FROM sale_reversals r WHERE NOT EXISTS (SELECT 1 FROM sync_log l WHERE l.shop_id = ? AND l.entity = 'reversal' AND l.local_id = r.id))
-     + (SELECT COUNT(*) FROM payments p WHERE NOT EXISTS (SELECT 1 FROM sync_log l WHERE l.shop_id = ? AND l.entity = 'payment' AND l.local_id = p.id))
-     + (SELECT COUNT(*) FROM payment_voids v WHERE NOT EXISTS (SELECT 1 FROM sync_log l WHERE l.shop_id = ? AND l.entity = 'payment_void' AND l.local_id = v.id)) AS n`,
+       (SELECT COUNT(*) FROM sales s WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = 'sale' AND l.local_id = s.id))
+     + (SELECT COUNT(*) FROM sale_reversals r WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = 'reversal' AND l.local_id = r.id))
+     + (SELECT COUNT(*) FROM payments p WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = 'payment' AND l.local_id = p.id))
+     + (SELECT COUNT(*) FROM payment_voids v WHERE NOT EXISTS (SELECT 1 FROM sync_log2 l WHERE l.shop_id = ? AND l.entity = 'payment_void' AND l.local_id = v.id)) AS n`,
     [shopId, shopId, shopId, shopId],
   );
   return row?.n ?? 0;
@@ -49,21 +49,21 @@ export async function pushToCloud(
   const pushed: PushResult['pushed'] = { customer: 0, product: 0, sale: 0, reversal: 0, payment: 0, payment_void: 0 };
   let skipped = 0;
   const logged = async (entity: SyncEntity, id: string) =>
-    (await db.get<{ x: number }>('SELECT 1 AS x FROM sync_log WHERE shop_id = ? AND entity = ? AND local_id = ?', [shopId, entity, id])) !== null;
+    (await db.get<{ x: number }>('SELECT 1 AS x FROM sync_log2 WHERE shop_id = ? AND entity = ? AND local_id = ?', [shopId, entity, id])) !== null;
   const markPushed = (entity: SyncEntity, id: string) =>
-    db.run('INSERT OR IGNORE INTO sync_log (shop_id, entity, local_id, pushed_at) VALUES (?, ?, ?, ?)', [shopId, entity, id, deps.now()]);
+    db.run('INSERT OR IGNORE INTO sync_log2 (shop_id, entity, local_id, pushed_at) VALUES (?, ?, ?, ?)', [shopId, entity, id, deps.now()]);
 
   try {
     // 1. Mijozlar va mahsulotlar — faqat yangi yoki oxirgi yuborishdan keyin telefonda tahrirlanganlari.
     //    (Har safar hammasini upsert qilish web'da o'chirilgan mijozni qayta "tiriltirar" edi.)
     const changedSql = (table: string, entity: SyncEntity) =>
       `SELECT t.* FROM ${table} t
-       LEFT JOIN sync_log l ON l.shop_id = ? AND l.entity = '${entity}' AND l.local_id = t.id
+       LEFT JOIN sync_log2 l ON l.shop_id = ? AND l.entity = '${entity}' AND l.local_id = t.id
        WHERE l.local_id IS NULL OR t.updated_at > l.pushed_at
        ORDER BY t.created_at`;
     const markSynced = (entity: SyncEntity, id: string) =>
       db.run(
-        `INSERT INTO sync_log (shop_id, entity, local_id, pushed_at) VALUES (?, ?, ?, ?)
+        `INSERT INTO sync_log2 (shop_id, entity, local_id, pushed_at) VALUES (?, ?, ?, ?)
          ON CONFLICT(shop_id, entity, local_id) DO UPDATE SET pushed_at = excluded.pushed_at`,
         [shopId, entity, id, deps.now()],
       );
@@ -217,7 +217,7 @@ export async function loadSyncMeta(db: SqlDb): Promise<SyncMeta> {
 
 /** Lokal yozuv shu do'kon uchun bulutga muvaffaqiyatli yuborilganmi (server tasdiqlagan) */
 export async function isPushed(db: SqlDb, shopId: string, entity: SyncEntity, localId: string): Promise<boolean> {
-  return (await db.get<{ x: number }>('SELECT 1 AS x FROM sync_log WHERE shop_id = ? AND entity = ? AND local_id = ?', [shopId, entity, localId])) !== null;
+  return (await db.get<{ x: number }>('SELECT 1 AS x FROM sync_log2 WHERE shop_id = ? AND entity = ? AND local_id = ?', [shopId, entity, localId])) !== null;
 }
 
 export const SYNC_BASE_DELAY_MS = 30_000;

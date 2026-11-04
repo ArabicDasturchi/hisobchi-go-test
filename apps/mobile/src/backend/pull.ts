@@ -60,7 +60,7 @@ export async function pullFromCloud(db: SqlDb, cloud: CloudClient, shopId: strin
 
     const logPulled = (tx: SqlConn, entity: SyncEntity, id: string) =>
       tx.run(
-        `INSERT INTO sync_log (shop_id, entity, local_id, pushed_at) VALUES (?, ?, ?, ?)
+        `INSERT INTO sync_log2 (shop_id, entity, local_id, pushed_at) VALUES (?, ?, ?, ?)
          ON CONFLICT(shop_id, entity, local_id) DO UPDATE SET pushed_at = excluded.pushed_at`,
         [shopId, entity, id, deps.now()],
       );
@@ -72,7 +72,7 @@ export async function pullFromCloud(db: SqlDb, cloud: CloudClient, shopId: strin
       await db.transaction(async (tx) => {
         const local = await tx.get<{ updated_at: string; pushed_at: string | null }>(
           `SELECT c.updated_at, l.pushed_at FROM customers c
-           LEFT JOIN sync_log l ON l.shop_id = ? AND l.entity = 'customer' AND l.local_id = c.id WHERE c.id = ?`,
+           LEFT JOIN sync_log2 l ON l.shop_id = ? AND l.entity = 'customer' AND l.local_id = c.id WHERE c.id = ?`,
           [shopId, c.id],
         );
         if (!c.name?.trim()) return reject('customer', c.id, "ism bo'sh");
@@ -106,7 +106,7 @@ export async function pullFromCloud(db: SqlDb, cloud: CloudClient, shopId: strin
       await db.transaction(async (tx) => {
         const local = await tx.get<{ updated_at: string; pushed_at: string | null }>(
           `SELECT t.updated_at, l.pushed_at FROM products t
-           LEFT JOIN sync_log l ON l.shop_id = ? AND l.entity = 'product' AND l.local_id = t.id WHERE t.id = ?`,
+           LEFT JOIN sync_log2 l ON l.shop_id = ? AND l.entity = 'product' AND l.local_id = t.id WHERE t.id = ?`,
           [shopId, p.id],
         );
         const sameName = await tx.get<{ id: string }>('SELECT id FROM products WHERE name = ? COLLATE NOCASE AND id <> ?', [p.name.trim(), p.id]);
@@ -138,7 +138,7 @@ export async function pullFromCloud(db: SqlDb, cloud: CloudClient, shopId: strin
     ) => {
       const synced = await db.all<{ id: string }>(
         `SELECT t.id FROM ${table} t
-         JOIN sync_log l ON l.shop_id = ? AND l.entity = '${entity}' AND l.local_id = t.id
+         JOIN sync_log2 l ON l.shop_id = ? AND l.entity = '${entity}' AND l.local_id = t.id
          WHERE t.updated_at <= l.pushed_at`,
         [shopId],
       );
@@ -154,7 +154,7 @@ export async function pullFromCloud(db: SqlDb, cloud: CloudClient, shopId: strin
             if ((used?.n ?? 0) > 0) return reject('customer', id, "bulutda o'chirilgan, lekin telefonda savdo/to'lov tarixi bor — saqlab qolindi");
           }
           await tx.run(`DELETE FROM ${table} WHERE id = ?`, [id]);
-          await tx.run('DELETE FROM sync_log WHERE shop_id = ? AND entity = ? AND local_id = ?', [shopId, entity, id]);
+          await tx.run('DELETE FROM sync_log2 WHERE shop_id = ? AND entity = ? AND local_id = ?', [shopId, entity, id]);
           removed[entity]++;
         });
       }
