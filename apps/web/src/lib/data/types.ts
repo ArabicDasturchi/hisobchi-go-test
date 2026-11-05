@@ -46,6 +46,8 @@ export interface Product {
   name: string;
   unit: Unit;
   last_price: bigint | null;
+  /** Oxirgi kirim tan narxi (006); ustun yo'q yoki noma'lum bo'lsa null/undefined — foydaga kirmaydi */
+  cost_price?: bigint | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -73,6 +75,16 @@ export interface SaleLine {
   unit_price: bigint;
   line_total: bigint;
   raw_text: string | null;
+}
+
+/** Savdo qatori tan narx snapshot'i bilan (foyda va "ko'p sotilgan" uchun). unit_cost null = noma'lum */
+export interface SaleLineCost {
+  document_id: string;
+  product_id: string | null;
+  product_name: string;
+  qty_milli: bigint;
+  unit_price: bigint;
+  unit_cost: bigint | null;
 }
 
 export interface Reversal {

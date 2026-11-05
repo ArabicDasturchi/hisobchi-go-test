@@ -40,6 +40,19 @@ export function isBlank(l: DraftLine): boolean {
 
 export type PayMode = 'debt' | 'paid' | 'partial';
 
+/** Standart: naqd, to'liq to'langan savdo (mijozsiz). Daftar-ruchka savdogari uchun eng tez yo'l */
+export const DEFAULT_PAY_MODE: PayMode = 'paid';
+
+/** Mijozsiz savdo faqat "To'landi" bo'ladi; qarz va qisman to'lov mijoz hisobini talab qiladi */
+export function allowedModes(customerId: string | null): readonly PayMode[] {
+  return customerId ? ['paid', 'debt', 'partial'] : ['paid'];
+}
+
+/** Tanlangan rejim mijoz holatiga mos kelmasa (mijoz olib tashlandi) — "To'landi"ga qaytariladi */
+export function effectiveMode(mode: PayMode, customerId: string | null): PayMode {
+  return allowedModes(customerId).includes(mode) ? mode : DEFAULT_PAY_MODE;
+}
+
 export interface SalePlan {
   lines: PostSaleLine[];
   total: bigint;

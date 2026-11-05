@@ -22,6 +22,7 @@ import type {
   PaymentVoid,
   Product,
   Reversal,
+  SaleLineCost,
   Role,
   SaleDetail,
   SaleDoc,
@@ -171,15 +172,30 @@ export async function deleteCustomer(sb: SB, shopId: string, id: string): Promis
 
 const PRODUCT_COLS = 'id, name, unit, last_price::text, is_active, source, created_at, updated_at';
 
-interface ProductRow extends Omit<Product, 'last_price'> {
+interface ProductRow extends Omit<Product, 'last_price' | 'cost_price'> {
   last_price: string | null;
+  cost_price?: string | null;
 }
 
-const toProduct = (r: ProductRow): Product => ({ ...r, last_price: r.last_price === null ? null : toBig(r.last_price) });
+const toProduct = (r: ProductRow): Product => ({
+  ...r,
+  last_price: r.last_price === null ? null : toBig(r.last_price),
+  cost_price: r.cost_price === undefined ? undefined : r.cost_price === null ? null : toBig(r.cost_price),
+});
+
+/** Ustun bazada bormi (migratsiya qo'llanmagan bo'lsa ilova avvalgidek ishlashi kerak) */
+export async function hasColumn(sb: SB, table: string, column: string, shopId: string): Promise<boolean> {
+  const { error } = await sb.from(table).select(column).eq('shop_id', shopId).limit(1);
+  if (!error) return true;
+  const e = error as { code?: string; message?: string };
+  if (e.code === '42703' || e.code === '42P01' || new RegExp(`${column}.*does not exist`, 'i').test(e.message ?? '')) return false;
+  throw toAppError(error);
+}
 
 export async function listProducts(sb: SB, shopId: string): Promise<Product[]> {
+  const cols = (await hasColumn(sb, 'products', 'cost_price', shopId)) ? `${PRODUCT_COLS}, cost_price::text` : PRODUCT_COLS;
   const rows = await fetchAll<ProductRow>((from, to) =>
-    sb.from('products').select(PRODUCT_COLS).eq('shop_id', shopId).order('name').order('id').range(from, to) as unknown as Res<ProductRow>,
+    sb.from('products').select(cols).eq('shop_id', shopId).order('name').order('id').range(from, to) as unknown as Res<ProductRow>,
   );
   return rows.map(toProduct);
 }
@@ -275,6 +291,52 @@ export async function getSaleDetail(sb: SB, shopId: string, id: string): Promise
     lines: lines.map((l) => ({ ...l, qty_milli: toBig(l.qty_milli), unit_price: toBig(l.unit_price), line_total: toBig(l.line_total) })),
     reversal: rev ? toReversal(rev) : null,
   };
+}
+
+/**
+ * Savdo qatorlari (tan narx snapshot'i bilan) berilgan hujjatlar uchun. `unit_cost` ustuni (006) bo'lmasa
+ * barcha qatorlarda null (tan narx noma'lum). Foyda va "ko'p sotilgan" shundan hisoblanadi (core'da).
+ */
+export async function listSaleLines(sb: SB, shopId: string, docIds: readonly string[]): Promise<SaleLineCost[]> {
+  if (docIds.length === 0) return [];
+  const withCost = await hasColumn(sb, 'document_lines', 'unit_cost', shopId);
+  const cols = `document_id, product_id, product_name, qty_milli::text, unit_price::text${withCost ? ', unit_cost::text' : ''}`;
+  interface Row {
+    document_id: string;
+    product_id: string | null;
+    product_name: string;
+    qty_milli: string;
+    unit_price: string;
+    unit_cost?: string | null;
+  }
+  const out: SaleLineCost[] = [];
+  for (let i = 0; i < docIds.length; i += 80) {
+    const chunk = docIds.slice(i, i + 80);
+    const rows = await fetchAll<Row>((from, to) =>
+      sb.from('document_lines').select(cols).eq('shop_id', shopId).in('document_id', chunk).order('document_id').order('line_index').range(from, to) as unknown as Res<Row>,
+    );
+    for (const r of rows) {
+      out.push({
+        document_id: r.document_id,
+        product_id: r.product_id,
+        product_name: r.product_name,
+        qty_milli: toBig(r.qty_milli),
+        unit_price: toBig(r.unit_price),
+        unit_cost: r.unit_cost === undefined || r.unit_cost === null ? null : toBig(r.unit_cost),
+      });
+    }
+  }
+  return out;
+}
+
+/** Ombor qoldig'i (product_stock, 006): faqat harakati bor tovarlar. View yo'q bo'lsa null */
+export async function listStockLevels(sb: SB, shopId: string): Promise<Map<string, bigint> | null> {
+  const { error } = await sb.from('product_stock').select('product_id').eq('shop_id', shopId).limit(1);
+  if (error) return null;
+  const rows = await fetchAll<{ product_id: string; qty_milli: string }>((from, to) =>
+    sb.from('product_stock').select('product_id, qty_milli::text').eq('shop_id', shopId).order('product_id').range(from, to) as unknown as Res<{ product_id: string; qty_milli: string }>,
+  );
+  return new Map(rows.map((r) => [r.product_id, toBig(r.qty_milli)]));
 }
 
 export async function listReversals(sb: SB, shopId: string): Promise<Reversal[]> {

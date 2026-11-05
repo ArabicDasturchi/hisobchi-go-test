@@ -48,3 +48,26 @@ describe('savdo rejasi', () => {
     expect(buildSalePlan({ lines: [blank], customerId: 'c1', mode: 'debt', partial: '' }).ok).toBe(false);
   });
 });
+
+import { allowedModes, DEFAULT_PAY_MODE, effectiveMode } from '@/lib/saleForm';
+
+describe("to'lov rejimi standartlari (S1)", () => {
+  it("standart rejim — To'landi", () => expect(DEFAULT_PAY_MODE).toBe('paid'));
+  it("mijozsiz faqat To'landi mumkin; qarz va qisman tanlab bo'lmaydi", () => {
+    expect(allowedModes(null)).toEqual(['paid']);
+  });
+  it("mijoz bilan uchala rejim mumkin", () => {
+    expect([...allowedModes('c1')].sort()).toEqual(['debt', 'paid', 'partial']);
+  });
+  it("mijoz olib tashlansa «Qarzga/Qisman» o'zi «To'landi»ga qaytadi", () => {
+    expect(effectiveMode('debt', null)).toBe('paid');
+    expect(effectiveMode('partial', null)).toBe('paid');
+    expect(effectiveMode('debt', 'c1')).toBe('debt');
+    expect(effectiveMode('paid', null)).toBe('paid');
+  });
+  it('mijozsiz «To‘landi» savdo rejasi xatosiz tuziladi (sariq xato chiqmaydi)', () => {
+    const r = buildSalePlan({ lines: [{ key: 'a', productName: 'Un', qty: '2', unit: 'kg', price: '15 000' }], customerId: null, mode: effectiveMode('debt', null), partial: '' });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.plan.total).toBe(30_000n);
+  });
+});

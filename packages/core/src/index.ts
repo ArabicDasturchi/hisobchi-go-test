@@ -57,3 +57,7 @@ export { lineProfit, saleProfit } from './profit.js';
 export type { CustomerKind, SalePaymentCheck } from './payment-rules.js';
 export { checkSalePayment } from './payment-rules.js';
 export { TotalsMismatchError, assertTotalsMatch } from './cross-check.js';
+
+// Savdo paytidagi ogohlantirishlar va ko'p sotilgan tovarlar (PANEL-1, S2-S3)
+export type { StockCheck, TopSellingLine, TopSelling } from './sale-checks.js';
+export { LOW_STOCK_MILLI, stockCheck, soldBelowCost, topSellingProducts } from './sale-checks.js';

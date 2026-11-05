@@ -5,9 +5,9 @@
  * Ma'lumot faqat serverdan keladi (soxta/kesh statistika yo'q).
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { listAgentDrafts, listCustomers, listPayments, listProducts, listReversals, listSales, getMembership } from '@/lib/data/api';
+import { listAgentDrafts, listCustomers, listPayments, listProducts, listReversals, listSaleLines, listSales, listStockLevels, getMembership } from '@/lib/data/api';
 import { customerBalances, type CustomerBalance } from '@/lib/data/ledger';
-import type { AgentDraft, Customer, Membership, Payment, Product, Reversal, SaleDoc } from '@/lib/data/types';
+import type { AgentDraft, Customer, Membership, Payment, Product, Reversal, SaleDoc, SaleLineCost } from '@/lib/data/types';
 import { errorMessage } from '@/lib/errors';
 import { getSupabase } from '@/lib/supabase/client';
 import { useAuth } from './AuthProvider';
@@ -24,7 +24,14 @@ export interface ShopData {
   /** Tasdiqlanmagan agent qoralamalari. null — yuklab bo'lmadi (masalan 004 migratsiya qo'llanmagan): boshqa sahifalar ishlayveradi */
   drafts: AgentDraft[] | null;
   draftsError: string | null;
+  /** Oxirgi 30 kun savdolarining qatorlari (tan narx snapshot'i bilan): foyda va "ko'p sotilgan" uchun. Yuklanmasa bo'sh */
+  saleLines: SaleLineCost[];
+  /** Ombor qoldig'i (faqat harakati bor tovarlar). null — ombor modeli (006) yo'q yoki yuklanmadi */
+  stock: Map<string, bigint> | null;
 }
+
+/** Qatorlar shuncha kunlik savdolar uchun yuklanadi */
+export const LINES_WINDOW_DAYS = 30;
 
 interface Ctx {
   membership: Membership;
@@ -95,9 +102,16 @@ export function ShopDataProvider({ membership: initial, children }: { membership
             (e: unknown) => ({ drafts: null as AgentDraft[] | null, draftsError: errorMessage(e) }),
           ),
         ]);
+        // Qo'shimcha ma'lumot ixtiyoriy: xato bo'lsa asosiy ekranlar ishlayveradi (foyda/qoldiq ko'rsatilmaydi)
+        const since = Date.now() - LINES_WINDOW_DAYS * 86_400_000;
+        const recentIds = sales.filter((s) => s.status === 'posted' && new Date(s.created_at).getTime() >= since).map((s) => s.id);
+        const [saleLines, stock] = await Promise.all([
+          listSaleLines(sb, shopId, recentIds).catch(() => [] as SaleLineCost[]),
+          listStockLevels(sb, shopId).catch(() => null),
+        ]);
         const customers = allCustomers.filter((c) => c.kind !== 'one_time');
         const walkin = allCustomers.find((c) => c.kind === 'one_time') ?? null;
-        setData({ customers, walkin, products, sales, payments, reversals, drafts: draftsRes.drafts, draftsError: draftsRes.draftsError });
+        setData({ customers, walkin, products, sales, payments, reversals, drafts: draftsRes.drafts, draftsError: draftsRes.draftsError, saleLines, stock });
         setError(null);
         setLastLoadedAt(new Date());
       } catch (e) {
