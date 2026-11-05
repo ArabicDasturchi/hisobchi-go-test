@@ -13,6 +13,7 @@ export type IconName =
   | 'receipt-outline'
   | 'add'
   | 'add-circle'
+  | 'remove'
   | 'people'
   | 'people-outline'
   | 'grid'

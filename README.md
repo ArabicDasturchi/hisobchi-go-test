@@ -49,6 +49,8 @@ Unikorumlar: Abdulloh Ismoilov (mahsulot, savdogarlar bilan sinov), Humoyun Anva
 | [docs/ARXITEKTURA.md](docs/ARXITEKTURA.md) | Tuzilma, himoya qatlamlari |
 | [docs/MCP-AGENT.md](docs/MCP-AGENT.md) | MCP server (Claude/ChatGPT) |
 | [docs/GEMINI-LLM.md](docs/GEMINI-LLM.md) | AI provayder tadqiqoti |
+| [docs/ISH-TARTIBI.md](docs/ISH-TARTIBI.md) | Ish tartibi: kichik PR, trunk-based, squash |
+| [docs/VEB-DAN-MOBILGA.md](docs/VEB-DAN-MOBILGA.md) | Mobilga ko'chiriladigan o'zgarishlar (mobil muzlatilgan) |
 | [docs/MIGRATSIYA-CI.md](docs/MIGRATSIYA-CI.md) | Migratsiyalar avtomatik qo'llanishi (GitHub Actions) |
 | [docs/BACKEND_SETUP.md](docs/BACKEND_SETUP.md) | Supabase, sinxronizatsiya |
 | [docs/TELEFONDA_SINASH.md](docs/TELEFONDA_SINASH.md) | Telefonda ishga tushirish |
@@ -57,4 +59,14 @@ Unikorumlar: Abdulloh Ismoilov (mahsulot, savdogarlar bilan sinov), Humoyun Anva
 
 ## Ishga tushirish
 
-Telefonda: [docs/TELEFONDA_SINASH.md](docs/TELEFONDA_SINASH.md). Sozlamalar: `.env.example`. Testlar: `npm test`, `npm run typecheck`.
+**Demo (kalitsiz, soxta ma'lumot, 3 qadam):**
+
+```bash
+npm ci
+npm run demo
+# brauzerda http://localhost:3000 (veb panel, soxta ma'lumot, faqat ko'rish)
+```
+
+Demo: 9 tovar, ta'minotchi, mijoz, kirim 1 450 000 / ostatka 450 000, savdo 385 000, bir martalik savdo, AI qoralamasi. Mobil web demo tayyor, lekin mobil muzlatilgan: [docs/VEB-DAN-MOBILGA.md](docs/VEB-DAN-MOBILGA.md).
+
+Telefonda: [docs/TELEFONDA_SINASH.md](docs/TELEFONDA_SINASH.md). Sozlamalar: `.env.example`. Testlar: `npm test`, `npm run typecheck`. Ish tartibi: [docs/ISH-TARTIBI.md](docs/ISH-TARTIBI.md).

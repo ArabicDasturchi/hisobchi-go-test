@@ -1,4 +1,4 @@
-import { BarChart3, HandCoins, LayoutDashboard, Package, Receipt, Settings, Sparkles, Users, Wallet, type LucideIcon } from 'lucide-react';
+import { BarChart3, BookDown, BookUp, HandCoins, LayoutDashboard, Package, Receipt, Settings, Sparkles, Truck, Users, Wallet, Warehouse, type LucideIcon } from 'lucide-react';
 import { uz } from '@/i18n/uz';
 
 export interface NavItem {
@@ -20,6 +20,10 @@ const I = {
   debts: { href: '/debts', label: uz.nav.debts, icon: HandCoins },
   customers: { href: '/customers', label: uz.nav.customers, icon: Users },
   products: { href: '/products', label: uz.nav.products, icon: Package },
+  purchasesBook: { href: '/books/in', label: uz.nav.purchasesBook, icon: BookDown },
+  salesBook: { href: '/books/out', label: uz.nav.salesBook, icon: BookUp },
+  warehouse: { href: '/warehouse', label: uz.nav.warehouse, icon: Warehouse },
+  suppliers: { href: '/suppliers', label: uz.nav.suppliers, icon: Truck },
   reports: { href: '/reports', label: uz.nav.reports, icon: BarChart3 },
   settings: { href: '/settings', label: uz.nav.settings, icon: Settings },
 } satisfies Record<string, NavItem>;
@@ -28,6 +32,7 @@ const I = {
 export const NAV_GROUPS: readonly NavGroup[] = [
   { label: null, items: [I.dashboard] },
   { label: 'Savdo va pul', items: [I.sales, I.drafts, I.payments, I.debts] },
+  { label: 'Daftarlar va ombor', items: [I.purchasesBook, I.salesBook, I.warehouse, I.suppliers] },
   { label: "Ma'lumotnomalar", items: [I.customers, I.products] },
   { label: 'Tahlil', items: [I.reports] },
 ];

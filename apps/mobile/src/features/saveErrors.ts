@@ -3,13 +3,17 @@
  * Har bir xabar keyingi qadamni aytadi. Saqlash bitta tranzaksiyada bo'lgani uchun
  * xato bo'lsa hech narsa yozilmagan — buni ham aniq bildiramiz.
  */
-import { CalculationMismatchError, SaleValidationError } from '../data/ledger';
+import { CalculationMismatchError, PaymentError, SaleValidationError } from '../data/ledger';
+import { PurchaseError } from '../data/purchasing';
 
 const NOTHING_SAVED = 'Hech narsa saqlanmadi.';
 
 export function describeSaveError(error: unknown): string {
   if (error instanceof CalculationMismatchError) {
     return `${error.message} Ro'yxatni qayta tekshiring.`;
+  }
+  if (error instanceof PaymentError || error instanceof PurchaseError) {
+    return `${error.message}. ${NOTHING_SAVED}`;
   }
   if (error instanceof SaleValidationError) {
     return `${error.message}. ${NOTHING_SAVED} Tekshirish ekraniga qaytib, qatorni tuzating.`;

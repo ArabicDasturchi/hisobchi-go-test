@@ -12,13 +12,15 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   ALLOWED_UNITS,
+  MAX_UNIT_PRICE,
   calculateDocument,
+  calculatePurchase,
   parseQtyMilli,
   parseUnitPriceText,
   validateDocument,
   type DocumentLineInput,
 } from '@hisobchi/core';
-import { DbError, type AgentDb, type DraftLine, type Shop } from './db.js';
+import { DbError, type AgentDb, type DraftLine, type PurchaseDraftLine, type Shop } from './db.js';
 import { toSafeNumber } from './money.js';
 
 export interface ToolContext {
@@ -42,15 +44,36 @@ const DB_ERRORS: Array<[RegExp, string]> = [
   [/^oauth_client_forbidden/, "Bu amal faqat Hisobchi Go ilovasida bajariladi"],
   [/^calc_mismatch/, "Hisob mos kelmadi (kod va baza jami farq qildi). Qoralama saqlanmadi"],
   [/^customer_not_found/, 'Mijoz topilmadi'],
+  [/^product_not_found/, 'Tovar topilmadi'],
   [/^customer_not_in_shop/, "Mijoz bu do'konga tegishli emas"],
   [/^sale_not_found/, 'Savdo topilmadi'],
   [/^payment_exceeds_debt/, "To'lov mijoz qarzidan oshib ketadi"],
   [/^too_many_drafts/, "Tasdiqlanmagan qoralamalar juda ko'p (50). Avval ilovada ko'rib chiqing"],
+  [/^request_id_conflict/, "Bu request_id boshqa mazmun bilan ishlatilgan. Yangi request_id bering"],
+  [/^no_change/, "O'zgarish yo'q: qiymat hozirgi bilan bir xil"],
+  [/^name_taken/, 'Bunday nomli tovar allaqachon bor'],
+  [/^target_archived/, 'Bu yozuv allaqachon arxivlangan'],
+  [/^invalid_changes/, "changes noto'g'ri (tovarda faqat name, unit, price; mijozda faqat name)"],
+  [/^invalid_kind/, "Tur noto'g'ri (customer yoki product)"],
+  [/^invalid_items/, "Tovarlar ro'yxati noto'g'ri (1 dan 100 tagacha bo'lishi kerak)"],
+  [/^invalid_name/, "Nom noto'g'ri (1-120 belgi, boshqaruv belgilarisiz)"],
+  [/^supplier_not_in_shop/, "Ta'minotchi topilmadi, arxivlangan yoki bu do'konga tegishli emas"],
+  [/^invalid_date/, "Sana noto'g'ri (2000 yildan oldin yoki ertadan keyin bo'lmasin)"],
+  [/^invalid_method/, "To'lov usuli kerak: naqd, karta yoki otkazma"],
+  [/^invalid_customer/, "Bir martalik savdoda mijoz ko'rsatilmaydi"],
+  [/^payment_requires_customer/, "To'lov uchun mijoz kerak (yoki bir martalik savdo qiling)"],
+  [/^walkin_requires_full_payment/, "Bir martalik mijoz qarzga olmaydi: savdo to'liq to'lanishi kerak"],
   [/^invalid_/, "Kiritilgan ma'lumot noto'g'ri"],
   [/^raw_input_too_long|^note_too_long/, 'Matn juda uzun'],
 ];
 
 export function explainDbError(e: DbError): string {
+  const item = /^invalid_item: index=(\d+), field=(\w+)/.exec(e.raw);
+  if (item) return `Tovar №${item[1]}: ${item[2]} noto'g'ri. Hech narsa qo'shilmadi`;
+  const pending = /^proposal_pending: ([0-9a-f-]{36})/.exec(e.raw);
+  if (pending) return `Bu yozuv uchun tasdiqlanmagan so'rov allaqachon bor (${pending[1]}). Savdogar uni ilovada hal qilsin`;
+  const limit = /^daily_limit_exceeded: kind=(\w+), limit=(\d+), used=(\d+)/.exec(e.raw);
+  if (limit) return `Kunlik limit tugadi (${limit[1] === 'product' ? 'tovar' : 'mijoz'}: kuniga ${limit[2]} ta, bugun ${limit[3]} ta qo'shilgan). Ertaga davom eting`;
   for (const [re, msg] of DB_ERRORS) if (re.test(e.raw)) return msg;
   return 'Server xatosi';
 }
@@ -285,6 +308,219 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
   );
 
   server.registerTool(
+    'list_products',
+    {
+      title: "Tovarlar ro'yxati",
+      description:
+        "Katalogdagi tovarlar: nom, birlik, sotuv narxi (so'm), ombor qoldig'i (stock_milli: 1000 = 1 birlik, manfiy bo'lishi mumkin), " +
+        "tan narx (oxirgi kirim; kirim bo'lmasa null), arxiv va manba belgisi. Kirim qoralamasi uchun shu yerdagi id kerak." + UNTRUSTED,
+      inputSchema: {
+        shop_id: shopId,
+        query: z.string().trim().max(100).optional().describe('Nom bo\'yicha qidiruv'),
+        include_archived: z.boolean().default(false),
+        limit: z.number().int().min(1).max(100).default(50),
+        offset: z.number().int().min(0).default(0),
+      },
+      annotations: READ,
+    },
+    (a) =>
+      guarded(async () => {
+        const shop = await resolveShop(ctx, cache, a.shop_id);
+        const rows = await ctx.db.listProducts({ shopId: shop, query: a.query || null, includeArchived: a.include_archived, limit: a.limit, offset: a.offset });
+        return ok({
+          shop_id: shop,
+          products: rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            unit: r.unit,
+            price: r.price === null ? null : toSafeNumber(r.price),
+            // 008 qo'llanmagan bo'lsa bu maydonlar yo'q (null) — "noma'lum", nol emas
+            stock_milli: r.stock_milli == null ? null : toSafeNumber(r.stock_milli),
+            negative_stock: r.stock_milli != null && r.stock_milli < 0n,
+            cost_price: r.cost_price == null ? null : toSafeNumber(r.cost_price),
+            is_active: r.is_active,
+            source: r.source,
+          })),
+        });
+      }),
+  );
+
+  server.registerTool(
+    'list_suppliers',
+    {
+      title: "Ta'minotchilar ro'yxati",
+      description: "Ta'minotchilar: nom va ularga qarzimiz (outstanding, so'm; manfiy = ortiqcha to'langan). Telefon va izoh ko'rsatilmaydi. Kirim qoralamasi uchun shu yerdagi id kerak." + UNTRUSTED,
+      inputSchema: {
+        shop_id: shopId,
+        query: z.string().trim().max(100).optional().describe("Nom bo'yicha qidiruv"),
+        limit: z.number().int().min(1).max(100).default(50),
+        offset: z.number().int().min(0).default(0),
+      },
+      annotations: READ,
+    },
+    (a) =>
+      guarded(async () => {
+        const shop = await resolveShop(ctx, cache, a.shop_id);
+        const rows = await ctx.db.listSuppliers({ shopId: shop, query: a.query || null, limit: a.limit, offset: a.offset });
+        return ok({ shop_id: shop, suppliers: rows.map((r) => ({ id: r.id, name: r.name, outstanding: toSafeNumber(r.outstanding) })) });
+      }),
+  );
+
+  server.registerTool(
+    'add_customer',
+    {
+      title: "Mijoz qo'shish",
+      description:
+        "Katalogga yangi mijoz QO'SHADI (tasdiqsiz, faqat nom; telefon va izoh qo'yilmaydi). Shu nomli mijoz bor bo'lsa yangisi yaratilmaydi, mavjudi qaytariladi. " +
+        "Avval list_customers bilan qidiring. Mijoz ilovada \"AI qo'shdi\" belgisi bilan ko'rinadi. Kuniga 100 tagacha." + UNTRUSTED,
+      inputSchema: {
+        shop_id: shopId,
+        name: z.string().trim().min(1).max(120).describe('Mijoz nomi'),
+        request_id: requestId,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    (a) =>
+      guarded(async () => {
+        const shop = await resolveShop(ctx, cache, a.shop_id);
+        const r = await ctx.db.addCustomer({ shopId: shop, requestId: `mcp:${a.request_id ?? randomUUID()}`, name: a.name });
+        return ok({
+          id: r.id,
+          name: r.name,
+          created: r.created,
+          is_active: r.is_active,
+          source: r.source,
+          message: r.created
+            ? "Mijoz qo'shildi (ilovada \"AI qo'shdi\" belgisi bor). Noto'g'ri bo'lsa propose_change bilan arxivlashni so'rang."
+            : r.is_active
+              ? "Bunday mijoz allaqachon bor: yangisi yaratilmadi."
+              : "Bunday mijoz bor, lekin arxivlangan: yangisi yaratilmadi. Savdogar ilovada faollashtirsin.",
+        });
+      }),
+  );
+
+  server.registerTool(
+    'add_products',
+    {
+      title: "Tovarlar qo'shish",
+      description:
+        "Katalogga yangi tovarlarni QO'SHADI (tasdiqsiz; bir chaqiriqda 1-100 ta, kuniga 500 tagacha). Har tovar: nom, birlik (standart dona), narx (matn: \"13000\" yoki \"13 ming\"; ixtiyoriy). " +
+        "Shu nomli tovar bor bo'lsa yangisi yaratilmaydi va mavjud narx O'ZGARMAYDI (o'zgartirish uchun propose_change). Birorta qator noto'g'ri bo'lsa hech narsa qo'shilmaydi. " +
+        "Avval list_products bilan tekshiring." + UNTRUSTED,
+      inputSchema: {
+        shop_id: shopId,
+        request_id: requestId,
+        items: z
+          .array(
+            z.object({
+              name: z.string().trim().min(1).max(120),
+              unit: z.enum(ALLOWED_UNITS).optional(),
+              price: numberText.optional().describe('Sotuv narxi, masalan "13000" yoki "13 ming"'),
+            }),
+          )
+          .min(1)
+          .max(100),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    (a) =>
+      guarded(async () => {
+        const shop = await resolveShop(ctx, cache, a.shop_id);
+        const problems: Array<{ item: number; field: string; message: string }> = [];
+        const items = a.items.map((it, i) => {
+          let price: number | null = null;
+          if (it.price !== undefined && it.price.trim() !== '') {
+            const p = parseUnitPriceText(it.price);
+            if (!p.ok) problems.push({ item: i + 1, field: 'price', message: p.message });
+            else if (p.unitPrice > MAX_UNIT_PRICE) problems.push({ item: i + 1, field: 'price', message: 'Narx ruxsat etilgan chegaradan katta' });
+            else price = toSafeNumber(p.unitPrice);
+          }
+          return { name: it.name, unit: it.unit ?? 'dona', price };
+        });
+        if (problems.length > 0) throw new ToolError("Tovarlar qo'shilmadi: narx aniq o'qilmadi. Savdogardan so'rang.", problems);
+        const r = await ctx.db.addProducts({ shopId: shop, requestId: `mcp:${a.request_id ?? randomUUID()}`, items });
+        const view = (p: { id: string; name: string; unit: string; price: bigint | null; is_active: boolean }) => ({
+          id: p.id,
+          name: p.name,
+          unit: p.unit,
+          price: p.price === null ? null : toSafeNumber(p.price),
+          is_active: p.is_active,
+        });
+        return ok({
+          created: r.created.map(view),
+          existing: r.existing.map(view),
+          created_count: r.created_count,
+          existing_count: r.existing_count,
+          message: `${r.created_count} ta tovar qo'shildi, ${r.existing_count} tasi allaqachon bor edi (o'zgarmadi). Ilovada "AI qo'shdi" belgisi bilan ko'rinadi.`,
+        });
+      }),
+  );
+
+  server.registerTool(
+    'propose_change',
+    {
+      title: "O'zgartirish yoki arxiv so'rovi",
+      description:
+        "Mijoz yoki tovarni O'ZGARTIRISH yoki ARXIVLASH uchun tasdiqlash so'rovini yuboradi. Hech narsa o'zgarmaydi: savdogar ilovada eski va yangi qiymatni ko'rib tasdiqlaydi yoki rad etadi. " +
+        "action=update: mijozda faqat changes.name; tovarda changes.name, changes.unit, changes.price (matn, null narxni tozalaydi). action=archive: changes bermang. " +
+        "O'chirish yo'q (arxiv: tarix va qarz saqlanadi). Bir yozuvga bitta ochiq so'rov." + UNTRUSTED,
+      inputSchema: {
+        shop_id: shopId,
+        target: z.enum(['customer', 'product']),
+        target_id: z.string().uuid().describe('list_customers yoki list_products dan olingan ID'),
+        action: z.enum(['update', 'archive']),
+        changes: z
+          .object({
+            name: z.string().trim().min(1).max(120).optional(),
+            unit: z.enum(ALLOWED_UNITS).optional(),
+            price: numberText.nullable().optional(),
+          })
+          .optional(),
+        request_id: requestId,
+      },
+      annotations: DRAFT,
+    },
+    (a) =>
+      guarded(async () => {
+        const shop = await resolveShop(ctx, cache, a.shop_id);
+        const requestId = `mcp:${a.request_id ?? randomUUID()}`;
+        const keys = a.changes ? Object.keys(a.changes).filter((k) => (a.changes as Record<string, unknown>)[k] !== undefined) : [];
+        let draftId: string;
+        let what: string;
+        if (a.action === 'archive') {
+          if (keys.length > 0) throw new ToolError("Arxiv so'rovida changes bermang");
+          draftId = await ctx.db.proposeArchive({ shopId: shop, requestId, kind: a.target, targetId: a.target_id });
+          what = a.target === 'customer' ? 'mijozni arxivlash' : 'tovarni arxivlash';
+        } else if (a.target === 'customer') {
+          if (keys.length !== 1 || keys[0] !== 'name' || !a.changes?.name) throw new ToolError("Mijozda faqat nom o'zgartiriladi: changes.name bering");
+          draftId = await ctx.db.proposeCustomerUpdate({ shopId: shop, requestId, customerId: a.target_id, name: a.changes.name });
+          what = "mijoz nomini o'zgartirish";
+        } else {
+          if (keys.length === 0 || !a.changes) throw new ToolError("changes bering: name, unit yoki price");
+          const changes: { name?: string; unit?: string; price?: number | null } = {};
+          if (a.changes.name !== undefined) changes.name = a.changes.name;
+          if (a.changes.unit !== undefined) changes.unit = a.changes.unit;
+          if (a.changes.price !== undefined) {
+            if (a.changes.price === null) changes.price = null;
+            else {
+              const p = parseUnitPriceText(a.changes.price);
+              if (!p.ok) throw new ToolError("So'rov yaratilmadi: narx aniq o'qilmadi. Savdogardan so'rang.", [{ field: 'price', message: p.message }]);
+              if (p.unitPrice > MAX_UNIT_PRICE) throw new ToolError('Narx ruxsat etilgan chegaradan katta');
+              changes.price = toSafeNumber(p.unitPrice);
+            }
+          }
+          draftId = await ctx.db.proposeProductUpdate({ shopId: shop, requestId, productId: a.target_id, changes });
+          what = "tovarni o'zgartirish";
+        }
+        return ok({
+          draft_id: draftId,
+          status: 'draft',
+          message: `So'rov yaratildi (${what}). Hech narsa O'ZGARMADI: savdogar Hisobchi Go ilovasida ko'rib tasdiqlashi kerak.`,
+        });
+      }),
+  );
+
+  server.registerTool(
     'draft_sale',
     {
       title: 'Savdo qoralamasi',
@@ -295,6 +531,9 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         shop_id: shopId,
         customer_id: z.string().uuid().optional().describe("list_customers dan olingan ID; o'zingiz to'qimang"),
+        walkin: z.boolean().default(false).describe("Bir martalik mijoz (nomsiz, qarzga olmaydi): customer_id bermang, payment_method majburiy, savdo to'liq to'langan hisoblanadi"),
+        payment_method: z.enum(['naqd', 'karta', 'otkazma']).optional().describe("Bir martalik savdoda majburiy; doimiy mijozda paid bilan birga"),
+        paid: numberText.optional().describe("Doimiy mijoz savdo bilan birga bergan summa (ixtiyoriy; jamidan oshmasin). Bir martalik savdoda bermang"),
         raw_text: z.string().max(2000).optional().describe("Savdogarning asl so'zlari"),
         request_id: requestId,
         lines: z
@@ -356,6 +595,23 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
         });
 
         const total = calculateDocument(parsed.map((p) => ({ qtyMilli: p.qtyMilli, unitPrice: p.unitPrice }))).subtotal;
+
+        if (a.walkin && a.customer_id) throw new ToolError("Bir martalik savdoda mijoz ko'rsatilmaydi: walkin yoki customer_id dan bittasini bering");
+        if (a.walkin && !a.payment_method) throw new ToolError("Bir martalik savdo to'liq to'lanadi: to'lov usulini (naqd, karta, otkazma) so'rang");
+        if (a.walkin && a.paid !== undefined && a.paid.trim() !== '') {
+          throw new ToolError("Bir martalik savdoda summa berilmaydi: u jamiga teng bo'ladi");
+        }
+        let paid: bigint | null = null;
+        if (!a.walkin && a.paid !== undefined && a.paid.trim() !== '') {
+          const p = parseUnitPriceText(a.paid);
+          if (!p.ok) throw new ToolError("Qoralama yaratilmadi: to'lov summasi aniq o'qilmadi. Savdogardan so'rang.", [{ field: 'paid', message: p.message }]);
+          if (p.unitPrice > total) throw new ToolError("To'lov savdo jamidan katta bo'lishi mumkin emas");
+          if (p.unitPrice > 0n) {
+            if (!a.customer_id) throw new ToolError("To'lov uchun customer_id kerak (yoki walkin: true bilan bir martalik savdo qiling)");
+            if (!a.payment_method) throw new ToolError("To'lov usulini (naqd, karta, otkazma) so'rang");
+            paid = p.unitPrice;
+          }
+        }
         const draftId = await ctx.db.draftSale({
           shopId: shop,
           opId: `mcp:${a.request_id ?? randomUUID()}`,
@@ -363,6 +619,9 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
           rawInput: a.raw_text ?? null,
           lines: parsed.map((p) => p.draft),
           clientTotal: total,
+          walkin: a.walkin,
+          paymentMethod: a.walkin || paid !== null ? (a.payment_method ?? null) : null,
+          paid,
         });
         return ok({
           draft_id: draftId,
@@ -411,6 +670,92 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
           status: 'draft',
           amount: toSafeNumber(amount.unitPrice),
           message: "Qoralama yaratildi. To'lov hali YOZILMADI: savdogar Hisobchi Go ilovasida ko'rib tasdiqlashi kerak.",
+        });
+      }),
+  );
+
+  server.registerTool(
+    'draft_purchase',
+    {
+      title: 'Kirim qoralamasi',
+      description:
+        "Ta'minotchidan tovar KIRIMI QORALAMASINI yaratadi. Kirim yozilmaydi, ombor qoldig'i, tan narx va ta'minotchi qarzi o'zgarmaydi: " +
+        "savdogar Hisobchi Go ilovasida ko'rib tasdiqlaydi. supplier_id ni list_suppliers dan, product_id ni list_products dan oling (o'zingiz to'qimang). " +
+        "Miqdor va tan narxni matn sifatida bering (qty \"100\", unit_cost \"9 ming\"); jamini siz hisoblamang: kod hisoblaydi. " +
+        "paid — shu kirim bilan ta'minotchiga berilgan summa (ixtiyoriy; Eski qarz + Tovar dan oshmasin), payment_method bilan birga. " +
+        "Noaniq qiymat bo'lsa taxmin qilmang, savdogardan so'rang.",
+      inputSchema: {
+        shop_id: shopId,
+        supplier_id: z.string().uuid().describe('list_suppliers dan olingan ID'),
+        doc_date: day.optional().describe('Kirim sanasi YYYY-MM-DD (bo\'sh = bugun, Toshkent)'),
+        paid: numberText.optional().describe("Shu kirim bilan berilgan summa, masalan \"1000000\" yoki \"1 mln\""),
+        payment_method: z.enum(['naqd', 'karta', 'otkazma']).optional(),
+        note: z.string().trim().max(500).optional(),
+        request_id: requestId,
+        lines: z
+          .array(
+            z.object({
+              product_id: z.string().uuid().describe('list_products dan olingan ID'),
+              qty: numberText.describe('Miqdor, masalan "100" yoki "2.5"'),
+              unit_cost: numberText.describe('Birlik tan narxi, masalan "9000" yoki "9 ming"'),
+            }),
+          )
+          .min(1)
+          .max(100),
+      },
+      annotations: DRAFT,
+    },
+    (a) =>
+      guarded(async () => {
+        const shop = await resolveShop(ctx, cache, a.shop_id);
+        const problems: Array<{ line: number; field: string; message: string }> = [];
+        const parsed: Array<{ qtyMilli: bigint; unitCost: bigint; draft: PurchaseDraftLine }> = [];
+        a.lines.forEach((l, i) => {
+          const qty = parseQtyMilli(l.qty);
+          const cost = parseUnitPriceText(l.unit_cost);
+          if (!qty.ok) problems.push({ line: i + 1, field: 'qty', message: qty.message });
+          else if (qty.qtyMilli <= 0n) problems.push({ line: i + 1, field: 'qty', message: 'Miqdor 0 dan katta bo\'lishi kerak' });
+          if (!cost.ok) problems.push({ line: i + 1, field: 'unit_cost', message: cost.message });
+          else if (cost.unitPrice > MAX_UNIT_PRICE) problems.push({ line: i + 1, field: 'unit_cost', message: 'Narx ruxsat etilgan chegaradan katta' });
+          if (qty.ok && qty.qtyMilli > 0n && cost.ok && cost.unitPrice <= MAX_UNIT_PRICE) {
+            parsed.push({
+              qtyMilli: qty.qtyMilli,
+              unitCost: cost.unitPrice,
+              draft: { product_id: l.product_id, qty_milli: qty.qtyMilli.toString(), unit_cost: cost.unitPrice.toString(), warnings: [] },
+            });
+          }
+        });
+        if (problems.length > 0) throw new ToolError("Qoralama yaratilmadi: ba'zi qatorlar aniq o'qilmadi. Savdogardan so'rang.", problems);
+
+        let paid: bigint | null = null;
+        if (a.paid !== undefined && a.paid.trim() !== '') {
+          const p = parseUnitPriceText(a.paid);
+          if (!p.ok) throw new ToolError("Qoralama yaratilmadi: to'lov summasi aniq o'qilmadi. Savdogardan so'rang.", [{ field: 'paid', message: p.message }]);
+          if (p.unitPrice > 0n) {
+            if (!a.payment_method) throw new ToolError("To'lov usulini (naqd, karta, otkazma) so'rang");
+            paid = p.unitPrice;
+          }
+        }
+
+        const total = calculatePurchase(parsed.map((p) => ({ qtyMilli: p.qtyMilli, unitCost: p.unitCost }))).subtotal;
+        const draftId = await ctx.db.draftPurchase({
+          shopId: shop,
+          opId: `mcp:${a.request_id ?? randomUUID()}`,
+          supplierId: a.supplier_id,
+          docDate: a.doc_date ?? null,
+          lines: parsed.map((p) => p.draft),
+          clientTotal: total,
+          paymentMethod: paid !== null ? (a.payment_method ?? null) : null,
+          paid,
+          note: a.note || null,
+        });
+        return ok({
+          draft_id: draftId,
+          status: 'draft',
+          total: toSafeNumber(total),
+          paid: paid === null ? null : toSafeNumber(paid),
+          line_count: parsed.length,
+          message: "Qoralama yaratildi. Kirim hali YOZILMADI, ombor va qarz o'zgarmadi: savdogar Hisobchi Go ilovasida (veb panelda Qoralamalar) ko'rib tasdiqlashi kerak.",
         });
       }),
   );

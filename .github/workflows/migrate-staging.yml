@@ -1,0 +1,81 @@
+# Migratsiyalarni STAGING Supabase loyihasida sinash (production'ga tegmaydi).
+# Tavsif va asoschi qadamlari: docs/MIGRATSIYA-CI.md ("Staging" bo'limi).
+#
+#   PR (supabase/migrations/** o'zgarsa)  → staging'ga qo'llash
+#   qo'lda (workflow_dispatch)            → tanlangan branch/commit'ni staging'ga qo'llash
+#
+# Sirlar (GitHub > Settings > Environments > staging): STAGING_SUPABASE_ACCESS_TOKEN, STAGING_SUPABASE_DB_PASSWORD,
+# STAGING_SUPABASE_PROJECT_REF. Ular yo'q bo'lsa ish "o'tkazib yuborildi" deb yashil tugaydi (PR to'smaydi).
+# Production sirlari (SUPABASE_*) bu yerda ishlatilmaydi. service_role yo'q.
+name: Migratsiya (staging)
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/migrate-staging.yml'
+  workflow_dispatch:
+
+# Staging bazasi bitta: ishlar navbat bilan
+concurrency:
+  group: supabase-migrate-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    name: Staging'ga qo'llash
+    # Fork PR'larda sirlar berilmaydi
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+      SUPABASE_CLI_VERSION: '3.0.0'
+    steps:
+      - name: Sirlar mavjudligini tekshirish (qiymatlar chop etilmaydi)
+        id: secrets
+        run: |
+          missing=0
+          for n in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!n}" ]; then echo "::notice::STAGING_$n kiritilmagan."; missing=1; fi
+          done
+          if [ "$missing" = 1 ]; then
+            echo "::notice::Staging sirlari yo'q: ish o'tkazib yuborildi. docs/MIGRATSIYA-CI.md ('Staging') ga qarang."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@v1
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Staging loyihasiga ulanish
+        if: steps.secrets.outputs.ready == 'true'
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: IPv4 pooler manzilini yozish (runner IPv6 ni qo'llamaydi)
+        if: steps.secrets.outputs.ready == 'true'
+        run: bash scripts/ci/set-pooler.sh
+      - name: Staging migratsiya tarixi (oldin)
+        if: steps.secrets.outputs.ready == 'true'
+        run: supabase migration list --remote
+      # Staging toza loyiha: 001-004 ham haqiqatan qo'llanadi (baseline kerak emas, qo'riqchi ishlatilmaydi)
+      - name: Migratsiyalarni qo'llash
+        if: steps.secrets.outputs.ready == 'true'
+        run: supabase db push --remote --yes
+      - name: Tekshiruv - kutilayotgan migratsiya qolmaganini
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          set -o pipefail
+          supabase db push --dry-run --remote 2>&1 | tee dry-run-after.txt
+          grep -qi "up to date\|no migrations to push\|remote database is up to date" dry-run-after.txt
+          supabase migration list --remote

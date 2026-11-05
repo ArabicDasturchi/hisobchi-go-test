@@ -8,6 +8,7 @@
     "apps/*"
   ],
   "scripts": {
+    "demo": "node scripts/demo-seed/run.mjs",
     "dev:web": "npm run dev --workspace=apps/web",
     "build:web": "npm run build --workspace=apps/web",
     "lint:web": "npm run lint --workspace=apps/web",

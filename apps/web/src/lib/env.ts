@@ -3,7 +3,13 @@ export const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').trim();
 export const SUPABASE_ANON_KEY = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
 export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 
-export const supabaseConfigured = SUPABASE_URL.startsWith('https://') && SUPABASE_ANON_KEY.length > 20;
+/**
+ * Demo rejimi (`npm run demo`): xotiradagi soxta ma'lumot, kalit kerak emas.
+ * Faqat dev serverda: `next build` / production (NODE_ENV=production) da NEXT_PUBLIC_DEMO e'tiborga olinmaydi.
+ */
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO === '1' && process.env.NODE_ENV !== 'production';
+
+export const supabaseConfigured = DEMO_MODE || (SUPABASE_URL.startsWith('https://') && SUPABASE_ANON_KEY.length > 20);
 
 /** "https://app.uz/" → "https://app.uz". Faqat http(s) origin qabul qilinadi, boshqasi — bo'sh */
 export function normalizeSiteUrl(raw: string | undefined): string {

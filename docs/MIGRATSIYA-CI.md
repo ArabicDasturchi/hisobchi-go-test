@@ -137,4 +137,27 @@ Workflow ishlamasa migratsiyani SQL Editor'ga joylab ishga tushirish mumkin. **S
 - Environment'larda Required reviewers (tarifga bog'liq).
 - Production bazaning haqiqiy migratsiya tarixi holati (bo'sh deb faraz qilingan; `schema_migrations` jadvali allaqachon bor bo'lishi ham mumkin, baseline uni hisobga oladi).
 
-**Tavsiya (qilinmadi):** pull request'da ham testlarni ishga tushiradigan alohida `ci.yml`, shunda migratsiya `main` ga tushishidan oldin tekshirilardi.
+**PR'da testlar:** `.github/workflows/ci.yml` (04.11.2026) har PRda `npm ci`, typecheck, `npm test`, veb build, mobil bundle va SQL testlarni ishga tushiradi (10-bo'lim). GitHub'da hali ishga tushirilmagan (shu PR merge bo'lgach ko'rinadi).
+
+## 10. CI (har PR) va staging
+
+### PR'dagi CI (`ci.yml`)
+
+Ish nomlari (branch himoyasi shunga tayanadi): **`CI / Testlar`**, **`CI / Veb build`**, **`CI / Mobil bundle`**, **`CI / SQL testlar`**. Sirlar kerak emas. SQL testlar lokal PostgreSQL konteynerida (`supabase/tests/run_local.sh`, 001-008). Branch himoyasi: repo > Settings > Branches > `main` > "Require status checks to pass" va shu to'rttasini tanlang (ish bir marta ishlagandan keyin ro'yxatda ko'rinadi).
+
+### Staging ("Staging'ga qo'llash", `migrate-staging.yml`)
+
+Maqsad: migratsiya production'ga tushishdan oldin haqiqiy Supabase'da (bo'sh, alohida loyihada) qo'llanib sinalsin. Loyihani va sirlarni asoschi yaratadi; men yaratmadim va sir so'ramadim.
+
+Ish: `supabase/migrations/**` o'zgargan PRda (va qo'lda "Run workflow") staging'ga `supabase db push` qiladi, keyin "kutilayotgan qolmadi" tekshiruvi. Staging toza bo'lgani uchun 001-004 ham haqiqatan qo'llanadi (baseline va qo'riqchi ishlatilmaydi). Sirlar yo'q bo'lsa ish "o'tkazib yuborildi" deb yashil tugaydi va PRni to'smaydi.
+
+**Asoschi bir marta qiladi:**
+1. supabase.com > New project: nomi `hisobchi-go-staging`, bepul reja, region production bilan bir xil. Bazaga ma'lumot kiritmang (faqat soxta).
+2. Account > Access Tokens: token `github-staging` (bo'lsa production tokenini ishlatish mumkin, lekin alohida token ma'qul). Database parolini saqlang.
+3. GitHub > repo > Settings > Environments > New environment: **`staging`** (himoyasiz). Environment secrets (nomlari aynan): `STAGING_SUPABASE_ACCESS_TOKEN`, `STAGING_SUPABASE_DB_PASSWORD`, `STAGING_SUPABASE_PROJECT_REF` (loyiha ref'i).
+4. Actions > "Migratsiya (staging)" > Run workflow. Kutilgan natija: 001-008 qo'llandi, "up to date".
+5. Ixtiyoriy: Vercel `hisobchi-go-web` loyihasida **Preview** muhiti uchun `NEXT_PUBLIC_SUPABASE_URL` va `NEXT_PUBLIC_SUPABASE_ANON_KEY` ga staging qiymatlarini bering: PR preview havolasi staging bazasiga ulanadi, productionga emas. Supabase staging > Authentication > URL Configuration > Redirect URLs ga `https://hisobchi-go-web-*-abdulloh777.vercel.app/**` qo'shing.
+
+**Tartib (migratsiyali ish):** SQL PR ochiladi, staging yashil, `main` ga merge, production CI qo'llaydi, shundan keyin ilova PR'i ([ISH-TARTIBI.md](ISH-TARTIBI.md)).
+
+**Sinalmagan:** workflow GitHub'da ishga tushirilmagan (faqat YAML sintaksisi tekshirilgan, actionlint ishlatilmagan), staging loyihasi yo'q, bepul rejadagi cheklovlar (pauza) hisobga olinmagan.

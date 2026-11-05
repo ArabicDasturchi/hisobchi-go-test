@@ -1,0 +1,643 @@
+diff --git a/apps/mobile/__tests__/demo-seed.test.ts b/apps/mobile/__tests__/demo-seed.test.ts
+new file mode 100644
+index 0000000..02c51fa
+--- /dev/null
++++ b/apps/mobile/__tests__/demo-seed.test.ts
+@@ -0,0 +1,73 @@
++/**
++ * Demo seed (npm run demo): ilovaning o'z kodi bilan yoziladi va asosiy raqamlar to'g'ri chiqadi.
++ * Haqiqiy SQLite (node:sqlite).
++ */
++import { randomUUID } from 'node:crypto';
++import { beforeEach, describe, expect, it } from 'vitest';
++import { DEMO_PRODUCTS } from '../../../scripts/demo-seed/data';
++import { createCatalog } from '../src/data/catalog';
++import { createLedger } from '../src/data/ledger';
++import { createPurchasing } from '../src/data/purchasing';
++import { migrate } from '../src/data/schema';
++import { seedDemo } from '../src/demo/seedDemo';
++import { openMemoryDb } from './node-sqlite';
++
++const deps = { newId: () => randomUUID(), now: () => '2026-11-04T08:00:00.000Z' };
++let db: ReturnType<typeof openMemoryDb>;
++
++beforeEach(async () => {
++  db = openMemoryDb();
++  await migrate(db);
++});
++
++describe('seedDemo', () => {
++  it('kirim 1 450 000 / berildi 1 000 000 / ostatka 450 000, savdo 385 000, bir martalik savdo qarz yaratmaydi', async () => {
++    const r = await seedDemo(db, deps);
++    expect(r.seeded).toBe(true);
++    expect(r.saleTotal).toBe(385_000n);
++    expect(r.purchaseTotal).toBe(1_450_000n);
++
++    const purchasing = createPurchasing(db, deps);
++    const suppliers = await purchasing.listSuppliers();
++    expect(suppliers).toHaveLength(1);
++    expect(suppliers[0].goods).toBe(1_450_000n);
++    expect(suppliers[0].paid).toBe(1_000_000n);
++    expect(suppliers[0].outstanding).toBe(450_000n);
++
++    const ledger = createLedger(db, deps);
++    const customers = await ledger.listCustomers();
++    const karim = customers.find((c) => c.name.startsWith('Karim'));
++    expect(karim?.balance).toBe(385_000n);
++    // bir martalik mijoz ro'yxatda ko'rinmaydi va qarzi yo'q
++    const walkin = await ledger.getWalkinSummary();
++    expect(walkin?.saleCount).toBe(1);
++    // to'liq naqd to'langan: to'lovlar summasi savdo jamiga teng (qarz yo'q)
++    const paid = db.raw.prepare('SELECT CAST(COALESCE(SUM(amount), 0) AS TEXT) AS s FROM payments WHERE customer_id = ?').get(walkin?.id ?? '') as { s: string };
++    expect(BigInt(paid.s)).toBe(70_500n);
++    expect(walkin?.balance).toBe(70_500n);
++  });
++
++  it('katalog 9 ta tovar, qoldiq: kirim va savdo hisobga olingan, manfiy qoldiq yo\'q', async () => {
++    await seedDemo(db, deps);
++    const catalog = createCatalog(db, deps);
++    const products = await catalog.listProducts();
++    expect(products).toHaveLength(DEMO_PRODUCTS.length);
++    expect(products.length).toBeGreaterThanOrEqual(8);
++    expect(products.length).toBeLessThanOrEqual(10);
++    const stock = await createPurchasing(db, deps).listStock();
++    const byName = new Map(stock.map((s) => [s.name, s.qtyMilli]));
++    expect(byName.get('Guruch')).toBe(90_000n); // 100 - 10
++    expect(byName.get('Shakar')).toBe(45_000n); // 50 - 5
++    expect(byName.get('Makaron')).toBe(60_000n); // 80 - 20
++    for (const q of byName.values()) expect(q >= 0n).toBe(true);
++  });
++
++  it('ikkinchi chaqiruv hech narsa qo\'shmaydi (bo\'sh bazaga yoziladi, ma\'lumot borga tegmaydi)', async () => {
++    await seedDemo(db, deps);
++    const before = db.raw.prepare('SELECT COUNT(*) AS n FROM sales').get() as { n: number };
++    const r = await seedDemo(db, deps);
++    expect(r.seeded).toBe(false);
++    const after = db.raw.prepare('SELECT COUNT(*) AS n FROM sales').get() as { n: number };
++    expect(after.n).toBe(before.n);
++  });
++});
+diff --git a/apps/mobile/metro.config.js b/apps/mobile/metro.config.js
+index 621c661..4acbbdb 100644
+--- a/apps/mobile/metro.config.js
++++ b/apps/mobile/metro.config.js
+@@ -7,6 +7,21 @@ const { getDefaultConfig } = require('expo/metro-config');
+ const config = getDefaultConfig(__dirname);
+ const coreDir = path.resolve(__dirname, '../../packages/core');
+ 
++// Mobil web (demo): expo-sqlite web versiyasi wa-sqlite.wasm faylini import qiladi
++if (!config.resolver.assetExts.includes('wasm')) config.resolver.assetExts.push('wasm');
++
++// SharedArrayBuffer (expo-sqlite web) uchun brauzerga kerak sarlavhalar
++config.server = config.server ?? {};
++const prevMiddleware = config.server.enhanceMiddleware;
++config.server.enhanceMiddleware = (middleware, server) => {
++  const base = prevMiddleware ? prevMiddleware(middleware, server) : middleware;
++  return (req, res, next) => {
++    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
++    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
++    return base(req, res, next);
++  };
++};
++
+ const defaultResolve = config.resolver.resolveRequest;
+ config.resolver.resolveRequest = (context, moduleName, platform) => {
+   const origin = context.originModulePath;
+diff --git a/apps/mobile/package.json b/apps/mobile/package.json
+index ba40b8a..f37a98c 100644
+--- a/apps/mobile/package.json
++++ b/apps/mobile/package.json
+@@ -3,6 +3,7 @@
+   "version": "1.0.0",
+   "main": "expo-router/entry",
+   "dependencies": {
++    "@expo/metro-runtime": "~58.0.15",
+     "@expo/vector-icons": "^15.0.2",
+     "@hisobchi/core": "*",
+     "@react-native-async-storage/async-storage": "2.2.0",
+@@ -16,10 +17,12 @@
+     "expo-sqlite": "~58.0.14",
+     "expo-status-bar": "~58.0.4",
+     "react": "19.3.0",
++    "react-dom": "^19.3.0",
+     "react-native": "0.88.1",
+     "react-native-safe-area-context": "~5.10.1",
+     "react-native-screens": "~4.30.0",
+-    "react-native-url-polyfill": "^4.0.0"
++    "react-native-url-polyfill": "^4.0.0",
++    "react-native-web": "^0.21.4"
+   },
+   "devDependencies": {
+     "@types/react": "~19.3.0",
+diff --git a/apps/mobile/src/AppRoot.tsx b/apps/mobile/src/AppRoot.tsx
+index 26f2490..85a2601 100644
+--- a/apps/mobile/src/AppRoot.tsx
++++ b/apps/mobile/src/AppRoot.tsx
+@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
+ import { SQLiteProvider, type SQLiteDatabase } from 'expo-sqlite';
+ import { StatusBar } from 'expo-status-bar';
+ import { Suspense, type ComponentProps } from 'react';
++import { randomUUID } from 'expo-crypto';
+ import { SafeAreaProvider } from 'react-native-safe-area-context';
+ import { AuthProvider } from './backend/AuthProvider';
+ import { SyncProvider } from './backend/SyncProvider';
+@@ -9,17 +10,24 @@ import { fromExpoSqlite } from './data/expo-db';
+ import { LedgerProvider } from './data/LedgerProvider';
+ import { migrate } from './data/schema';
+ import { startupLog, useStartupMark } from './diagnostics/startupLog';
++import { seedDemo } from './demo/seedDemo';
+ import { DraftProvider } from './features/DraftContext';
+ import { AppHeader } from './ui/AppHeader';
+ import { Loading } from './ui/components';
+ import { colors } from './ui/theme';
+ 
+-export const APP_DB_NAME = 'hisobchi.db';
++/** `npm run demo`: soxta ma'lumotli alohida baza (haqiqiy `hisobchi.db` ga tegmaydi). Faqat dev rejimida. */
++export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO === '1' && process.env.NODE_ENV !== 'production';
++export const APP_DB_NAME = DEMO_MODE ? 'hisobchi-demo.db' : 'hisobchi.db';
+ 
+ export async function initDb(db: SQLiteDatabase) {
+   startupLog('sqlite: onInit — migratsiya boshlandi');
+   const report = await migrate(fromExpoSqlite(db));
+   startupLog(`sqlite: migratsiya tugadi (user_version=${report.userVersion}, jadvallar: ${report.tables.join(', ')})`);
++  if (DEMO_MODE) {
++    const r = await seedDemo(fromExpoSqlite(db), { newId: randomUUID, now: () => new Date().toISOString() });
++    startupLog(r.seeded ? "demo: soxta ma'lumot yozildi" : "demo: baza bo'sh emas, seed o'tkazib yuborildi");
++  }
+ }
+ 
+ type StackProps = ComponentProps<typeof Stack>;
+diff --git a/apps/mobile/src/demo/seedDemo.ts b/apps/mobile/src/demo/seedDemo.ts
+new file mode 100644
+index 0000000..6464230
+--- /dev/null
++++ b/apps/mobile/src/demo/seedDemo.ts
+@@ -0,0 +1,109 @@
++/**
++ * Demo rejimi (npm run demo): bo'sh bazaga SOXTA ma'lumotni ilovaning O'Z kodi bilan yozadi.
++ * Savdo/kirim `ledger.postSale` / `purchasing.postPurchase` orqali o'tadi: ikki mustaqil hisob (core + SQLite)
++ * ishlaydi va mos kelmasa seed to'xtaydi. Bu fayl hech qanday yig'indi hisoblamaydi.
++ *
++ * Faqat EXPO_PUBLIC_DEMO=1 bo'lganda chaqiriladi (AppRoot). Mavjud ma'lumotli bazaga tegmaydi.
++ */
++import {
++  DEMO_CUSTOMERS,
++  DEMO_PRODUCTS,
++  DEMO_PURCHASE,
++  DEMO_SALE,
++  DEMO_SHOP_NAME,
++  DEMO_SUPPLIER,
++  DEMO_WALKIN_SALE,
++} from '../../../../scripts/demo-seed/data';
++import type { SqlDb } from '../data/db';
++import { createCatalog } from '../data/catalog';
++import { createLedger } from '../data/ledger';
++import { createPurchasing } from '../data/purchasing';
++
++export interface DemoSeedResult {
++  seeded: boolean;
++  saleTotal?: bigint;
++  purchaseTotal?: bigint;
++  walkinTotal?: bigint;
++}
++
++const milli = (qty: number) => BigInt(qty) * 1000n;
++
++export async function seedDemo(db: SqlDb, deps: { newId: () => string; now: () => string }): Promise<DemoSeedResult> {
++  const existing = await db.get<{ n: number }>('SELECT (SELECT COUNT(*) FROM products) + (SELECT COUNT(*) FROM sales) + (SELECT COUNT(*) FROM customers WHERE kind = ?) AS n', ['regular']);
++  if ((existing?.n ?? 0) > 0) return { seeded: false };
++
++  const catalog = createCatalog(db, deps);
++  const ledger = createLedger(db, deps);
++  const purchasing = createPurchasing(db, deps);
++
++  await catalog.saveSettings({ shop_name: DEMO_SHOP_NAME });
++
++  const productId = new Map<string, string>();
++  for (const p of DEMO_PRODUCTS) {
++    productId.set(p.key, await catalog.saveProduct({ name: p.name, unit: p.unit, unitPrice: BigInt(p.salePrice) }));
++  }
++  const pid = (key: string) => {
++    const id = productId.get(key);
++    if (!id) throw new Error(`demo: tovar topilmadi: ${key}`);
++    return id;
++  };
++
++  const customerId = new Map<string, string>();
++  for (const c of DEMO_CUSTOMERS) customerId.set(c.key, await ledger.createCustomer({ name: c.name }));
++
++  const supplierId = await purchasing.saveSupplier({ name: DEMO_SUPPLIER.name });
++
++  for (const p of DEMO_PRODUCTS) {
++    if (p.openingStock > 0) {
++      await purchasing.adjustStock({ productId: pid(p.key), qtyMilli: milli(p.openingStock), reason: "Boshlang'ich qoldiq (demo)", clientOpId: `demo-open-${p.key}` });
++    }
++  }
++
++  const purchase = await purchasing.postPurchase({
++    clientOpId: 'demo-purchase-1',
++    supplierId,
++    lines: DEMO_PURCHASE.lines.map((l) => ({ productId: pid(l.product), qtyMilli: milli(l.qty), unitCost: BigInt(l.unitCost) })),
++    paid: { method: DEMO_PURCHASE.paid.method, amount: BigInt(DEMO_PURCHASE.paid.amount) },
++  });
++
++  // Tan narx kirimdan keyin katalogda (oxirgi kirim narxi); savdo qatoriga snapshot sifatida yoziladi
++  const catalogNow = new Map((await catalog.listProducts()).map((p) => [p.id, p]));
++  const saleLine = (key: string, qty: number) => {
++    const meta = DEMO_PRODUCTS.find((p) => p.key === key);
++    const prod = catalogNow.get(pid(key));
++    if (!meta || !prod) throw new Error(`demo: tovar topilmadi: ${key}`);
++    return {
++      productName: prod.name,
++      qtyMilli: milli(qty),
++      unit: meta.unit,
++      unitPrice: prod.unitPrice,
++      rawText: null,
++      productId: prod.id,
++      unitCost: prod.costPrice,
++    };
++  };
++
++  const cust = customerId.get(DEMO_SALE.customer);
++  if (!cust) throw new Error('demo: mijoz topilmadi');
++  const sale = await ledger.postSale({
++    clientOpId: 'demo-sale-1',
++    customerId: cust,
++    rawInput: null,
++    lines: DEMO_SALE.lines.map((l) => saleLine(l.product, l.qty)),
++  });
++
++  const walkin = await ledger.ensureWalkinCustomer();
++  const lines = DEMO_WALKIN_SALE.lines.map((l) => saleLine(l.product, l.qty));
++  const walkinTotalExpected = BigInt(DEMO_WALKIN_SALE.expectedTotal);
++  const walkinSale = await ledger.postSale({
++    clientOpId: 'demo-sale-walkin-1',
++    customerId: walkin,
++    rawInput: null,
++    lines,
++    paid: { method: DEMO_WALKIN_SALE.method, amount: walkinTotalExpected },
++  });
++
++  if (sale.total !== BigInt(DEMO_SALE.expectedTotal)) throw new Error(`demo: savdo jami kutilganidan farq qildi: ${sale.total}`);
++  if (purchase.total !== BigInt(DEMO_PURCHASE.expectedTotal)) throw new Error(`demo: kirim jami kutilganidan farq qildi: ${purchase.total}`);
++  return { seeded: true, saleTotal: sale.total, purchaseTotal: purchase.total, walkinTotal: walkinSale.total };
++}
+diff --git a/package-lock.json b/package-lock.json
+index c89463b..1cc3511 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -56,6 +56,7 @@
+       "name": "@hisobchi/mobile",
+       "version": "1.0.0",
+       "dependencies": {
++        "@expo/metro-runtime": "~58.0.15",
+         "@expo/vector-icons": "^15.0.2",
+         "@hisobchi/core": "*",
+         "@react-native-async-storage/async-storage": "2.2.0",
+@@ -69,10 +70,12 @@
+         "expo-sqlite": "~58.0.14",
+         "expo-status-bar": "~58.0.4",
+         "react": "19.3.0",
++        "react-dom": "^19.3.0",
+         "react-native": "0.88.1",
+         "react-native-safe-area-context": "~5.10.1",
+         "react-native-screens": "~4.30.0",
+-        "react-native-url-polyfill": "^4.0.0"
++        "react-native-url-polyfill": "^4.0.0",
++        "react-native-web": "^0.21.4"
+       },
+       "devDependencies": {
+         "@types/react": "~19.3.0",
+@@ -80,6 +83,54 @@
+         "vitest": "^2.0.0"
+       }
+     },
++    "apps/mobile/node_modules/@expo/metro-runtime": {
++      "version": "58.0.17",
++      "resolved": "https://registry.npmjs.org/@expo/metro-runtime/-/metro-runtime-58.0.17.tgz",
++      "integrity": "sha512-onJvBi90uwLj69F1EaVPmPeds/ndxc2/vNc0Z5n8rqcMKToMyLxGaL3Be6yf7OVjPhGvoDj+LWQ/IcbpN1hnoA==",
++      "license": "MIT",
++      "dependencies": {
++        "@expo/log-box": "^58.0.15",
++        "anser": "^1.4.9",
++        "pretty-format": "^29.7.0",
++        "stacktrace-parser": "^0.1.10",
++        "whatwg-fetch": "^3.0.0"
++      },
++      "peerDependencies": {
++        "@expo/log-box": "^58.0.15",
++        "expo": "*",
++        "react": "*",
++        "react-dom": "*",
++        "react-native": "*"
++      },
++      "peerDependenciesMeta": {
++        "react-dom": {
++          "optional": true
++        }
++      }
++    },
++    "apps/mobile/node_modules/@expo/metro-runtime/node_modules/@expo/log-box": {
++      "version": "58.0.15",
++      "resolved": "https://registry.npmjs.org/@expo/log-box/-/log-box-58.0.15.tgz",
++      "integrity": "sha512-IBpaJcTdJlSqmiEtyI9XDiNPSRUZNpeWdRbzE4ic6I4k17mpy0LxWJ4Mz2hB7B48b9BrleUKFeZ+6VseglmvGQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@expo/dom-webview": "^58.0.2",
++        "@expo/log-box-utils": "^58.0.2",
++        "anser": "^1.4.9",
++        "stacktrace-parser": "^0.1.10"
++      },
++      "peerDependencies": {
++        "@expo/dom-webview": "^58.0.2",
++        "expo": "*",
++        "react": "*",
++        "react-native": "*"
++      },
++      "peerDependenciesMeta": {
++        "expo": {
++          "optional": true
++        }
++      }
++    },
+     "apps/web": {
+       "name": "@hisobchi/web",
+       "version": "0.1.0",
+@@ -7512,6 +7563,15 @@
+         "url": "https://opencollective.com/express"
+       }
+     },
++    "node_modules/cross-fetch": {
++      "version": "3.2.0",
++      "resolved": "https://registry.npmjs.org/cross-fetch/-/cross-fetch-3.2.0.tgz",
++      "integrity": "sha512-Q+xVJLoGOeIMXZmbUK4HYk+69cQH6LudR0Vu/pRm2YlU/hDV9CiS0gKUMaWY5f2NeUH9C1nV3bsTlCo0FsTV1Q==",
++      "license": "MIT",
++      "dependencies": {
++        "node-fetch": "^2.7.0"
++      }
++    },
+     "node_modules/cross-spawn": {
+       "version": "7.0.6",
+       "resolved": "https://registry.npmjs.org/cross-spawn/-/cross-spawn-7.0.6.tgz",
+@@ -7526,6 +7586,15 @@
+         "node": ">= 8"
+       }
+     },
++    "node_modules/css-in-js-utils": {
++      "version": "3.1.0",
++      "resolved": "https://registry.npmjs.org/css-in-js-utils/-/css-in-js-utils-3.1.0.tgz",
++      "integrity": "sha512-fJAcud6B3rRu+KHYk+Bwf+WFL2MDCJJ1XG9x137tJQ0xYxor7XziQtuGFbWNdqrvF4Tk26O3H73nfVqXt/fW1A==",
++      "license": "MIT",
++      "dependencies": {
++        "hyphenate-style-name": "^1.0.3"
++      }
++    },
+     "node_modules/csstype": {
+       "version": "3.2.3",
+       "resolved": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
+@@ -9591,6 +9660,36 @@
+         "bser": "2.1.2"
+       }
+     },
++    "node_modules/fbjs": {
++      "version": "3.0.5",
++      "resolved": "https://registry.npmjs.org/fbjs/-/fbjs-3.0.5.tgz",
++      "integrity": "sha512-ztsSx77JBtkuMrEypfhgc3cI0+0h+svqeie7xHbh1k/IKdcydnvadp/mUaGgjAOXQmQSxsqgaRhS3q9fy+1kxg==",
++      "license": "MIT",
++      "dependencies": {
++        "cross-fetch": "^3.1.5",
++        "fbjs-css-vars": "^1.0.0",
++        "loose-envify": "^1.0.0",
++        "object-assign": "^4.1.0",
++        "promise": "^7.1.1",
++        "setimmediate": "^1.0.5",
++        "ua-parser-js": "^1.0.35"
++      }
++    },
++    "node_modules/fbjs-css-vars": {
++      "version": "1.0.2",
++      "resolved": "https://registry.npmjs.org/fbjs-css-vars/-/fbjs-css-vars-1.0.2.tgz",
++      "integrity": "sha512-b2XGFAFdWZWg0phtAWLHCk836A1Xann+I+Dgd3Gk64MHKZO44FfoD1KxyvbSh0qZsIoXQGGlVztIY+oitJPpRQ==",
++      "license": "MIT"
++    },
++    "node_modules/fbjs/node_modules/promise": {
++      "version": "7.3.1",
++      "resolved": "https://registry.npmjs.org/promise/-/promise-7.3.1.tgz",
++      "integrity": "sha512-nolQXZ/4L+bP/UGlkfaIujX9BKxGwmQ9OT4mOt5yvy8iK1h3wqTEJCijzGANTCCl9nWjY41juyAn2K3Q1hLLTg==",
++      "license": "MIT",
++      "dependencies": {
++        "asap": "~2.0.3"
++      }
++    },
+     "node_modules/fdir": {
+       "version": "6.5.0",
+       "resolved": "https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz",
+@@ -10193,6 +10292,12 @@
+         "node": ">= 14"
+       }
+     },
++    "node_modules/hyphenate-style-name": {
++      "version": "1.1.0",
++      "resolved": "https://registry.npmjs.org/hyphenate-style-name/-/hyphenate-style-name-1.1.0.tgz",
++      "integrity": "sha512-WDC/ui2VVRrz3jOVi+XtjqkDjiVjTtFaAGiW37k6b+ohyQ5wYDOGkvCZa8+H0nx3gyvv0+BST9xuOgIyGQ00gw==",
++      "license": "BSD-3-Clause"
++    },
+     "node_modules/iceberg-js": {
+       "version": "0.8.1",
+       "resolved": "https://registry.npmjs.org/iceberg-js/-/iceberg-js-0.8.1.tgz",
+@@ -10280,6 +10385,15 @@
+       "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
+       "license": "ISC"
+     },
++    "node_modules/inline-style-prefixer": {
++      "version": "7.0.1",
++      "resolved": "https://registry.npmjs.org/inline-style-prefixer/-/inline-style-prefixer-7.0.1.tgz",
++      "integrity": "sha512-lhYo5qNTQp3EvSSp3sRvXMbVQTLrvGV6DycRMJ5dm2BLMiJ30wpXKdDdgX+GmJZ5uQMucwRKHamXSst3Sj/Giw==",
++      "license": "MIT",
++      "dependencies": {
++        "css-in-js-utils": "^3.1.0"
++      }
++    },
+     "node_modules/internal-slot": {
+       "version": "1.1.0",
+       "resolved": "https://registry.npmjs.org/internal-slot/-/internal-slot-1.1.0.tgz",
+@@ -12260,6 +12374,26 @@
+         "semver": "bin/semver.js"
+       }
+     },
++    "node_modules/node-fetch": {
++      "version": "2.7.0",
++      "resolved": "https://registry.npmjs.org/node-fetch/-/node-fetch-2.7.0.tgz",
++      "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
++      "license": "MIT",
++      "dependencies": {
++        "whatwg-url": "^5.0.0"
++      },
++      "engines": {
++        "node": "4.x || >=6.0.0"
++      },
++      "peerDependencies": {
++        "encoding": "^0.1.0"
++      },
++      "peerDependenciesMeta": {
++        "encoding": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/node-forge": {
+       "version": "1.4.2",
+       "resolved": "https://registry.npmjs.org/node-forge/-/node-forge-1.4.2.tgz",
+@@ -12876,6 +13010,12 @@
+         "node": "^10 || ^12 || >=14"
+       }
+     },
++    "node_modules/postcss-value-parser": {
++      "version": "4.2.0",
++      "resolved": "https://registry.npmjs.org/postcss-value-parser/-/postcss-value-parser-4.2.0.tgz",
++      "integrity": "sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==",
++      "license": "MIT"
++    },
+     "node_modules/prelude-ls": {
+       "version": "1.2.1",
+       "resolved": "https://registry.npmjs.org/prelude-ls/-/prelude-ls-1.2.1.tgz",
+@@ -13284,6 +13424,38 @@
+         "react-native": "*"
+       }
+     },
++    "node_modules/react-native-web": {
++      "version": "0.21.4",
++      "resolved": "https://registry.npmjs.org/react-native-web/-/react-native-web-0.21.4.tgz",
++      "integrity": "sha512-77B6KlalB4osNIck91TNFixPkYPsTbuNEvw8P7IV+4v4/5wZSBRKZnw0Zhx6YjuauDTz71gc8IW+fVhcBMjr5A==",
++      "license": "MIT",
++      "dependencies": {
++        "@babel/runtime": "^7.18.6",
++        "@react-native/normalize-colors": "^0.74.1",
++        "fbjs": "^3.0.4",
++        "inline-style-prefixer": "^7.0.1",
++        "memoize-one": "^6.0.0",
++        "nullthrows": "^1.1.1",
++        "postcss-value-parser": "^4.2.0",
++        "styleq": "^0.1.3"
++      },
++      "peerDependencies": {
++        "react": "^18.0.0 || ^19.0.0",
++        "react-dom": "^18.0.0 || ^19.0.0"
++      }
++    },
++    "node_modules/react-native-web/node_modules/@react-native/normalize-colors": {
++      "version": "0.74.89",
++      "resolved": "https://registry.npmjs.org/@react-native/normalize-colors/-/normalize-colors-0.74.89.tgz",
++      "integrity": "sha512-qoMMXddVKVhZ8PA1AbUCk83trpd6N+1nF2A6k1i6LsQObyS92fELuk8kU/lQs6M7BsMHwqyLCpQJ1uFgNvIQXg==",
++      "license": "MIT"
++    },
++    "node_modules/react-native-web/node_modules/memoize-one": {
++      "version": "6.0.0",
++      "resolved": "https://registry.npmjs.org/memoize-one/-/memoize-one-6.0.0.tgz",
++      "integrity": "sha512-rkpe71W0N0c0Xz6QD0eJETuWAJGnJ9afsl1srmwPrI+yBCkge5EycXXbYRyvL29zZVUWQCY7InPRCv3GDXuZNw==",
++      "license": "MIT"
++    },
+     "node_modules/react-native-worklets": {
+       "version": "0.13.1",
+       "resolved": "https://registry.npmjs.org/react-native-worklets/-/react-native-worklets-0.13.1.tgz",
+@@ -13986,6 +14158,12 @@
+         "node": ">= 0.4"
+       }
+     },
++    "node_modules/setimmediate": {
++      "version": "1.0.5",
++      "resolved": "https://registry.npmjs.org/setimmediate/-/setimmediate-1.0.5.tgz",
++      "integrity": "sha512-MATJdZp8sLqDl/68LfQmbP8zKPLQNV6BIZoIgrscFDQ+RsvK/BxeDQOgyxKKoh0y/8h3BqVFnCqQ/gd+reiIXA==",
++      "license": "MIT"
++    },
+     "node_modules/setprototypeof": {
+       "version": "1.2.0",
+       "resolved": "https://registry.npmjs.org/setprototypeof/-/setprototypeof-1.2.0.tgz",
+@@ -14543,6 +14721,12 @@
+         }
+       }
+     },
++    "node_modules/styleq": {
++      "version": "0.1.3",
++      "resolved": "https://registry.npmjs.org/styleq/-/styleq-0.1.3.tgz",
++      "integrity": "sha512-3ZUifmCDCQanjeej1f6kyl/BeP/Vae5EYkQ9iJfUm/QwZvlgnZzyflqAsAWYURdtea8Vkvswu2GrC57h3qffcA==",
++      "license": "MIT"
++    },
+     "node_modules/supports-color": {
+       "version": "7.2.0",
+       "resolved": "https://registry.npmjs.org/supports-color/-/supports-color-7.2.0.tgz",
+@@ -14746,6 +14930,12 @@
+       "integrity": "sha512-FWAPzCIHZHnrE/5/w9MPk0kK25hSQSH2IKhYh9PyjS3SG/+IEMvlwIHbhz+oF7xl54I+ueZlVnMjyzdSwLmAwA==",
+       "license": "MIT"
+     },
++    "node_modules/tr46": {
++      "version": "0.0.3",
++      "resolved": "https://registry.npmjs.org/tr46/-/tr46-0.0.3.tgz",
++      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==",
++      "license": "MIT"
++    },
+     "node_modules/ts-api-utils": {
+       "version": "2.5.0",
+       "resolved": "https://registry.npmjs.org/ts-api-utils/-/ts-api-utils-2.5.0.tgz",
+@@ -14962,6 +15152,32 @@
+         "typescript": ">=4.8.4 <6.1.0"
+       }
+     },
++    "node_modules/ua-parser-js": {
++      "version": "1.0.41",
++      "resolved": "https://registry.npmjs.org/ua-parser-js/-/ua-parser-js-1.0.41.tgz",
++      "integrity": "sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==",
++      "funding": [
++        {
++          "type": "opencollective",
++          "url": "https://opencollective.com/ua-parser-js"
++        },
++        {
++          "type": "paypal",
++          "url": "https://paypal.me/faisalman"
++        },
++        {
++          "type": "github",
++          "url": "https://github.com/sponsors/faisalman"
++        }
++      ],
++      "license": "MIT",
++      "bin": {
++        "ua-parser-js": "script/cli.js"
++      },
++      "engines": {
++        "node": "*"
++      }
++    },
+     "node_modules/unbox-primitive": {
+       "version": "1.1.0",
+       "resolved": "https://registry.npmjs.org/unbox-primitive/-/unbox-primitive-1.1.0.tgz",
+@@ -15360,12 +15576,28 @@
+         "defaults": "^1.0.3"
+       }
+     },
++    "node_modules/webidl-conversions": {
++      "version": "3.0.1",
++      "resolved": "https://registry.npmjs.org/webidl-conversions/-/webidl-conversions-3.0.1.tgz",
++      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==",
++      "license": "BSD-2-Clause"
++    },
+     "node_modules/whatwg-fetch": {
+       "version": "3.6.20",
+       "resolved": "https://registry.npmjs.org/whatwg-fetch/-/whatwg-fetch-3.6.20.tgz",
+       "integrity": "sha512-EqhiFU6daOA8kpjOWTL0olhVOF3i7OrFzSYiGsEMB8GcXS+RrzauAERX65xMeNWVqxA6HXH2m69Z9LaKKdisfg==",
+       "license": "MIT"
+     },
++    "node_modules/whatwg-url": {
++      "version": "5.0.0",
++      "resolved": "https://registry.npmjs.org/whatwg-url/-/whatwg-url-5.0.0.tgz",
++      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
++      "license": "MIT",
++      "dependencies": {
++        "tr46": "~0.0.3",
++        "webidl-conversions": "^3.0.0"
++      }
++    },
+     "node_modules/whatwg-url-minimum": {
+       "version": "0.2.0",
+       "resolved": "https://registry.npmjs.org/whatwg-url-minimum/-/whatwg-url-minimum-0.2.0.tgz",

@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import { CustomerFormModal } from '@/components/forms/CustomerFormModal';
 import { PaymentModal } from '@/components/forms/PaymentModal';
 import { ReasonModal } from '@/components/forms/ReasonModal';
-import { DataGate, MethodBadge, Money, StatCard, StatusBadge } from '@/components/shared';
+import { DataGate, MethodBadge, Money, StatCard, StatusBadge, RecordBadges } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Modal } from '@/components/ui/Modal';
 import { Alert, Avatar, Badge, Button, Card, CardHeader, EmptyState, LinkButton, Segmented } from '@/components/ui/primitives';
@@ -80,7 +80,10 @@ function CustomerDetail({ data, id }: { data: ShopData; id: string }) {
           <div className="flex min-w-0 items-start gap-3.5">
             <Avatar name={customer.name} className="h-10 w-10 text-xs" />
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-semibold tracking-tight text-fg">{customer.name}</h1>
+              <h1 className="flex items-center gap-2 truncate text-xl font-semibold tracking-tight text-fg">
+                <span className="truncate">{customer.name}</span>
+                <RecordBadges source={customer.source} archived={!customer.is_active} />
+              </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
                 {customer.phone && (
                   <a href={`tel:${customer.phone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1.5 hover:text-fg">

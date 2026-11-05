@@ -11,6 +11,8 @@ export default function CustomersScreen() {
   const ledger = useLedger();
   const [search, setSearch] = useState('');
   const { data, error, loading } = useFocusData(() => ledger.listCustomers(search), [ledger, search]);
+  // Bir martalik mijoz — bitta tizim mijozi: ro'yxatda emas, alohida qator (savdolar soni, hammasi to'langan)
+  const walkin = useFocusData(() => ledger.getWalkinSummary(), [ledger]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -18,6 +20,14 @@ export default function CustomersScreen() {
         <Button label="Yangi mijoz" icon="add" onPress={() => router.push('/customers/form')} />
         <Field label="Qidirish" value={search} onChangeText={setSearch} placeholder="Ism yoki telefon" />
         {error ? <Banner tone="error">{error}</Banner> : null}
+        {walkin.data ? (
+          <ListRow
+            title="Bir martalik mijoz"
+            subtitle={`${walkin.data.saleCount} ta savdo · qarzga olinmaydi`}
+            right={formatSom(walkin.data.balance)}
+            onPress={() => router.push(`/customers/${walkin.data!.id}`)}
+          />
+        ) : null}
       </View>
       {loading && !data ? (
         <Loading />

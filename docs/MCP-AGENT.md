@@ -1,6 +1,9 @@
 # MCP / Connector: Hisobchi Go'ga tashqi AI orqali kirish
 
-Holat (02.11.2026): **kod yozilgan va lokal sinalgan; Supabase'ga qo'llanmagan, hostingga joylanmagan, Claude/ChatGPT bilan ulanmagan.**
+Holat (03.11.2026): **kod yozilgan va lokal sinalgan; Claude/ChatGPT bilan ulanish haqiqiy muhitda sinalmagan.** 004 va 005 migratsiyalari `main` ga merge bo'lganda CI qo'llaydi (`docs/MIGRATSIYA-CI.md`).
+
+> **Katalog (03.11.2026, 005):** agent mijoz va tovarni **qo'sha oladi** (tasdiqsiz); o'zgartirish va arxiv faqat **tasdiqlash so'rovi**.
+> Savdo, to'lov va (keyingi bosqichda) kirim hamon faqat qoralama. 2-bandga qarang.
 
 > **Qoralamalar veb panelda ko'rinadi** (`/drafts`): ro'yxat, "Tasdiqlash" va "Rad etish". **Mobil ilovada hali yo'q**: savdogar
 > qoralamani faqat veb panelda hal qila oladi (9-bo'lim). Veb panel va 004 migratsiyasi birga qo'llanishi kerak; 004
@@ -13,8 +16,8 @@ yaratish. Tasdiqlash faqat ilovada, savdogar qo'li bilan.
 
 ## 2. Qoidalar (CLAUDE.md dan, buzilmaydi)
 
-1. AI yig'indi hisoblamaydi va bazaga o'zi yozmaydi. Savdo faqat `post_sale` orqali; MCP uni chaqirmaydi.
-2. Agent **qoralama** yaratadi; savdogar ilovada tasdiqlaydi. Tasdiqlanmaguncha jurnalga hech narsa tushmaydi.
+1. AI yig'indi hisoblamaydi. AI bazaga o'zi yozmaydi, **faqat katalog (mijoz, tovar) QO'SHISH bundan mustasno** (asoschi qarori, 03.11.2026): u zararsiz va qaytariladi. Katalogni o'zgartirish/arxivlash faqat tasdiqlash so'rovi; savdo faqat `post_sale` orqali, MCP uni chaqirmaydi.
+2. Pul va qarzga tegadigan hamma narsada (savdo, to'lov) agent **qoralama** yaratadi; savdogar ilovada tasdiqlaydi. Tasdiqlanmaguncha jurnalga hech narsa tushmaydi. Haqiqiy o'chirish (DELETE) hech qayerda yo'q: "o'chirish" = arxiv.
 3. Jurnal append-only. Tuzatish teskari yozuv bilan.
 4. `service_role` kaliti ishlatilmaydi. Har so'rov foydalanuvchining o'z tokeni bilan, RLS ostida.
 5. Kalit, parol, mijoz telefoni repoga yozilmaydi.
@@ -23,9 +26,11 @@ yaratish. Tasdiqlash faqat ilovada, savdogar qo'li bilan.
 
 | Qism | Joyi | Mazmuni |
 |---|---|---|
-| MCP server | `apps/mcp` | Streamable HTTP (stateless, JSON javob), rasmiy MCP SDK, 7 asbob |
+| MCP server | `apps/mcp` | Streamable HTTP (stateless, JSON javob), rasmiy MCP SDK, 13 asbob (7 + katalog uchun 4 + `list_suppliers`, `draft_purchase`) |
 | Migratsiya | `supabase/migrations/004_mcp_agent.sql` | OAuth tokenni yozuvdan to'sish, `agent_drafts`, `agent_*` RPC'lar, `customer_outstanding` tuzatildi. **Asoschi ko'rib chiqib o'zi qo'llaydi** |
-| SQL testlar | `supabase/tests/20_agent_mcp.test.sql` | `bash supabase/tests/run_local.sh` (lokal PostgreSQL, Supabase stub) |
+| Migratsiya (katalog) | `supabase/migrations/005_agent_catalog.sql` | `agent_add_customer`, `agent_add_products`, `agent_list_products`, `agent_propose_*`, `agent_requests`, `is_active`/`source` ustunlari, `accept_agent_draft` kengayishi |
+| Migratsiya (kirim qoralamasi) | `supabase/migrations/008_agent_purchases.sql` (alohida PR) | `agent_list_suppliers`, `agent_draft_purchase`, `agent_list_products` (qoldiq, tan narx), `agent_draft_sale` (bir martalik mijoz, to'lov), `accept_agent_draft` kengayishi. **Asoschi o'zi qo'llaydi (CI merge'dan keyin)** |
+| SQL testlar | `supabase/tests/20_agent_mcp.test.sql`, `30_agent_catalog.test.sql`, `60_agent_purchases.test.sql` | `bash supabase/tests/run_local.sh` (lokal PostgreSQL, Supabase stub) |
 | Rozilik sahifasi | `apps/web/src/app/oauth/consent` | Supabase OAuth server uchun "ruxsat berish / rad etish" |
 | Qoralamalar (veb) | `apps/web/src/app/(app)/drafts`, `components/DraftCard.tsx`, `lib/data/agentDrafts.ts` | Ro'yxat, tasdiqlash (`accept_agent_draft`), rad etish (`reject_agent_draft`), menyuda belgi |
 | Qarorlar | `docs/QARORLAR.md` | 02.11.2026 qatorlari |
@@ -78,6 +83,23 @@ Mobil va veb uni RPC sifatida chaqirmaydi (qarzni o'zlari hisoblaydi), shuning u
 - Ruxsatni qaytarib olish (revoke) uchun ilovada ekran yo'q. SDK'da `listGrants`/`revokeGrant` tiplari bor, lekin ishlatilmagan.
 - Qoralama paytida narx tarixi (±25%) tekshiruvi yo'q; faqat core validatsiyasi ogohlantirishlari qoralamaga yoziladi.
 
+### 5.1. Katalog: agent yozadigan yagona joy
+
+| Nima | Qanday cheklangan |
+|---|---|
+| Qo'shish | Faqat `agent_add_customer` / `agent_add_products` (SECURITY DEFINER, a'zolik tekshiruvi). OAuth token `customers`/`products` ga to'g'ridan-to'g'ri INSERT/UPDATE/DELETE qila olmaydi (`*_no_oauth`) |
+| Nimani qo'yadi | Mijozda faqat nom; tovarda nom, birlik, narx. **Telefon va izoh imzoda yo'q** |
+| Dublikat | Nom normallashtiriladi (kichik harf, bo'shliq, apostrof variantlari); bor bo'lsa yangisi yaratilmaydi, mavjud qaytariladi, mavjud narx o'zgarmaydi. Kirill va lotin moslashtirilmaydi |
+| Takror | `request_id`: bir xil so'rov avvalgi natijani qaytaradi; boshqa mazmun bilan `request_id_conflict` |
+| Hajm | Bir chaqiriqda <= 100 tovar (atomik: bitta qator xato bo'lsa hech narsa qo'shilmaydi); do'kon boshiga kuniga **500 tovar va 100 mijoz** (Toshkent kuni) |
+| Belgi | `source = 'agent'` va `source_client_id`: ilovada "AI qo'shdi" |
+| O'zgartirish/arxiv | Faqat `agent_propose_*` -> `agent_drafts` (`customer_update`, `product_update`, `customer_archive`, `product_archive`). Savdogar eski va yangi qiymatni ko'rib `accept_agent_draft` (faqat oddiy sessiya). Yozuv so'rovdan keyin o'zgargan bo'lsa `draft_stale`: jim ustidan yozilmaydi. Bir yozuvga bitta ochiq so'rov |
+| O'chirish | Yo'q. Arxiv = `is_active = false`; savdo tarixi, qarz va to'lovlar saqlanadi. Arxivlangan yozuv agent ro'yxatida ko'rinmaydi |
+
+**Xavf: noto'g'ri qo'shilgan yozuv.** Agent chalkash/yolg'on nom qo'shishi mumkin (jumladan "o'zingni o'chir" kabi matn). Pul va qarzga ta'sir qilmaydi (qo'shilgan mijozda qarz yo'q, tovarda tarix yo'q). **Yechim:** ilovada "AI qo'shdi" belgisi bilan ajratiladi; `propose_change` (action=archive) so'rovi yuboriladi va savdogar tasdiqlaydi; limitlar ommaviy ifloslanishni cheklaydi. Mijoz/tovar nomlari AI ga qaytganda ular ma'lumot, ko'rsatma emas: asbob tavsiflarida shunday yozilgan va testda tekshiriladi.
+
+**Qolgan xavflar:** mobil ilova mijoz arxivini hali bilmaydi (arxivlangan mijoz telefonda ko'rinaveradi; S2/S4); ruxsat etilgan chegaradan tashqari ommaviy spam kunlik limit bilan cheklanadi, lekin limit ichida ham 500 tovar noto'g'ri bo'lishi mumkin (hammasini birdaniga arxivlash ommaviy so'rovi hali yo'q).
+
 ## 6. Asboblar
 
 | Asbob | Turi | Izoh |
@@ -86,13 +108,31 @@ Mobil va veb uni RPC sifatida chaqirmaydi (qarzni o'zlari hisoblaydi), shuning u
 | `get_customer_balance` | o'qish | `customer_outstanding` qoidasi: savdolar (bekor qilinmaganlar) − to'lovlar (bekor qilinmaganlar) |
 | `list_sales`, `get_sale` | o'qish | Sana Toshkent vaqti (UTC+5). `raw_input`/`raw_text` qaytarilmaydi |
 | `daily_summary` | o'qish | Jami kodda (BigInt) hisoblanadi, bazaning mustaqil yig'indisi bilan solishtiriladi, farq bo'lsa hisobot berilmaydi |
-| `draft_sale` | qoralama | `qty` va `price` MATN (masalan "10", "13 ming"): core o'qiydi, AI emas. Noaniq qator bo'lsa qoralama yaratilmaydi, savdogardan so'rash aytiladi |
+| `draft_sale` | qoralama | `qty` va `price` MATN (masalan "10", "13 ming"): core o'qiydi, AI emas. Noaniq qator bo'lsa qoralama yaratilmaydi, savdogardan so'rash aytiladi. **Bir martalik mijoz:** `walkin: true` + `payment_method` (mijoz bermang; qarzga olmaydi, jami to'liq to'lanadi). Doimiy mijozda ixtiyoriy `paid` + `payment_method` (jamidan oshmaydi). Tizim mijozini agent yaratmaydi: u tasdiqlashda yaratiladi |
 | `draft_payment` | qoralama | Summa matn ("50 ming"); qarzdan oshmasin (tasdiqda yana tekshiriladi) |
-| `confirm_*`, `reverse_*` | **yo'q** | Tasdiqlash va bekor qilish faqat ilovada |
+| `list_products` | o'qish | Tovar: nom, birlik, sotuv narxi, **ombor qoldig'i** (`stock_milli`, 1000 = 1 birlik, manfiy bo'lishi mumkin, `negative_stock`), **tan narx** (`cost_price`, oxirgi kirim; yo'q = null), arxiv va manba. 008 qo'llanmaguncha qoldiq/tan narx `null` ("noma'lum", nol emas) |
+| `list_suppliers` | o'qish | Ta'minotchi: `id`, `name`, `outstanding` (biz unga qarz, so'm). Telefon va izoh qaytarilmaydi. Arxivlanganlar ko'rinmaydi |
+| `draft_purchase` | qoralama | Ta'minotchidan **kirim** qoralamasi: `supplier_id` (list_suppliers), qatorlar `product_id` + `qty` + `unit_cost` (MATN, core o'qiydi), ixtiyoriy `doc_date`, `paid` + `payment_method`, `note`. Jami kodda (core) hisoblanadi va PostgreSQL mustaqil qayta hisoblaydi. Kirim, ombor, tan narx va ta'minotchi qarzi **o'zgarmaydi**; savdogar ilovada/veb panelda tasdiqlaydi (`post_purchase`). Noaniq qator bo'lsa qoralama yaratilmaydi |
+| `add_customer` | **qo'shadi** (tasdiqsiz) | Faqat nom. Dublikat bo'lsa mavjud qaytariladi. Kuniga 100 |
+| `add_products` | **qo'shadi** (tasdiqsiz) | 1-100 tovar; narx MATN ("13 ming") core bilan o'qiladi; mavjud tovar o'zgarmaydi. Kuniga 500 |
+| `propose_change` | so'rov (qoralama) | `target` customer/product, `action` update/archive. Mijozda faqat nom; tovarda nom, birlik, narx. Hech narsa o'zgarmaydi: savdogar ilovada tasdiqlaydi |
+| `confirm_*`, `reverse_*`, har qanday o'chirish | **yo'q** | Tasdiqlash, bekor qilish faqat ilovada; DELETE yo'q |
 
 Bir nechta do'kon bo'lsa `shop_id` talab qilinadi. `request_id` bir xil bo'lsa takroriy qoralama yaratilmaydi.
 
+### 6.1. Kirim qoralamasi va bir martalik savdo (S5)
+
+- Agent faqat **qoralama** yaratadi va **o'qiydi**; `post_purchase`, `post_sale`, `adjust_stock`, `ensure_walkin_customer` MCP kodida yo'q (`guard.test.ts` tekshiradi).
+- `agent_drafts.kind = 'purchase'`: ta'minotchi `target_id` da, qatorlar tovar id bilan (nom va birlik serverda tovardan olinadi, agent yubormaydi). Qoralama ledger, ombor, tan narx va qarzga tegmaydi (SQL testi).
+- Tasdiqlash (faqat birinchi tomon sessiyasi): `accept_agent_draft` -> mavjud `post_purchase` (ikki mustaqil hisob, to'lov qarzdan oshmasligi). Qoralama yaratilgandan keyin ta'minotchi yoki tovar arxivlansa `draft_stale`: hech narsa yozilmaydi.
+- Bir martalik savdo: qoralamada `walkin: true`, mijoz id yo'q; tizim mijozi tasdiqlash paytida `ensure_walkin_customer` bilan olinadi. To'lov jamiga teng bo'lishi shart (`walkin_requires_full_payment`).
+- Veb `/drafts` yangi turlarni ko'rsatadi (kirim jadvali, bir martalik mijoz, to'lov) va core bilan qayta tekshiradi; mos kelmasa "Tasdiqlash" yopiladi.
+- **Eski baza bilan moslik:** MCP yangi ixtiyoriy argumentlarni faqat kerak bo'lganda yuboradi; 008 qo'llanmaguncha `list_products` qoldiq/tan narxsiz ishlaydi, `list_suppliers` va `draft_purchase` xato qaytaradi (RPC yo'q).
+- Sinalmagan: haqiqiy Supabase va haqiqiy MCP klientlari (Claude/ChatGPT) bilan.
+
 ## 7. Sinov holati
+
+**Katalog (005), lokal:** `bash supabase/tests/run_local.sh`: `30_agent_catalog.test.sql` (110 tekshiruv): OAuth to'g'ridan-to'g'ri INSERT/UPDATE/DELETE rad etiladi, `agent_add_*` ishlaydi; boshqa do'konga qo'shib bo'lmaydi; dublikat va `request_id` takrori ikkinchi yozuv yaratmaydi; limit (100/500); o'zgartirish/arxiv tasdiqlanmaguncha qo'llanmaydi, rad etilsa va `draft_stale` bo'lsa qo'llanmaydi; savdo/to'lov hamon faqat qoralama (385 000). Mutatsiya bilan tekshirilgan (dublikat, limit, `draft_stale`). `npm test -w apps/mcp` (66 test), `npm test -w apps/web` (139 test).
 
 **Sinalgan (lokal):**
 - `bash supabase/tests/run_local.sh`: 001, 003, 004 (ikki marta), mavjud xavfsizlik testlari va yangi `20_agent_mcp` testlari o'tadi. Ikkita mutatsiya (OAuth to'sig'ini olib tashlash; bitta jadvalda `_no_oauth` siyosatini tushirish) testlar tomonidan ushlandi.

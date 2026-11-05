@@ -145,7 +145,7 @@ describe('migratsiya v3 → v4', () => {
       INSERT INTO sale_reversals VALUES ('r1','s1','rop',NULL,12000,'sabab','2026-01-02T00:00:00.000Z');`);
     const report = await migrate(old);
     expect(report).toMatchObject({ userVersion: SCHEMA_VERSION, problems: [] });
-    expect(SCHEMA_VERSION).toBe(6);
+    expect(SCHEMA_VERSION).toBe(7);
     const l = createLedger(old, { newId: () => randomUUID(), now: () => '2026-01-03T00:00:00.000Z' });
     const sale = await l.getSale('s1');
     expect(sale).toMatchObject({ total: 12000n, hidden: false });

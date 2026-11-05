@@ -283,7 +283,116 @@ export function ListRow(props: {
   );
 }
 
+/**
+ * Ixcham qator: bitta ekranga kamida 8 ta sig'adi (balandligi ~56).
+ * Chap: nom + yordamchi satr; o'ng: asosiy qiymat + kichik izoh. `tone="warning"` — sariq (masalan manfiy qoldiq).
+ */
+export function CompactRow(props: {
+  title: string;
+  meta?: string;
+  tone?: 'normal' | 'warning' | 'muted';
+  right?: string;
+  rightSub?: string;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+}) {
+  const warn = props.tone === 'warning';
+  return (
+    <Pressable
+      accessibilityRole={props.onPress ? 'button' : undefined}
+      accessibilityLabel={props.accessibilityLabel ?? `${props.title}${props.meta ? `, ${props.meta}` : ''}${props.right ? `, ${props.right}` : ''}`}
+      onPress={props.onPress}
+      disabled={!props.onPress}
+      style={({ pressed }) => [
+        styles.compactRow,
+        warn && { backgroundColor: colors.warningBg },
+        pressed && { backgroundColor: colors.surfaceAlt },
+      ]}
+    >
+      <View style={{ flex: 1, paddingRight: space.sm }}>
+        <Text style={[styles.compactTitle, props.tone === 'muted' && { color: colors.textMuted }]} numberOfLines={1}>
+          {props.title}
+        </Text>
+        {props.meta ? (
+          <Text style={[styles.compactMeta, warn && { color: colors.warningText, fontWeight: '700' }]} numberOfLines={1}>
+            {props.meta}
+          </Text>
+        ) : null}
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        {props.right ? <Text style={styles.compactRight}>{props.right}</Text> : null}
+        {props.rightSub ? <Text style={styles.compactMeta}>{props.rightSub}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+/** Miqdorni -/+ bilan o'zgartirish (katta bosish maydoni) */
+export function Stepper(props: { onMinus: () => void; onPlus: () => void; label: string; accessibilityLabel: string; onLabelPress?: () => void }) {
+  return (
+    <View style={styles.stepper} accessibilityLabel={props.accessibilityLabel}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Kamaytirish" onPress={props.onMinus} style={styles.stepBtn}>
+        <Icon name="remove" size={20} color={colors.text} />
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Miqdor ${props.label}, aniq kiritish`} onPress={props.onLabelPress} disabled={!props.onLabelPress}>
+        <Text style={styles.stepLabel}>{props.label}</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Oshirish" onPress={props.onPlus} style={styles.stepBtn}>
+        <Icon name="add" size={20} color={colors.text} />
+      </Pressable>
+    </View>
+  );
+}
+
+/** Oldi-berdi ko'rinishi: Eski + Tovar = Jami, Berildi, Ostatka */
+export function SettlementBox(props: { opening: bigint; goods: bigint; total: bigint; paid: bigint; balance: bigint; format: (v: bigint) => string }) {
+  const rows: [string, bigint, boolean?][] = [
+    ['Eski', props.opening],
+    ['Tovar', props.goods],
+    ['Jami', props.total, true],
+    ['Berildi', props.paid],
+    ['Ostatka', props.balance, true],
+  ];
+  return (
+    <View style={styles.settle}>
+      {rows.map(([label, value, strong]) => (
+        <View key={label} style={styles.settleRow}>
+          <Text style={strong ? type.bodyStrong : type.body}>{label}</Text>
+          <Text style={strong ? type.money : type.body}>{props.format(value)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export const styles = StyleSheet.create({
+  compactRow: {
+    minHeight: 56,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  compactTitle: { fontSize: font.md, fontWeight: '600', color: colors.text },
+  compactMeta: { fontSize: font.xs, color: colors.textMuted },
+  compactRight: { fontSize: font.md, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  stepBtn: {
+    width: TOUCH_MIN,
+    height: 40,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+  },
+  stepLabel: { minWidth: 44, textAlign: 'center', fontSize: font.md, fontWeight: '700', color: colors.text },
+  settle: { borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: space.md, gap: space.xs },
+  settleRow: { flexDirection: 'row', justifyContent: 'space-between' },
   button: {
     minHeight: TOUCH_MIN + 4,
     borderRadius: radius.md,

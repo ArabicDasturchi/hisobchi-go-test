@@ -1,0 +1,7 @@
+# Veb'dan mobilga ko'chiriladigan o'zgarishlar
+
+**Qaror (04.11.2026):** veb panel asosiy sinov yuzi, `apps/mobile` muzlatilgan (faqat o'qiladi). Veb tugagach shu ro'yxat bo'yicha mobilga ko'chiriladi. Veb ishlayotgan Claude Code mobil kodiga tegmaydi: mobilga tegadigan o'zgarish kerak bo'lsa shu yerga qator qo'shiladi.
+
+| Sana | Nima kerak | Nega | Fayllar (mobil) | Holat |
+|---|---|---|---|---|
+| 04.11.2026 | **Mobil web demo** (`npm run demo` da brauzerda mobil ilova): `react-native-web@~0.21.4`, `@expo/metro-runtime@~58.0.15`, `react-dom@19.3.0` dependency; `metro.config.js` da `wasm` asset kengaytmasi va `Cross-Origin-Embedder-Policy: credentialless` / `Cross-Origin-Opener-Policy: same-origin` sarlavhalari (expo-sqlite web uchun); `AppRoot.tsx` da `EXPO_PUBLIC_DEMO=1` bo'lganda alohida `hisobchi-demo.db` va soxta ma'lumot yozish (`src/demo/seedDemo.ts`, ilovaning o'z `ledger`/`purchasing` kodi bilan, ma'lumot `scripts/demo-seed/data.ts` dan); test `__tests__/demo-seed.test.ts` | Asoschi mobil ilovani telefonsiz kompyuter brauzerida ko'rsin | `package.json`, `metro.config.js`, `src/AppRoot.tsx`, `src/demo/seedDemo.ts`, `__tests__/demo-seed.test.ts` | **tayyor patch**: [patches/mobil-demo.patch](patches/mobil-demo.patch) (`git apply docs/patches/mobil-demo.patch`, so'ng `npm install`). Haqiqiy brauzerda (Chromium) sinalgan: katalog, qoldiq 90 kg, foyda +4 000, bugun 455 500 so'm 2 ta savdo; mobil testlar yashil edi. Mobil muzlatilgani uchun qo'llanmagan |

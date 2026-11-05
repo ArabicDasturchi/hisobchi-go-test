@@ -7,8 +7,9 @@ import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Modal } from '@/components/ui/Modal';
 import { Alert, Button, Card, EmptyState, ErrorState, PageHeader, Segmented, Skeleton, Textarea } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
-import { clientLabel } from '@/lib/data/agentDrafts';
+import { clientLabel, draftTitle, isCatalogDraft } from '@/lib/data/agentDrafts';
 import { acceptAgentDraft, listAgentDrafts, listOAuthClientNames, rejectAgentDraft } from '@/lib/data/api';
+import { listSupplierNames } from '@/lib/data/books';
 import type { AgentDraft, AgentDraftStatus } from '@/lib/data/types';
 import { errorMessage } from '@/lib/errors';
 import { formatSom } from '@/lib/money';
@@ -27,6 +28,7 @@ function Drafts({ data }: { data: ShopData }) {
   const [hist, setHist] = useState<Hist>({ status: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
+  const [suppliers, setSuppliers] = useState<ReadonlyMap<string, string>>(new Map());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rejecting, setRejecting] = useState<AgentDraft | null>(null);
@@ -36,10 +38,11 @@ function Drafts({ data }: { data: ShopData }) {
   useEffect(() => {
     let active = true;
     void listOAuthClientNames(getSupabase()).then((m) => active && setNames(m));
+    void listSupplierNames(getSupabase(), shopId).then((m) => active && setSuppliers(m));
     return () => {
       active = false;
     };
-  }, []);
+  }, [shopId]);
 
   useEffect(() => {
     if (filter === 'draft') return;
@@ -66,7 +69,11 @@ function Drafts({ data }: { data: ShopData }) {
     setErrors((prev) => ({ ...prev, [d.id]: '' }));
     try {
       const r = await acceptAgentDraft(getSupabase(), shopId, d);
-      if (r === 'accepted') toast.success(d.detail.kind === 'payment' ? `To'lov qabul qilindi: ${formatSom(d.total)}` : `Savdo yozildi: ${formatSom(d.total)}`);
+      if (r === 'accepted') {
+        toast.success(
+          isCatalogDraft(d) ? `Tasdiqlandi: ${draftTitle(d).toLowerCase()}` : d.detail.kind === 'payment' ? `To'lov qabul qilindi: ${formatSom(d.total)}` : `Savdo yozildi: ${formatSom(d.total)}`,
+        );
+      }
       else toast.info('Bu qoralama allaqachon tasdiqlangan yoki rad etilgan.');
     } catch (e) {
       // Hech narsa saqlanmagan: qoralama ro'yxatda qoladi, sabab kartochkada ko'rinadi
@@ -84,7 +91,7 @@ function Drafts({ data }: { data: ShopData }) {
     setBusyId(d.id);
     try {
       const r = await rejectAgentDraft(getSupabase(), d.id, reason);
-      if (r === 'rejected') toast.success('Qoralama rad etildi. Hech narsa yozilmadi.');
+      if (r === 'rejected') toast.success(isCatalogDraft(d) ? "So'rov rad etildi. Hech narsa o'zgarmadi." : 'Qoralama rad etildi. Hech narsa yozilmadi.');
       else toast.info('Bu qoralama allaqachon tasdiqlangan yoki rad etilgan.');
       setRejecting(null);
     } finally {
@@ -101,7 +108,7 @@ function Drafts({ data }: { data: ShopData }) {
     <>
       <PageHeader
         title="Qoralamalar"
-        description="Tashqi AI (Claude, ChatGPT) yaratgan qoralamalar. Siz tasdiqlamaguncha hech narsa yozilmaydi."
+        description="Tashqi AI (Claude, ChatGPT) yuborgan qoralamalar va o'zgartirish/arxiv so'rovlari. Siz tasdiqlamaguncha hech narsa yozilmaydi yoki o'zgarmaydi."
         actions={
           <Segmented
             ariaLabel="Holat"
@@ -133,7 +140,7 @@ function Drafts({ data }: { data: ShopData }) {
           <EmptyState
             icon={<Sparkles className="h-6 w-6" />}
             title={filter === 'draft' ? "Tasdiqlanmagan qoralama yo'q" : filter === 'accepted' ? "Tasdiqlangan qoralama yo'q" : "Rad etilgan qoralama yo'q"}
-            description={filter === 'draft' ? 'AI orqali yaratilgan savdo va to\'lov qoralamalari shu yerda paydo bo\'ladi.' : undefined}
+            description={filter === 'draft' ? 'AI orqali yaratilgan savdo, to\'lov va kirim qoralamalari shu yerda paydo bo\'ladi.' : undefined}
           />
         </Card>
       )}
@@ -144,6 +151,7 @@ function Drafts({ data }: { data: ShopData }) {
             key={d.id}
             draft={d}
             customerName={d.customer_id ? (customerById.get(d.customer_id)?.name ?? "Noma'lum mijoz") : null}
+            supplierName={d.detail.kind === 'purchase' ? (suppliers.get(d.detail.supplier_id) ?? null) : null}
             source={clientLabel(d.client_id, names)}
             busy={busyId === d.id}
             anyBusy={busyId !== null}
@@ -199,7 +207,8 @@ function RejectForm({ draft, onClose, onConfirm, busy }: { draft: AgentDraft; on
     >
       <form id="reject-form" onSubmit={onSubmit} className="space-y-4" noValidate>
         <p className="text-sm text-muted">
-          {draft.detail.kind === 'payment' ? "To'lov" : 'Savdo'} qoralamasi ({formatSom(draft.total)}) rad etiladi. Hech narsa yozilmaydi.
+          {draftTitle(draft)}
+          {isCatalogDraft(draft) ? '' : ` (${formatSom(draft.total)})`} rad etiladi. Hech narsa {isCatalogDraft(draft) ? "o'zgarmaydi" : 'yozilmaydi'}.
         </p>
         {formError && <Alert tone="red">{formError}</Alert>}
         <Textarea label="Sabab (ixtiyoriy)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="Masalan: narx noto'g'ri" />
