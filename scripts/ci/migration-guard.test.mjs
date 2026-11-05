@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -135,7 +135,7 @@ describe('analyze', () => {
 function run(args, { dry, files = {} } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'guard-'));
   const mig = path.join(dir, 'migrations');
-  execFileSync('mkdir', ['-p', mig]);
+  mkdirSync(mig, { recursive: true }); // Windows'da `mkdir -p` yo'q
   for (const [n, c] of Object.entries(files)) writeFileSync(path.join(mig, n), c);
   const out = path.join(dir, 'out.txt');
   writeFileSync(out, '');
