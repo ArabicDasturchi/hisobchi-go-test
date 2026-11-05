@@ -1,13 +1,13 @@
 'use client';
 import { sumAmounts, tashkentDate } from '@hisobchi/core';
-import { BookDown, BookUp } from 'lucide-react';
+import { BookDown, BookUp, PackagePlus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Money } from '@/components/shared';
 import { useShop } from '@/components/ShopDataProvider';
 import { useBooks } from '@/components/useBooks';
-import { Badge, Card, EmptyState, ErrorState, Input, PageHeader, SearchInput, Segmented, TableSkeleton } from '@/components/ui/primitives';
+import { Badge, Card, EmptyState, ErrorState, Input, LinkButton, PageHeader, SearchInput, Segmented, TableSkeleton } from '@/components/ui/primitives';
 import { customerStatement, inDayRange, isActiveSettlement, supplierStatement, type DayRange } from '@/lib/data/books';
 import { formatQty } from '@/lib/money';
 import { uz } from '@/i18n/uz';
@@ -58,7 +58,7 @@ export default function BookPage() {
     if (kind === 'in') {
       return (books.data?.purchases ?? [])
         .filter((p) => inDayRange(p.doc_date, range))
-        .map((p) => ({ id: p.id, date: p.doc_date, title: supplierName.get(p.supplier_id) ?? 'Ta\'minotchi', amount: p.subtotal, reversed: p.status !== 'posted', href: null as string | null }))
+        .map((p) => ({ id: p.id, date: p.doc_date, title: `${supplierName.get(p.supplier_id) ?? "Ta'minotchi"}${p.kind === 'opening' ? " · boshlang'ich qarz" : ''}`, amount: p.subtotal, reversed: p.status !== 'posted', href: null as string | null }))
         .filter((x) => !q || norm(x.title).includes(q));
     }
     return (shop.data?.sales ?? [])
@@ -103,7 +103,17 @@ export default function BookPage() {
 
   return (
     <>
-      <PageHeader title={title} description="Faqat ko'rish. Hujjat kiritish va bekor qilish mobil ilovada." />
+      <PageHeader
+        title={title}
+        description={kind === 'in' ? "Kirimlar va ta'minotchilar hisobi. Yangi kirim «Kirim yozish» orqali kiritiladi." : 'Savdolar daftari. Yangi savdo «Yangi savdo» orqali kiritiladi.'}
+        actions={
+          kind === 'in' ? (
+            <LinkButton href="/purchases/new" icon={<PackagePlus className="h-4 w-4" />}>
+              Kirim yozish
+            </LinkButton>
+          ) : undefined
+        }
+      />
       <Card>
         <div className="space-y-2.5 border-b border-line p-3">
           <div className="flex flex-wrap items-center gap-2">

@@ -52,6 +52,13 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   [/target_not_found/, 'not_found', 'Mijoz yoki tovar topilmadi.'],
   [/oauth_client_forbidden/, 'forbidden', 'Bu amal faqat Hisobchi Go ilovasida bajariladi.'],
   [/draft_immutable|draft_invalid_transition/, 'conflict', "Qoralamani o'zgartirib bo'lmaydi."],
+  // --- Ta'minotchi, kirim, ombor (006/007/009) ---
+  [/supplier_not_in_shop|supplier_not_found/, 'not_found', "Ta'minotchi topilmadi yoki bu do'konga tegishli emas."],
+  [/opening_balance_exists/, 'conflict', "Bu ta'minotchining boshlang'ich qarzi allaqachon kiritilgan. Avval uni bekor qiling."],
+  [/invalid_method/, 'validation', "To'lov usulini tanlang."],
+  [/invalid_date/, 'validation', "Sana noto'g'ri."],
+  [/invalid_product|product_not_found/, 'not_found', 'Tovar topilmadi. Katalogdan tanlang.'],
+  [/could not find the function|pgrst202|42883/, 'unknown', "Serverda bu amal hali yoqilmagan (migratsiya qo'llanmagan). Administratorga ayting."],
   [/calc_mismatch/, 'validation', 'Server hisobi summa bilan mos kelmadi — savdo saqlanmadi.'],
   [/already_reversed/, 'conflict', 'Bu savdo allaqachon bekor qilingan.'],
   [/customer_not_in_shop/, 'forbidden', "Mijoz bu do'konga tegishli emas."],

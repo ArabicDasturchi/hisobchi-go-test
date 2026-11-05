@@ -1,21 +1,23 @@
 'use client';
-import { Warehouse } from 'lucide-react';
+import { PackagePlus, SlidersHorizontal, Warehouse } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { AdjustStockModal } from '@/components/forms/AdjustStockModal';
 import { Money } from '@/components/shared';
 import { useBooks } from '@/components/useBooks';
-import { Alert, Badge, Card, EmptyState, ErrorState, PageHeader, SearchInput, Segmented, TableSkeleton } from '@/components/ui/primitives';
-import { stockView } from '@/lib/data/books';
+import { Alert, Badge, Button, Card, EmptyState, ErrorState, LinkButton, PageHeader, SearchInput, Segmented, TableSkeleton } from '@/components/ui/primitives';
+import { stockView, type StockItem } from '@/lib/data/books';
 import { formatQty } from '@/lib/money';
 import { uz } from '@/i18n/uz';
 
 type Filter = 'active' | 'negative' | 'all';
 const norm = (s: string) => s.toLocaleLowerCase('uz').trim();
 
-/** Ombor — faqat ko'rish. Kirim va tuzatish mobil ilovada kiritiladi. */
+/** Ombor: qoldiq = kirim − savdo ± tuzatish. Kirim «Kirim yozish» da, inventarizatsiya shu yerda («Tuzatish»). */
 export default function WarehousePage() {
   const { data, error, loading, reload } = useBooks();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('active');
+  const [adjusting, setAdjusting] = useState<StockItem | null>(null);
 
   const rows = useMemo(() => {
     const q = norm(query);
@@ -39,7 +41,13 @@ export default function WarehousePage() {
 
   return (
     <>
-      <PageHeader title={uz.nav.warehouse} description="Qoldiq = kirim − savdo ± tuzatish. Kirim va tuzatish mobil ilovada kiritiladi." />
+      <PageHeader title={uz.nav.warehouse} description="Qoldiq = kirim − savdo ± tuzatish."
+        actions={
+          <LinkButton href="/purchases/new" icon={<PackagePlus className="h-4 w-4" />}>
+            Kirim yozish
+          </LinkButton>
+        }
+      />
       {negative > 0 && (
         <Alert tone="amber" className="mb-4">
           {negative} ta tovarning qoldig&apos;i manfiy: kirim yozilmagan bo&apos;lishi mumkin.
@@ -73,6 +81,7 @@ export default function WarehousePage() {
                   <th className="px-4 py-2.5 text-right font-medium">Tan narx</th>
                   <th className="px-4 py-2.5 text-right font-medium">Sotuv narxi</th>
                   <th className="px-4 py-2.5 text-right font-medium">Birlik foydasi</th>
+                  <th className="px-4 py-2.5 text-right font-medium"><span className="sr-only">Amal</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -87,6 +96,11 @@ export default function WarehousePage() {
                     <td className="px-4 py-2.5 text-right">{i.cost_price === null ? <span className="text-muted">—</span> : <Money value={i.cost_price} />}</td>
                     <td className="px-4 py-2.5 text-right">{i.sale_price === null ? <span className="text-muted">—</span> : <Money value={i.sale_price} />}</td>
                     <td className="px-4 py-2.5 text-right">{v.margin === null ? <span className="text-muted">—</span> : <Money value={v.margin} signed className={v.margin < 0n ? 'text-rose-600' : undefined} />}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <Button size="sm" variant="outline" onClick={() => setAdjusting(i)} icon={<SlidersHorizontal className="h-3.5 w-3.5" />} aria-label={`${i.name}: qoldiqni tuzatish`}>
+                        Tuzatish
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -94,6 +108,7 @@ export default function WarehousePage() {
           </div>
         )}
       </Card>
+      <AdjustStockModal item={adjusting} onClose={() => setAdjusting(null)} onSaved={() => void reload()} />
     </>
   );
 }

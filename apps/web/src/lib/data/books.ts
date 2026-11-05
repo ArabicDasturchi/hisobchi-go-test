@@ -22,6 +22,8 @@ export interface Supplier {
 
 export interface PurchaseDoc {
   id: string;
+  /** 'opening' = boshlang'ich qarz (ochilish qoldig'i, 009); ustun bo'lmasa undefined = oddiy kirim */
+  kind?: 'purchase' | 'opening';
   supplier_id: string;
   doc_date: string;
   status: 'posted' | 'reversed';
@@ -68,11 +70,18 @@ export interface BooksData {
   stock: StockItem[];
 }
 
+/** 009 (purchase_documents.kind) qo'llanganmi; yo'q bo'lsa ilova avvalgidek ishlaydi */
+async function hasPurchaseKind(sb: SB, shopId: string): Promise<boolean> {
+  const { error } = await sb.from('purchase_documents').select('kind').eq('shop_id', shopId).limit(1);
+  return !error;
+}
+
 export async function loadBooks(sb: SB, shopId: string): Promise<BooksData> {
+  const purchaseCols = (await hasPurchaseKind(sb, shopId)) ? 'id, supplier_id, doc_date, status, kind, subtotal::text, created_at' : 'id, supplier_id, doc_date, status, subtotal::text, created_at';
   const [suppliers, purchases, lines, payments, voids, stockRows, products] = await Promise.all([
     fetchAll<Supplier>((from, to) => sb.from('suppliers').select('id, name, phone, notes, is_active, created_at').eq('shop_id', shopId).order('name').order('id').range(from, to)),
     fetchAll<Omit<PurchaseDoc, 'subtotal'> & { subtotal: string }>((from, to) =>
-      sb.from('purchase_documents').select('id, supplier_id, doc_date, status, subtotal::text, created_at').eq('shop_id', shopId).in('status', ['posted', 'reversed']).order('doc_date', { ascending: false }).order('id').range(from, to) as never,
+      sb.from('purchase_documents').select(purchaseCols).eq('shop_id', shopId).in('status', ['posted', 'reversed']).order('doc_date', { ascending: false }).order('id').range(from, to) as never,
     ),
     fetchAll<{ document_id: string; line_index: number; product_id: string; product_name: string; qty_milli: string; unit: string; unit_cost: string; line_total: string }>((from, to) =>
       sb.from('purchase_lines').select('document_id, line_index, product_id, product_name, qty_milli::text, unit, unit_cost::text, line_total::text').eq('shop_id', shopId).order('document_id').order('line_index').range(from, to) as never,
@@ -92,7 +101,7 @@ export async function loadBooks(sb: SB, shopId: string): Promise<BooksData> {
 /** Xom server qatorlarini tiplarga o'giradi (sof, testlanadi) */
 export function buildBooks(raw: {
   suppliers: Supplier[];
-  purchases: { id: string; supplier_id: string; doc_date: string; status: 'posted' | 'reversed'; subtotal: string; created_at: string }[];
+  purchases: { id: string; supplier_id: string; doc_date: string; status: 'posted' | 'reversed'; kind?: 'purchase' | 'opening'; subtotal: string; created_at: string }[];
   lines: { document_id: string; line_index: number; product_id: string; product_name: string; qty_milli: string; unit: string; unit_cost: string; line_total: string }[];
   payments: { id: string; supplier_id: string; amount: string; method: string; note: string | null; created_at: string }[];
   voids: { payment_id: string }[];

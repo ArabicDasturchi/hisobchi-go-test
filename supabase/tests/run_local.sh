@@ -31,12 +31,15 @@ FILES=(
   migrations/007_purchases.sql
   migrations/008_agent_purchases.sql
   migrations/008_agent_purchases.sql
+  migrations/009_supplier_opening_balance.sql
+  migrations/009_supplier_opening_balance.sql
   tests/10_security_isolation.test.sql
   tests/20_agent_mcp.test.sql
   tests/30_agent_catalog.test.sql
   tests/40_partners_stock.test.sql
   tests/50_purchases.test.sql
   tests/60_agent_purchases.test.sql
+  tests/70_supplier_opening.test.sql
 )
 
 "${PSQL[@]}" -d postgres -c "CREATE DATABASE $DB" >/dev/null
