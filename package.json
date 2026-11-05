@@ -20,7 +20,8 @@
     "test:mcp": "npm run test --workspace=apps/mcp",
     "build:mcp": "npm run build --workspace=apps/mcp",
     "test:ci": "node --test scripts/ci/migration-guard.test.mjs",
-    "check": "npm test && npm run typecheck && npm run build:web"
+    "check": "npm test && npm run typecheck && npm run build:web",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "engines": {
     "node": ">=20.9.0"
@@ -28,5 +29,8 @@
   "overrides": {
     "react": "19.3.0",
     "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.1"
   }
 }

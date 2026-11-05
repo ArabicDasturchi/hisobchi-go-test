@@ -14,6 +14,8 @@ import {
   DEMO_WALKIN_SALE,
 } from '../../../../../scripts/demo-seed/data';
 
+import { buildExtraTables } from './seedExtra';
+
 export type Row = Record<string, unknown>;
 export type Tables = Record<string, Row[]>;
 
@@ -69,7 +71,8 @@ export function buildDemoTables(now: Date = new Date(), newId: () => string = ()
       const p = pid(l.product);
       return {
         id: newId(), shop_id: shopId, document_id: docId, line_index: i, product_name: p.meta.name, product_id: p.id,
-        qty_milli: milli(l.qty).toString(), unit: p.meta.unit, unit_price: String(p.meta.salePrice), line_total: calc.lines[i]!.lineTotal.toString(), raw_text: null,
+        qty_milli: milli(l.qty).toString(), unit: p.meta.unit, unit_price: String(p.meta.salePrice), unit_cost: lastCost.get(p.id) ?? null,
+        line_total: calc.lines[i]!.lineTotal.toString(), raw_text: null,
       };
     });
 
@@ -80,7 +83,12 @@ export function buildDemoTables(now: Date = new Date(), newId: () => string = ()
     ...DEMO_SALE.lines.map((l) => ({ productId: pid(l.product).id, kind: 'sale' as const, qtyMilli: -milli(l.qty) })),
     ...DEMO_WALKIN_SALE.lines.map((l) => ({ productId: pid(l.product).id, kind: 'sale' as const, qtyMilli: -milli(l.qty) })),
   ];
-  const balances = stockBalances(movements);
+  // Kengaytirilgan demo (PANEL-2 S8): ta'minotchilar, kirimlar, katalog, mijozlar, savdolar (scripts/demo-seed/extra.ts)
+  const ex = buildExtraTables({ shopId, userId: DEMO_USER_ID, iso, day, newId });
+  const allMovements = [...movements, ...ex.movements];
+  const balances = stockBalances(allMovements);
+  // product_stock faqat harakati bor tovarlar uchun (haqiqiy view kabi): kuzatilmaydigan tovar "tugagan" ko'rinmasin
+  const tracked = new Set(allMovements.map((m) => m.productId));
 
   // --- AI qoralamasi (MCP): savdogar hali tasdiqlamagan ---
   const draftLines = [{ product: 'kartoshka', qty: 10 }, { product: 'piyoz', qty: 5 }];
@@ -95,30 +103,40 @@ export function buildDemoTables(now: Date = new Date(), newId: () => string = ()
         id: c.id, shop_id: shopId, name: c.name, phone: null, notes: null, is_active: true, source: 'app', kind: 'regular', created_at: iso(-70), updated_at: iso(-70),
       })),
       { id: walkinId, shop_id: shopId, name: 'Bir martalik mijoz', phone: null, notes: null, is_active: true, source: 'app', kind: 'one_time', created_at: iso(-70), updated_at: iso(-70) },
+      ...ex.customers,
     ],
-    products: products.map((p) => ({
-      id: p.id, shop_id: shopId, name: p.meta.name, unit: p.meta.unit, last_price: String(p.meta.salePrice), sale_price: String(p.meta.salePrice),
-      cost_price: lastCost.get(p.id) ?? null, is_active: true, source: 'app', created_at: iso(-70), updated_at: iso(-70),
-    })),
-    product_stock: products.map((p) => ({ shop_id: shopId, product_id: p.id, qty_milli: (balances.get(p.id) ?? 0n).toString() })),
-    suppliers: [{ id: supplierId, shop_id: shopId, name: DEMO_SUPPLIER.name, phone: null, notes: null, is_active: true, created_at: iso(-70) }],
+    products: [
+      ...products.map((p) => ({
+        id: p.id, shop_id: shopId, name: p.meta.name, unit: p.meta.unit, last_price: String(p.meta.salePrice), sale_price: String(p.meta.salePrice),
+        cost_price: lastCost.get(p.id) ?? null, is_active: true, source: 'app', created_at: iso(-70), updated_at: iso(-70),
+      })),
+      ...ex.products,
+    ],
+    product_stock: [...products.map((p) => p.id), ...ex.productIds.values()]
+      .filter((id) => tracked.has(id))
+      .map((id) => ({ shop_id: shopId, product_id: id, qty_milli: (balances.get(id) ?? 0n).toString() })),
+    suppliers: [{ id: supplierId, shop_id: shopId, name: DEMO_SUPPLIER.name, phone: null, notes: null, is_active: true, created_at: iso(-70) }, ...ex.suppliers],
     purchase_documents: [
-      { id: purchaseId, shop_id: shopId, supplier_id: supplierId, doc_date: day(-26), status: 'posted', subtotal: purchaseCalc.subtotal.toString(), created_at: iso(-26) },
+      { id: purchaseId, shop_id: shopId, supplier_id: supplierId, doc_date: day(-26), status: 'posted', kind: 'purchase', subtotal: purchaseCalc.subtotal.toString(), created_at: iso(-26) },
+      ...ex.purchase_documents,
     ],
-    purchase_lines: purchaseLines,
+    purchase_lines: [...purchaseLines, ...ex.purchase_lines],
     supplier_payments: [
       { id: newId(), shop_id: shopId, supplier_id: supplierId, amount: String(DEMO_PURCHASE.paid.amount), method: DEMO_PURCHASE.paid.method, note: null, created_at: iso(-26) },
+      ...ex.supplier_payments,
     ],
     supplier_payment_voids: [],
     documents: [
       { id: saleId, shop_id: shopId, customer_id: karim.id, status: 'posted', subtotal: saleCalc.subtotal.toString(), created_at: iso(-3), posted_at: iso(-3), created_by: DEMO_USER_ID },
       { id: walkinSaleId, shop_id: shopId, customer_id: walkinId, status: 'posted', subtotal: walkinCalc.subtotal.toString(), created_at: iso(-1), posted_at: iso(-1), created_by: DEMO_USER_ID },
+      ...ex.documents,
     ],
-    document_lines: [...saleLines(saleId, DEMO_SALE.lines, saleCalc), ...saleLines(walkinSaleId, DEMO_WALKIN_SALE.lines, walkinCalc)],
+    document_lines: [...saleLines(saleId, DEMO_SALE.lines, saleCalc), ...saleLines(walkinSaleId, DEMO_WALKIN_SALE.lines, walkinCalc), ...ex.document_lines],
     document_reversals: [],
     payments: [
       // bir martalik savdo to'liq naqd to'langan; Karim akaning savdosi qarzga
       { id: newId(), shop_id: shopId, customer_id: walkinId, amount: walkinCalc.subtotal.toString(), method: DEMO_WALKIN_SALE.method, note: null, created_by: DEMO_USER_ID, created_at: iso(-1) },
+      ...ex.payments,
     ],
     payment_voids: [],
     agent_drafts: [
