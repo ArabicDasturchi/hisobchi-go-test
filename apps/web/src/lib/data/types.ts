@@ -13,6 +13,8 @@ export interface Shop {
   id: string;
   name: string;
   created_at: string;
+  /** Do'kon sozlamalari (010: shops.settings jsonb); ustun yo'q bo'lsa undefined. Hozir: { units: string[] } */
+  settings?: Record<string, unknown>;
 }
 
 export interface Membership {

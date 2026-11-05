@@ -8,7 +8,8 @@ import { Alert, Badge, Button, Card, EmptyState, Input, PageHeader, SearchInput,
 import { useToast } from '@/components/ui/Toast';
 import { uz } from '@/i18n/uz';
 import { createProduct, updateProduct } from '@/lib/data/api';
-import { UNITS, type Product, type Unit } from '@/lib/data/types';
+import type { Product, Unit } from '@/lib/data/types';
+import { parseEnabledUnits, unitChoices } from '@/lib/units';
 import { formatDate } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
 import { formatMoneyInput, parseMoneyInput } from '@/lib/money';
@@ -19,10 +20,11 @@ type Filter = 'active' | 'archived' | 'all';
 type Sort = 'name' | 'price_desc' | 'price_asc' | 'updated';
 
 function ProductForm({ product, onClose }: { product: Product | null; onClose: () => void }) {
-  const { shopId, reload } = useShop();
+  const { shopId, reload, membership } = useShop();
   const toast = useToast();
+  const choices = unitChoices(parseEnabledUnits(membership.shop.settings), product?.unit);
   const [name, setName] = useState(product?.name ?? '');
-  const [unit, setUnit] = useState<Unit>(product?.unit ?? 'dona');
+  const [unit, setUnit] = useState<Unit>(product?.unit ?? choices[0] ?? 'dona');
   const [price, setPrice] = useState(product?.last_price !== null && product?.last_price !== undefined ? formatMoneyInput(product.last_price.toString()) : '');
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -74,7 +76,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
         <Input label="Nomi" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} required maxLength={120} placeholder="Masalan: Shakar" />
         <div className="grid gap-3 sm:grid-cols-2">
           <Select label="O'lchov birligi" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} required>
-            {UNITS.map((u) => (
+            {choices.map((u) => (
               <option key={u} value={u}>
                 {uz.units[u]}
               </option>

@@ -1,5 +1,5 @@
 'use client';
-import { CheckCircle2, CloudCog, KeyRound, Monitor, Moon, Palette, RefreshCw, Store, Sun, UserRound, Wifi, WifiOff } from 'lucide-react';
+import { CheckCircle2, CloudCog, KeyRound, Monitor, Moon, Palette, RefreshCw, Ruler, Store, Sun, UserRound, Wifi, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
@@ -8,7 +8,10 @@ import { useShop } from '@/components/ShopDataProvider';
 import { useTheme, type ThemeChoice } from '@/components/ThemeProvider';
 import { Alert, Avatar, Badge, Button, Card, cn, Input, PageHeader } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
-import { renameShop } from '@/lib/data/api';
+import { ALLOWED_UNITS } from '@hisobchi/core';
+import { renameShop, saveShopSettings } from '@/lib/data/api';
+import { normalizeUnitSelection, parseEnabledUnits, withUnits } from '@/lib/units';
+import { uz } from '@/i18n/uz';
 import { formatDateTime } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
 import { getSupabase } from '@/lib/supabase/client';
@@ -171,6 +174,63 @@ function ShopCard() {
   );
 }
 
+/** Yoqilgan o'lchov birliklari. Standart: faqat dona va pachka. Bu faqat tovar formasidagi tanlov (eski ma'lumot o'zgarmaydi) */
+function UnitsCard() {
+  const { membership, shopId, setMembership } = useShop();
+  const toast = useToast();
+  const isOwner = membership.role === 'owner';
+  const enabled = parseEnabledUnits(membership.shop.settings);
+  const [picked, setPicked] = useState<string[]>(enabled);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dirty = picked.slice().sort().join() !== enabled.slice().sort().join();
+
+  async function onSave() {
+    const sel = normalizeUnitSelection(picked);
+    if (!sel.ok) {
+      setError(sel.message);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const settings = withUnits(membership.shop.settings, sel.units);
+      await saveShopSettings(getSupabase(), shopId, settings);
+      setMembership({ ...membership, shop: { ...membership.shop, settings } });
+      toast.success('Birliklar saqlandi.');
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <SettingsCard icon={<Ruler className="h-[18px] w-[18px]" />} title="Birliklar" description="Tovar yaratishda tanlanadigan o'lchov birliklari. Standart: dona va pachka">
+      <div role="group" aria-label="Yoqilgan birliklar" className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:max-w-md">
+        {ALLOWED_UNITS.map((u) => (
+          <label key={u} className={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-sm', picked.includes(u) ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:border-emerald-500/60 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-line text-muted')}>
+            <input
+              type="checkbox"
+              checked={picked.includes(u)}
+              disabled={!isOwner || busy}
+              onChange={(e) => setPicked((p) => (e.target.checked ? [...p, u] : p.filter((x) => x !== u)))}
+            />
+            {uz.units[u]}
+          </label>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-muted">{isOwner ? "Mavjud tovarlar o'z birligida qoladi; faqat yangi tovar tanlovi o'zgaradi." : "Birliklarni faqat do'kon egasi o'zgartira oladi."}</p>
+      {error && <Alert tone="red" className="mt-3">{error}</Alert>}
+      {isOwner && (
+        <Button className="mt-3" onClick={() => void onSave()} loading={busy} disabled={!dirty}>
+          Saqlash
+        </Button>
+      )}
+    </SettingsCard>
+  );
+}
+
 const THEMES: { value: ThemeChoice; label: string; icon: typeof Sun }[] = [
   { value: 'light', label: "Yorug'", icon: Sun },
   { value: 'dark', label: "Qorong'i", icon: Moon },
@@ -262,6 +322,7 @@ export default function SettingsPage() {
         {user && !user.email_confirmed_at && <Alert tone="amber">Email tasdiqlanmagan — parolni tiklash xatlari yetib bormasligi mumkin.</Alert>}
         <ProfileCard />
         <ShopCard />
+        <UnitsCard />
         <AppearanceCard />
         <SyncCard />
       </div>

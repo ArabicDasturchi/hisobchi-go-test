@@ -66,13 +66,16 @@ interface MembershipRow {
   role: Role;
   user_id: string;
   created_at: string;
-  shop: { id: string; name: string; created_at: string } | null;
+  shop: { id: string; name: string; created_at: string; settings?: Record<string, unknown> } | null;
 }
 
 export async function getMembership(sb: SB, userId: string): Promise<Membership | null> {
-  const rows = check(
-    await sb.from('shop_members').select('role, user_id, created_at, shop:shops(id, name, created_at)').eq('user_id', userId).order('created_at'),
-  ) as unknown as MembershipRow[] | null;
+  // `settings` ustuni 010 migratsiyasidan: yo'q bo'lsa (42703) usiz qayta so'raladi, ilova avvalgidek ishlaydi
+  let res: { data: unknown; error: unknown } = await sb.from('shop_members').select('role, user_id, created_at, shop:shops(id, name, created_at, settings)').eq('user_id', userId).order('created_at');
+  if (res.error && (res.error as { code?: string }).code === '42703') {
+    res = await sb.from('shop_members').select('role, user_id, created_at, shop:shops(id, name, created_at)').eq('user_id', userId).order('created_at');
+  }
+  const rows = check(res) as unknown as MembershipRow[] | null;
   const list = (rows ?? []).filter((r) => r.shop);
   const pick = list.find((r) => r.role === 'owner') ?? list[0];
   if (!pick?.shop) return null;
@@ -85,6 +88,16 @@ export async function createShop(sb: SB, name: string): Promise<string> {
   const id = check(res) as string | null;
   if (!id) throw new AppError('unknown', "Server do'kon identifikatorini qaytarmadi.");
   return id;
+}
+
+/** Yoqilgan birliklarni saqlaydi (faqat egasi: RLS). Boshqa sozlama kalitlari saqlanadi. Ustun yo'q (010) bo'lsa tushunarli xato */
+export async function saveShopSettings(sb: SB, shopId: string, settings: Record<string, unknown>): Promise<void> {
+  const res = await sb.from('shops').update({ settings }).eq('id', shopId).select('id');
+  if (res.error && (res.error as { code?: string }).code === '42703') {
+    throw new AppError('unknown', "Sozlamalar uchun serverdagi yangilanish (010 migratsiya) hali qo'llanmagan. Administratorga ayting.");
+  }
+  const rows = check(res) as { id: string }[] | null;
+  if (!rows || rows.length === 0) throw new AppError('forbidden', "Sozlamalarni faqat do'kon egasi o'zgartira oladi.");
 }
 
 export async function renameShop(sb: SB, shopId: string, name: string): Promise<void> {
