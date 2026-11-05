@@ -2,14 +2,26 @@
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from 'recharts';
 import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import { formatCompactSom, formatSom } from '@/lib/money';
-import type { DayPoint } from '@/lib/data/ledger';
 
-const SERIES = [
+export interface ChartSeries {
+  key: string;
+  label: string;
+  color: string;
+}
+
+/** Grafik nuqtasi: `label` (x o'qi) va har seriya uchun son (so'm) */
+export type ChartDatum = { label: string } & Record<string, number | string>;
+
+const DEFAULT_SERIES: readonly ChartSeries[] = [
   { key: 'sales', label: 'Savdo', color: 'var(--series-1)' },
   { key: 'payments', label: "To'lovlar", color: 'var(--series-2)' },
-] as const;
+];
 
-function ChartTooltip({ active, payload, label }: TooltipContentProps<ValueType, NameType>) {
+/** "400 ming" qatorga bo'linib ketmasin: son va birlik orasida buzilmaydigan bo'shliq */
+const axisLabel = (v: number) => formatCompactSom(v).replace(' ', ' ');
+
+function makeTooltip(SERIES: readonly ChartSeries[]) {
+  return function ChartTooltip({ active, payload, label }: TooltipContentProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-xl border border-line bg-surface px-3 py-2 text-xs shadow-lg">
@@ -26,10 +38,13 @@ function ChartTooltip({ active, payload, label }: TooltipContentProps<ValueType,
       })}
     </div>
   );
+  };
 }
 
-/** Savdo va to'lovlar dinamikasi — bitta o'q (ikkalasi ham so'm), legenda + hover tooltip */
-export function TrendChart({ data, height = 260 }: { data: DayPoint[]; height?: number }) {
+/** Kunlik dinamika — bitta o'q (hammasi so'm), legenda + hover tooltip. Standart: savdo va to'lovlar */
+export function TrendChart({ data, height = 260, series = DEFAULT_SERIES }: { data: readonly { label: string }[]; height?: number; series?: readonly ChartSeries[] }) {
+  const SERIES = series;
+  const ChartTooltip = makeTooltip(SERIES);
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-muted" aria-hidden>
@@ -42,7 +57,7 @@ export function TrendChart({ data, height = 260 }: { data: DayPoint[]; height?: 
       </div>
       <div style={{ height }} role="img" aria-label="Kunlik savdo va to'lovlar grafigi">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <AreaChart data={data as unknown as ChartDatum[]} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
               {SERIES.map((s) => (
                 <linearGradient key={s.key} id={`fill-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -52,8 +67,8 @@ export function TrendChart({ data, height = 260 }: { data: DayPoint[]; height?: 
               ))}
             </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: 'var(--muted)', fontSize: 11 }} minTickGap={18} />
-            <YAxis tickLine={false} axisLine={false} width={56} tick={{ fill: 'var(--muted)', fontSize: 11 }} tickFormatter={(v: number) => formatCompactSom(v)} allowDecimals={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: 'var(--muted)', fontSize: 11 }} minTickGap={32} interval="preserveStartEnd" tickMargin={6} />
+            <YAxis tickLine={false} axisLine={false} width={68} tick={{ fill: 'var(--muted)', fontSize: 11 }} tickFormatter={axisLabel} allowDecimals={false} />
             <Tooltip content={ChartTooltip} cursor={{ stroke: 'var(--muted)', strokeDasharray: '3 3' }} />
             {SERIES.map((s) => (
               <Area

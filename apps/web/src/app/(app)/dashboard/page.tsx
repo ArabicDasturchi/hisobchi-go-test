@@ -1,127 +1,213 @@
 'use client';
-import { ArrowRight, CalendarDays, CircleDollarSign, HandCoins, Package, Plus, Receipt, Users, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Banknote, Boxes, PackagePlus, Plus, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { TrendChart } from '@/components/charts/TrendChart';
+import { TrendChart, type ChartSeries } from '@/components/charts/TrendChart';
+import { PaymentModal } from '@/components/forms/PaymentModal';
 import { DataGate, Money, StatCard, StatusBadge } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
-import { Avatar, Card, CardHeader, EmptyState, LinkButton, PageHeader, Segmented } from '@/components/ui/primitives';
-import { computeTotals, dailySeries, inRange, sumActivePayments, sumPosted } from '@/lib/data/ledger';
-import { addDays, dayKey, dayRangeToIso, formatDateTime, shortNumber } from '@/lib/dates';
+import { Avatar, Button, Card, CardHeader, EmptyState, LinkButton, PageHeader, Segmented } from '@/components/ui/primitives';
+import { useBooks } from '@/components/useBooks';
 import { uz } from '@/i18n/uz';
+import { buildDashboard, chartSeries } from '@/lib/dashboardModel';
+import { formatDateTime, shortNumber } from '@/lib/dates';
+import { formatQty } from '@/lib/money';
 
-type Range = '7' | '30' | '90';
+type Range = '7' | '30';
+
+const CHART_SERIES: readonly ChartSeries[] = [
+  { key: 'sales', label: 'Savdo', color: 'var(--series-1)' },
+  { key: 'profit', label: 'Foyda', color: 'var(--series-2)' },
+];
 
 function Dashboard({ data }: { data: ShopData }) {
   const { balances, customerById, membership } = useShop();
-  const [range, setRange] = useState<Range>('30');
-  const totals = useMemo(() => computeTotals(data.sales, data.payments), [data]);
-  const series = useMemo(() => dailySeries(data.sales, data.payments, Number(range)), [data, range]);
-  // Tanlangan davr ko'rsatkichlari — grafik bilan bir xil oraliq, BigInt'da
-  const period = useMemo(() => {
-    const now = new Date();
-    const r = dayRangeToIso(dayKey(addDays(now, -(Number(range) - 1))), dayKey(now));
-    if (!r) return null;
-    const sales = inRange(data.sales, r.fromIso, r.toIso).filter((s) => s.status === 'posted');
-    const pays = inRange(data.payments, r.fromIso, r.toIso);
-    return { sales: sumPosted(sales), count: sales.length, paid: sumActivePayments(pays) };
-  }, [data, range]);
-  const recent = data.sales.slice(0, 6);
-  const debtors = useMemo(
+  const { data: books } = useBooks();
+  const [range, setRange] = useState<Range>('7');
+  const [payingFor, setPayingFor] = useState<string | null | undefined>(undefined); // undefined = yopiq, null = mijoz tanlanmagan
+
+  const now = useMemo(() => new Date(), []);
+  const model = useMemo(
     () =>
-      [...balances.entries()]
-        .filter(([, b]) => b.debt > 0n)
-        .sort((a, b) => (b[1].debt > a[1].debt ? 1 : b[1].debt < a[1].debt ? -1 : 0))
-        .slice(0, 6),
-    [balances],
+      buildDashboard({
+        sales: data.sales,
+        saleLines: data.saleLines,
+        payments: data.payments,
+        customers: data.customers,
+        balances,
+        products: data.products,
+        stock: data.stock,
+        books,
+        now,
+      }),
+    [data, balances, books, now],
   );
-  const activeProducts = data.products.filter((p) => p.is_active).length;
-  const empty = data.sales.length === 0 && data.payments.length === 0;
+  const series = useMemo(() => chartSeries({ sales: data.sales, saleLines: data.saleLines, payments: data.payments, now }, Number(range)), [data, range, now]);
+  const recent = data.sales.slice(0, 5);
+  const empty = data.sales.length === 0;
+  const { today, debts } = model;
+  const drafts = data.drafts?.length ?? 0;
+  const attention = model.lowStock.length + (model.noCostProducts?.length ? 1 : 0) + (drafts > 0 ? 1 : 0);
 
   return (
     <>
-      <PageHeader
-        title="Bosh sahifa"
-        description={`${membership.shop.name} — bugungi holat`}
-        actions={
-          <LinkButton href="/sales/new" icon={<Plus className="h-4 w-4" />}>
-            {uz.nav.newSale}
-          </LinkButton>
-        }
-      />
+      <PageHeader title="Bosh sahifa" description={`${membership.shop.name} — bugungi holat`} />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
-        <StatCard label="Bugungi savdo" value={<Money value={totals.todaySales} />} hint={`${totals.todayCount} ta savdo`} icon={CalendarDays} accent="emerald" />
-        <StatCard label="Umumiy savdo" value={<Money value={totals.totalSales} />} hint={`${totals.saleCount} ta savdo${totals.reversedCount ? `, ${totals.reversedCount} ta bekor` : ''}`} icon={CircleDollarSign} accent="blue" />
-        <StatCard label="Jami qarzdorlik" value={<Money value={totals.totalDebt} />} hint={`${totals.debtorCount} ta qarzdor mijoz`} icon={HandCoins} accent="rose" />
-        <StatCard label="Qabul qilingan to'lovlar" value={<Money value={totals.totalPaid} />} hint="Bekor qilinganlarsiz" icon={Wallet} accent="emerald" />
-        <Link href="/customers" className="block h-full rounded-xl focus-visible:outline-offset-4">
-          <StatCard label="Mijozlar" value={data.customers.filter((c) => c.is_active).length} hint="Faol mijozlar" icon={Users} accent="slate" />
-        </Link>
-        <Link href="/products" className="block h-full rounded-xl focus-visible:outline-offset-4">
-          <StatCard label="Mahsulotlar" value={activeProducts} hint={`${data.products.length - activeProducts} ta arxivda`} icon={Package} accent="slate" />
-        </Link>
+      {/* 1. Asosiy harakat */}
+      <div className="grid gap-2 sm:grid-cols-3" data-testid="actions">
+        <LinkButton href="/sales/new" size="lg" className="h-14 text-base sm:col-span-1" icon={<Plus className="h-5 w-5" />}>
+          {uz.nav.newSale}
+        </LinkButton>
+        <Button size="lg" variant="outline" className="h-14" onClick={() => setPayingFor(null)} icon={<Banknote className="h-4 w-4" />}>
+          To&apos;lov oldim
+        </Button>
+        <LinkButton href="/purchases/new" size="lg" variant="outline" className="h-14" icon={<PackagePlus className="h-4 w-4" />}>
+          Kirim yozish
+        </LinkButton>
       </div>
 
-      <Card className="mt-3">
-        <CardHeader
-          title="Savdo dinamikasi"
-          description="Kunlik savdo (bekor qilinganlarsiz) va qabul qilingan to'lovlar"
-          action={
-            <Segmented
-              ariaLabel="Davr"
-              value={range}
-              onChange={setRange}
-              options={[
-                { value: '7', label: '7 kun' },
-                { value: '30', label: '30 kun' },
-                { value: '90', label: '90 kun' },
-              ]}
+      <>
+          {/* 2. Bugun */}
+          <h2 className="mb-2 mt-5 text-sm font-semibold text-muted">Bugun</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="today">
+            <StatCard label="Savdo" value={<Money value={today.sales} />} hint={`${today.saleCount} ta savdo`} icon={Receipt} accent="emerald" />
+            <StatCard
+              label="Foyda"
+              value={<Money value={today.profit} signed />}
+              hint={
+                today.unknownCostLines > 0 || today.salesWithoutLines > 0 ? (
+                  <span className="text-amber-700 dark:text-amber-400">
+                    {today.unknownCostLines > 0 ? `${today.unknownCostLines} qator hisobga kirmadi (tan narxi yo'q)` : `${today.salesWithoutLines} savdo hisobga kirmadi`}
+                  </span>
+                ) : (
+                  'Tan narxi ma’lum qatorlardan'
+                )
+              }
+              icon={TrendingUp}
+              accent="blue"
             />
-          }
-        />
-        <div className="p-4">
-          {period && !empty && (
-            <dl className="mb-3 grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-subtle px-3 py-2">
-                <dt className="text-xs text-muted">Davrdagi savdo</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-fg">
-                  <Money value={period.sales} />
-                </dd>
-              </div>
-              <div className="rounded-lg bg-subtle px-3 py-2">
-                <dt className="text-xs text-muted">Savdolar soni</dt>
-                <dd className="tabular mt-0.5 text-sm font-semibold text-fg">{period.count} ta</dd>
-              </div>
-              <div className="rounded-lg bg-subtle px-3 py-2">
-                <dt className="text-xs text-muted">Davrdagi to&apos;lovlar</dt>
-                <dd className="mt-0.5 text-sm font-semibold text-fg">
-                  <Money value={period.paid} />
-                </dd>
-              </div>
-            </dl>
-          )}
-          {empty ? (
-            <EmptyState title="Hali savdo yo'q" description="Birinchi savdoni kiriting — grafik shu yerda paydo bo'ladi." action={<LinkButton href="/sales/new" size="sm">Savdo kiritish</LinkButton>} />
-          ) : (
-            <TrendChart data={series} height={220} />
-          )}
-        </div>
-      </Card>
+            <StatCard label="Kassa" value={<Money value={today.cash} />} hint="Naqd savdo + qabul qilingan to‘lovlar − naqd chiqim" icon={Wallet} accent="slate" />
+          </div>
 
-      <div className="mt-3 grid gap-3 lg:grid-cols-5">
-        <Card className="lg:col-span-3">
-          <CardHeader
-            title="So'nggi savdolar"
-            action={
-              <Link href="/sales" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400">
-                Hammasi <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            }
-          />
-          {recent.length === 0 ? (
-            <EmptyState icon={<Receipt className="h-6 w-6" />} title="Savdolar yo'q" description="Kiritilgan savdolar shu yerda ko'rinadi." />
-          ) : (
+          {/* 3. Qarzlar */}
+          <h2 className="mb-2 mt-5 text-sm font-semibold text-muted">Qarzlar</h2>
+          <div className="grid gap-3 lg:grid-cols-5">
+            <Card className="lg:col-span-3" data-testid="owed-to-me">
+              <CardHeader
+                title="Menga qarzdorlar"
+                description={debts.debtorCount > 0 ? `${debts.debtorCount} ta mijoz` : undefined}
+                action={
+                  <Link href="/debts" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+                    Hammasi <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                }
+              />
+              <div className="px-4 pt-3">
+                <Money value={debts.owedToMe} className="text-2xl font-semibold text-rose-600 dark:text-rose-400" />
+              </div>
+              {debts.topDebtors.length === 0 ? (
+                <p className="p-4 text-sm text-muted">Qarzdor mijoz yo&apos;q.</p>
+              ) : (
+                <ul className="mt-2 divide-y divide-line">
+                  {debts.topDebtors.map((d) => (
+                    <li key={d.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <Link href={`/customers/${d.id}`} className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-fg">{customerById.get(d.id)?.name ?? d.name}</p>
+                        <Money value={d.debt} className="text-xs font-semibold text-rose-600 dark:text-rose-400" />
+                      </Link>
+                      <Button size="sm" variant="outline" onClick={() => setPayingFor(d.id)} icon={<Banknote className="h-3.5 w-3.5" />}>
+                        To&apos;lov
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            <Card className="lg:col-span-2" data-testid="i-owe">
+              <CardHeader
+                title="Mening qarzim"
+                description={books ? (debts.supplierCount > 0 ? `${debts.supplierCount} ta ta'minotchiga` : "Ta'minotchilarga") : undefined}
+                action={
+                  <Link href="/suppliers" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+                    Ta&apos;minotchilar <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                }
+              />
+              <div className="p-4">
+                {books ? (
+                  <>
+                    <Money value={debts.iOwe} className="text-2xl font-semibold text-fg" />
+                    {debts.iOwe === 0n && <p className="mt-1 text-xs text-muted">Ta&apos;minotchilarga qarz yo&apos;q.</p>}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted">Kirim ma&apos;lumoti yuklanmadi.</p>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* 4. Diqqat */}
+          <h2 className="mb-2 mt-5 text-sm font-semibold text-muted">Diqqat</h2>
+          <Card data-testid="attention">
+            {attention === 0 ? (
+              <p className="p-4 text-sm text-muted">Hozircha e&apos;tibor talab qiladigan narsa yo&apos;q.</p>
+            ) : (
+              <ul className="divide-y divide-line text-sm">
+                {model.lowStock.length > 0 && (
+                  <li className="px-4 py-3">
+                    <Link href="/warehouse" className="flex items-start gap-3">
+                      <Boxes className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-medium text-fg">Tugayotgan tovarlar ({model.lowStock.length})</span>
+                        <span className="mt-0.5 block text-xs text-muted">
+                          {model.lowStock
+                            .slice(0, 4)
+                            .map((i) => `${i.name}: ${i.qtyMilli <= 0n ? (i.level === 'negative' ? `minus ${formatQty(-i.qtyMilli)}` : 'tugagan') : `${formatQty(i.qtyMilli)} ${i.unit}`}`)
+                            .join(' · ')}
+                          {model.lowStock.length > 4 ? ' …' : ''}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {model.noCostProducts && model.noCostProducts.length > 0 && (
+                  <li className="px-4 py-3">
+                    <Link href="/products" className="flex items-start gap-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-medium text-fg">Tan narxi yo&apos;q tovarlar ({model.noCostProducts.length})</span>
+                        <span className="mt-0.5 block text-xs text-muted">Kirim yozilganda tan narx o&apos;zi paydo bo&apos;ladi; shundan keyin foyda hisoblanadi.</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+                {drafts > 0 && (
+                  <li className="px-4 py-3">
+                    <Link href="/drafts" className="flex items-start gap-3">
+                      <Receipt className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-medium text-fg">Kutayotgan qoralamalar ({drafts})</span>
+                        <span className="mt-0.5 block text-xs text-muted">AI tayyorlagan yozuvlar tasdiqingizni kutmoqda.</span>
+                      </span>
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            )}
+          </Card>
+
+          {/* 5. So'nggi 5 savdo */}
+          <Card className="mt-3">
+            <CardHeader
+              title="So'nggi savdolar"
+              action={
+                <Link href="/sales" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+                  Hammasi <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              }
+            />
+            {recent.length === 0 && <p className="p-4 text-sm text-muted">Savdolar yo&apos;q.</p>}
             <ul className="divide-y divide-line">
               {recent.map((s) => {
                 const c = s.customer_id ? customerById.get(s.customer_id) : null;
@@ -144,44 +230,36 @@ function Dashboard({ data }: { data: ShopData }) {
                 );
               })}
             </ul>
-          )}
-        </Card>
+          </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader
-            title="Qarzi katta mijozlar"
-            action={
-              <Link href="/debts" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400">
-                Hammasi <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            }
-          />
-          {debtors.length === 0 ? (
-            <EmptyState icon={<HandCoins className="h-6 w-6" />} title="Qarzdorlar yo'q" description="Qarzga savdo qilinganda mijozlar shu yerda ko'rinadi." />
-          ) : (
-            <ul className="divide-y divide-line">
-              {debtors.map(([id, b]) => {
-                const c = customerById.get(id);
-                const share = totals.totalDebt > 0n ? Number((b.debt * 1000n) / totals.totalDebt) / 10 : 0;
-                return (
-                  <li key={id}>
-                    <Link href={`/customers/${id}`} className="block px-4 py-3 transition-colors hover:bg-surface-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="truncate text-sm font-medium text-fg">{c?.name ?? "Noma'lum mijoz"}</span>
-                        <Money value={b.debt} className="text-sm font-semibold text-rose-600 dark:text-rose-400" />
-                      </div>
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-subtle" aria-hidden>
-                        <div className="h-full rounded-full bg-rose-500/70" style={{ width: `${Math.max(2, share)}%` }} />
-                      </div>
-                      <p className="mt-1 text-[11px] text-muted">Umumiy qarzning {share.toLocaleString('uz-UZ')}%</p>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
-      </div>
+          {/* 6. Grafik — eng pastda */}
+          <Card className="mt-3">
+            <CardHeader
+              title="Savdo va foyda"
+              description="Kunlik savdo va foyda (tan narxi ma'lum qatorlardan)"
+              action={
+                <Segmented
+                  ariaLabel="Davr"
+                  value={range}
+                  onChange={setRange}
+                  options={[
+                    { value: '7', label: '7 kun' },
+                    { value: '30', label: '30 kun' },
+                  ]}
+                />
+              }
+            />
+            <div className="p-4">
+              {empty ? (
+                <EmptyState icon={<Receipt className="h-6 w-6" />} title="Hali savdo yo'q" description="Birinchi savdoni kiriting — grafik shu yerda paydo bo'ladi." action={<LinkButton href="/sales/new" size="sm">Savdo kiritish</LinkButton>} />
+              ) : (
+                <TrendChart data={series} series={CHART_SERIES} height={220} />
+              )}
+            </div>
+          </Card>
+      </>
+
+      <PaymentModal open={payingFor !== undefined} onClose={() => setPayingFor(undefined)} customerId={payingFor ?? null} />
     </>
   );
 }
