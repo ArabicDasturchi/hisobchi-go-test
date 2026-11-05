@@ -218,6 +218,11 @@ jobs:
       - name: Tarixda yo'q 001-004 ni aniqlash
         id: which
         run: node scripts/ci/migration-guard.mjs baseline --list-file list-before.txt
+      - name: "Eski vaqt belgili yozuvlarni bekor deb belgilash (SQL bajarilmaydi, faqat tarix yoziladi)"
+        if: steps.which.outputs.revert != ''
+        env:
+          REVERT: ${{ steps.which.outputs.revert }}
+        run: supabase migration repair --status reverted $REVERT --remote --yes
       - name: "'Qo'llangan' deb belgilash (SQL bajarilmaydi, faqat tarix yoziladi)"
         if: steps.which.outputs.count != '0'
         env:
