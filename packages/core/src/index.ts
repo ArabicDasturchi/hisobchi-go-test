@@ -68,3 +68,4 @@ export { LOW_STOCK_MILLI, stockCheck, soldBelowCost, topSellingProducts } from '
 // Daftar varag'i: ketma-ket qoldiq Eski → Ostatka (MENYU-DAFTAR M2)
 export type { LedgerEntry, LedgerEntryKind, LedgerRow } from './ledger.js';
 export { ledgerRows, ledgerBalance, assertLedgerChain, assertLedgerMatches } from './ledger.js';
+export { agedDebt, isoMinusDays } from './aged-debt.js';
