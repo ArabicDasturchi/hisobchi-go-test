@@ -1,50 +1,32 @@
 'use client';
-import { Archive, ArchiveRestore, PackagePlus, Pencil, Plus, Truck } from 'lucide-react';
+import { ChevronRight, PackagePlus, Phone, Plus, Truck } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { SupplierFormModal } from '@/components/forms/SupplierFormModal';
-import { Money } from '@/components/shared';
-import { useBooks } from '@/components/useBooks';
-import { Alert, Badge, Button, Card, EmptyState, ErrorState, LinkButton, PageHeader, SearchInput, Segmented, TableSkeleton } from '@/components/ui/primitives';
-import { useToast } from '@/components/ui/Toast';
+import { Money, ResponsiveTable } from '@/components/shared';
 import { useShop } from '@/components/ShopDataProvider';
-import { supplierTotals, type Supplier } from '@/lib/data/books';
-import { setSupplierActive } from '@/lib/data/purchases';
-import { errorMessage } from '@/lib/errors';
-import { getSupabase } from '@/lib/supabase/client';
+import { useBooks } from '@/components/useBooks';
+import { Alert, Avatar, Button, Card, EmptyState, ErrorState, LinkButton, PageHeader, SearchInput, Segmented, Select, TableSkeleton } from '@/components/ui/primitives';
+import { formatDate } from '@/lib/dates';
+import { filterPartners, type ListFilter, type ListSort } from '@/lib/ledgerView';
+import { can } from '@/lib/permissions';
+import { safeSupplierBook } from '@/lib/supplierBook';
 import { uz } from '@/i18n/uz';
 
-type Filter = 'active' | 'debt' | 'all';
-const norm = (s: string) => s.toLocaleLowerCase('uz').trim();
-
-/** Ta'minotchilar: qo'shish, tahrirlash, arxivlash, boshlang'ich qarz. Qarz = kirimlar (ochilish qoldig'i ham) − to'lovlar (bekor qilinganlarsiz). */
+/** Ta'minotchilar daftari: «Mening qarzim» kartasi + ro'yxat; ta'minotchini bosganda uning varag'i (/suppliers/[id]) */
 export default function SuppliersPage() {
+  const router = useRouter();
   const { data, error, loading, reload } = useBooks();
-  const { shopId } = useShop();
-  const toast = useToast();
-  const [editing, setEditing] = useState<Supplier | null | undefined>(undefined); // undefined = yopiq, null = yangi
-  const [actionError, setActionError] = useState<string | null>(null);
+  const { membership } = useShop();
+  const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<Filter>('active');
+  const [filter, setFilter] = useState<ListFilter>('all');
+  const [sort, setSort] = useState<ListSort>('debt');
+  const canManage = can(membership.role, 'partner.manage');
 
-  const totals = useMemo(() => (data ? supplierTotals(data) : new Map()), [data]);
-  const rows = useMemo(() => {
-    const q = norm(query);
-    return (data?.suppliers ?? [])
-      .map((s) => ({ s, t: totals.get(s.id) ?? { goods: 0n, paid: 0n, outstanding: 0n } }))
-      .filter(({ s, t }) => (filter === 'all' ? true : filter === 'debt' ? t.outstanding > 0n : s.is_active))
-      .filter(({ s }) => !q || norm(s.name).includes(q) || (s.phone ?? '').includes(query.trim()));
-  }, [data, totals, query, filter]);
-
-  async function toggleActive(s: Supplier) {
-    setActionError(null);
-    try {
-      await setSupplierActive(getSupabase(), shopId, s.id, !s.is_active);
-      toast.success(s.is_active ? `«${s.name}» arxivlandi.` : `«${s.name}» qaytarildi.`);
-      await reload();
-    } catch (e) {
-      setActionError(errorMessage(e));
-    }
-  }
+  const book = useMemo(() => (data ? safeSupplierBook(data) : null), [data]);
+  const rows = useMemo(() => (book ? filterPartners(book.rows, { query, filter, sort }) : []), [book, query, filter, sort]);
 
   if (error && !data) {
     return (
@@ -61,89 +43,134 @@ export default function SuppliersPage() {
     <>
       <PageHeader
         title={uz.nav.suppliers}
-        description="Ta'minotchi qo'shing, boshlang'ich qarzni kiriting, kirim yozing. Qarz kirimlardan o'zi hisoblanadi."
+        description="Har ta'minotchi — bitta daftar varag‘i: kirim, to‘lov va qarzingiz shu yerda."
         actions={
           <>
             <LinkButton href="/purchases/new" variant="outline" icon={<PackagePlus className="h-4 w-4" />}>
               Kirim yozish
             </LinkButton>
-            <Button onClick={() => setEditing(null)} icon={<Plus className="h-4 w-4" />}>
-              Ta&apos;minotchi qo&apos;shish
-            </Button>
+            {canManage && (
+              <Button onClick={() => setAdding(true)} icon={<Plus className="h-4 w-4" />}>
+                Ta&apos;minotchi qo&apos;shish
+              </Button>
+            )}
           </>
         }
       />
-      {actionError && (
-        <Alert tone="red" className="mb-3">
-          {actionError}
+
+      {book && !book.ok && (
+        <Alert tone="red" title="Hisob mos kelmadi" className="mb-3">
+          {book.message}
         </Alert>
       )}
+      {book?.ok && (
+        <Card className="mb-3 grid grid-cols-1 divide-y divide-line sm:grid-cols-2 sm:divide-x sm:divide-y-0" data-testid="my-debt-card">
+          <div className="p-4">
+            <p className="text-sm font-medium text-muted">Mening qarzim</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400">
+              <Money value={book.card.iOwe} />
+            </p>
+          </div>
+          <div className="p-4">
+            <p className="text-sm font-medium text-muted">Qarzim bor ta&apos;minotchilar</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight text-fg">{book.card.creditorCount} ta</p>
+          </div>
+        </Card>
+      )}
+
       <Card>
         <div className="flex flex-col gap-2.5 border-b border-line p-3 lg:flex-row lg:items-center">
-          <SearchInput value={query} onChange={setQuery} placeholder="Nom yoki telefon" className="lg:w-72" />
-          <Segmented<Filter>
-            ariaLabel="Filtr"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'active', label: 'Faol' },
-              { value: 'debt', label: 'Qarzimiz bor' },
-              { value: 'all', label: 'Arxiv bilan' },
-            ]}
-          />
+          <SearchInput value={query} onChange={setQuery} placeholder="Nom yoki telefon" className="lg:max-w-sm lg:flex-1" />
+          <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+            <Segmented<ListFilter>
+              ariaLabel="Filtr"
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: 'debtors', label: 'Qarzim bor' },
+                { value: 'all', label: 'Hammasi' },
+                { value: 'archive', label: 'Arxiv' },
+              ]}
+            />
+            <Select aria-label="Saralash" value={sort} onChange={(e) => setSort(e.target.value as ListSort)} className="h-9 w-auto py-0 text-xs sm:text-sm">
+              <option value="debt">Qarz kattasi</option>
+              <option value="recent">Oxirgi harakat</option>
+            </Select>
+          </div>
         </div>
         {loading && !data ? (
           <TableSkeleton />
+        ) : (data?.suppliers.length ?? 0) === 0 ? (
+          <EmptyState
+            icon={<Truck className="h-5 w-5" />}
+            title="Birinchi ta‘minotchini qo‘shing"
+            description="Boshlang‘ich qarzni kiriting, so‘ng kirim va to‘lovlarni varaqqa yozing."
+            action={
+              canManage ? (
+                <Button size="sm" onClick={() => setAdding(true)} icon={<Plus className="h-4 w-4" />}>
+                  Ta&apos;minotchi qo&apos;shish
+                </Button>
+              ) : undefined
+            }
+          />
         ) : rows.length === 0 ? (
-          <EmptyState icon={<Truck className="h-5 w-5" />} title="Ta'minotchi topilmadi" description="«Ta'minotchi qo'shish» tugmasi bilan birinchisini kiriting." />
+          <EmptyState title="Hech narsa topilmadi" description={filter === 'debtors' && !query ? "Hozir qarzingiz bor ta'minotchi yo'q." : "Qidiruv yoki filterni o'zgartirib ko'ring."} />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[13px]">
-              <thead className="border-b border-line bg-surface-2 text-[11px] font-medium uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-4 py-2.5 font-medium">Ta&apos;minotchi</th>
-                  <th className="px-4 py-2.5 font-medium">Telefon</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Tovar (kirim)</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Berildi</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Ostatka (qarzimiz)</th>
-                  <th className="px-4 py-2.5 text-right font-medium"><span className="sr-only">Amallar</span></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {rows.map(({ s, t }) => (
-                  <tr key={s.id}>
-                    <td className="px-4 py-2.5 font-medium text-fg">
-                      {s.name} {!s.is_active && <Badge>arxiv</Badge>}
-                    </td>
-                    <td className="px-4 py-2.5 text-muted">{s.phone ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-right"><Money value={t.goods} /></td>
-                    <td className="px-4 py-2.5 text-right"><Money value={t.paid} /></td>
-                    <td className="px-4 py-2.5 text-right">
-                      <Money value={t.outstanding} className={t.outstanding > 0n ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-muted'} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                      <div className="flex justify-end gap-1">
-                        {s.is_active && (
-                          <LinkButton href={`/purchases/new?supplier=${s.id}`} size="sm" variant="outline">
-                            Kirim
-                          </LinkButton>
-                        )}
-                        <Button size="icon" variant="ghost" onClick={() => setEditing(s)} aria-label={`${s.name}ni tahrirlash`} title="Tahrirlash">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => void toggleActive(s)} aria-label={s.is_active ? `${s.name}ni arxivlash` : `${s.name}ni qaytarish`} title={s.is_active ? 'Arxivlash' : 'Qaytarish'}>
-                          {s.is_active ? <Archive className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            head={
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Ta&apos;minotchi</th>
+                <th className="px-4 py-2.5 font-medium">Telefon</th>
+                <th className="px-4 py-2.5 font-medium">Oxirgi harakat</th>
+                <th className="px-4 py-2.5 text-right font-medium">Qarzim</th>
+                <th className="w-10 px-4 py-2.5" />
+              </tr>
+            }
+            mobile={rows.map((r) => (
+              <Link key={r.id} href={`/suppliers/${r.id}`} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2">
+                <Avatar name={r.name} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-fg">{r.name}</p>
+                  <p className="truncate text-xs text-muted">{r.phone ?? (r.lastActivity ? formatDate(r.lastActivity) : '—')}</p>
+                </div>
+                <div className="text-right">
+                  <Money value={r.balance > 0n ? r.balance : 0n} className={r.balance > 0n ? 'text-sm font-semibold text-rose-600 dark:text-rose-400' : 'text-sm text-muted'} />
+                  <p className="text-[11px] text-muted">{r.balance > 0n ? 'qarzim' : r.balance < 0n ? 'ortiqcha to‘lov' : 'qarz yo‘q'}</p>
+                </div>
+              </Link>
+            ))}
+          >
+            {rows.map((r) => (
+              <tr key={r.id} onClick={() => router.push(`/suppliers/${r.id}`)} className="cursor-pointer transition-colors hover:bg-surface-2">
+                <td className="px-4 py-2.5">
+                  <Link href={`/suppliers/${r.id}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <Avatar name={r.name} />
+                    <span className="truncate font-medium text-fg">{r.name}</span>
+                  </Link>
+                </td>
+                <td className="px-4 py-2.5 text-muted">
+                  {r.phone ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5" />
+                      {r.phone}
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-muted">{r.lastActivity ? formatDate(r.lastActivity) : '—'}</td>
+                <td className="px-4 py-2.5 text-right">
+                  <Money value={r.balance} className={r.balance > 0n ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-muted'} />
+                </td>
+                <td className="px-4 py-2.5 text-muted">
+                  <ChevronRight className="h-4 w-4" />
+                </td>
+              </tr>
+            ))}
+          </ResponsiveTable>
         )}
       </Card>
-      <SupplierFormModal open={editing !== undefined} onClose={() => setEditing(undefined)} supplier={editing ?? null} onSaved={() => void reload()} />
+      <SupplierFormModal open={adding} onClose={() => setAdding(false)} supplier={null} onSaved={(s) => { void reload(); router.push(`/suppliers/${s.id}`); }} />
     </>
   );
 }

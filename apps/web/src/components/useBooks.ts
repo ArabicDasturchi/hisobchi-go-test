@@ -14,11 +14,14 @@ export function useBooks() {
   const [data, setData] = useState<BooksData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Oxirgi muvaffaqiyatli yuklash vaqti (ms): ikkinchi yo'l tekshiruvi shu bo'yicha yangilanadi */
+  const [loadedAt, setLoadedAt] = useState(0);
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
       setData(await loadBooks(getSupabase(), shopId));
+      setLoadedAt(Date.now());
       setError(null);
     } catch (e) {
       setError(errorMessage(e));
@@ -31,5 +34,5 @@ export function useBooks() {
     void reload();
   }, [reload]);
 
-  return { data, error, loading, reload };
+  return { data, error, loading, reload, loadedAt };
 }
