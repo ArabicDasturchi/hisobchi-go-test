@@ -196,3 +196,13 @@ Hozir faqat bitta manbali raqam bor: Aisha STT ~425 so'm/daqiqa (loyiha hujjatid
 - Bluetooth printer modeli (savdogarlar qaysi printerdan foydalanadi).
 - Google Play va Apple hisoblari narxi va kim ochishi.
 - Veb (PC) versiya kerakli darajada qulay bo'lishi uchun qaysi ekranlar alohida moslanadi.
+
+## Veb panel: menyu va daftar (MENYU-DAFTAR, 06.11.2026)
+
+Menyu: **Asosiy** (Bosh sahifa, Savdolar, Qoralamalar) · **Daftarlar** (Ta'minotchilar, Mijozlar) · **Baza** (Mahsulotlar, Ombor) · Sozlamalar. To'lovlar, Qarzlar, Kirim/Chiqim daftari va Hisobotlar bo'lim emas: to'lov va qarz mijoz/ta'minotchi varag'ida, kirim va chiqim Ombor ichida (`/warehouse?tab=in|out`), hisobot `/dashboard/report` (Bosh sahifadagi tugma). Eski URL'lar yo'naltiriladi (`lib/redirects.ts`, `/books/*` — `books/[kind]/page.tsx`).
+
+Daftar varag'i:
+- **core** `packages/core/src/ledger.ts`: `ledgerRows` (qator = kun; Eski → Ostatka zanjiri; bekor qilingan qatorda qoladi, jamiga kirmaydi; ochilish qoldig'i birinchi qator va Tovar jamiga kirmaydi), `assertLedgerMatches`; `aged-debt.ts`: 30+ kunlik qarz (FIFO).
+- **ikkinchi yo'l**: PostgreSQL `partner_statement` (butun davr Ostatka'si); mos kelmasa varaq yozishni to'xtatadi. SQL'ga yetib bo'lmasa core `partnerBalance` bilan mahalliy tekshiruv.
+- **web**: `components/ledger/LedgerSheet.tsx` (bitta komponent, mijoz/ta'minotchi sozlamasi `lib/ledgerView.ts`), ulagichlar `CustomerLedger.tsx` / `SupplierLedger.tsx`, ma'lumot `lib/data/partnerLedger.ts` va `supplierPayments.ts`, ro'yxatlar `lib/customerBook.ts` / `lib/supplierBook.ts`. Yangi jadval va migratsiya yo'q.
+- **ruxsat**: `can(role, action)` (`lib/permissions.ts`) — yagona nuqta; rollar keyin qo'shilganda faqat shu jadval o'zgaradi.

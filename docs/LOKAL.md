@@ -59,3 +59,7 @@ Remove-Item -Recurse -Force node_modules, apps/web/.next
 npm ci
 npm run check
 ```
+
+## Skrinshotlar (demo)
+
+`npm run screenshots -- keyin` (yoki `oldin`) telefon va kompyuter ko'rinishida demo sahifalarini `docs/ekranlar/` ga yozadi: Bosh sahifa, Hisobot, Yangi savdo, Mijozlar va mijoz varag'i, Ta'minotchilar va varaq, Kirim yozish, Ombor (Qoldiq/Kirim/Chiqim), Sozlamalar. Mavjud bo'lmagan sahifa (eski holat) o'tkazib yuboriladi. Chrome yoki Edge o'rnatilgan bo'lishi kerak (`CHROME_PATH`); port band bo'lsa `DEMO_PORT`.

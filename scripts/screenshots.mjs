@@ -29,14 +29,22 @@ const CANDIDATES = [
 const executablePath = CANDIDATES.find((p) => existsSync(p));
 if (!executablePath) throw new Error('Chrome yoki Edge topilmadi. CHROME_PATH muhit o\'zgaruvchisini bering.');
 
-/** [fayl nomi, yo'l, kutiladigan matn] */
+/**
+ * [fayl nomi, yo'l, birinchi bosiladigan havola (ixtiyoriy)]. Havola bo'lsa, sahifa ochilgach shu selektor bosiladi
+ * (masalan, ro'yxatdan birinchi mijoz varag'i). Sahifa yoki havola yo'q bo'lsa (eski holat), o'sha skrinshot o'tkazib yuboriladi.
+ */
 const PAGES = [
   ['bosh-sahifa', '/dashboard', null],
+  ['hisobot', '/dashboard/report', null],
   ['yangi-savdo', '/sales/new', null],
+  ['mijozlar', '/customers', null],
+  ['mijoz-daftari', '/customers', 'a[href^="/customers/"]:visible'],
   ['taminotchilar', '/suppliers', null],
+  ['taminotchi-daftari', '/suppliers', 'a[href^="/suppliers/"]:visible'],
   ['kirim-yozish', '/purchases/new', null],
   ['ombor', '/warehouse', null],
-  ['kirim-daftari', '/books/in', null],
+  ['ombor-kirim', '/warehouse?tab=in', null],
+  ['ombor-chiqim', '/warehouse?tab=out', null],
   ['sozlamalar', '/settings', null],
 ];
 const VIEWS = [
@@ -71,11 +79,25 @@ try {
   for (const [viewName, viewport, extra] of VIEWS) {
     const ctx = await browser.newContext({ viewport, colorScheme: 'light', locale: 'uz-UZ', ...extra });
     const page = await ctx.newPage();
-    for (const [name, route] of PAGES) {
-      await page.goto(base + route, { waitUntil: 'networkidle' });
+    for (const [name, route, link] of PAGES) {
+      const res = await page.goto(base + route, { waitUntil: 'networkidle' });
+      if (!res || res.status() >= 400) {
+        console.log("o'tkazildi (sahifa yo'q):", route);
+        continue;
+      }
       // Ma'lumot yuklanishini kutish: "yuklanmoqda" matni yo'qolguncha
       await page.waitForFunction(() => !document.body.innerText.includes('yuklanmoqda'), null, { timeout: 20_000 }).catch(() => {});
-      await page.waitForTimeout(700); // animatsiyalar tugasin
+      if (link) {
+        const target = page.locator(link).first();
+        if (!(await target.waitFor({ timeout: 8000 }).then(() => true, () => false))) {
+          console.log("o'tkazildi (havola yo'q):", route, link);
+          continue;
+        }
+        await target.click();
+        await page.waitForLoadState('networkidle');
+        await page.waitForFunction(() => !document.body.innerText.includes('yuklanmoqda'), null, { timeout: 20_000 }).catch(() => {});
+      }
+      await page.waitForTimeout(1200); // animatsiyalar va kechikib yuklanadigan ko'rinishlar (Chiqim) tugasin
       const file = path.join(outDir, `${name}-${viewName}-${label}.png`);
       await page.screenshot({ path: file, fullPage: true });
       console.log('saqlandi:', path.relative(root, file));

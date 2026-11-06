@@ -95,7 +95,7 @@ export function buildDemoTables(now: Date = new Date(), newId: () => string = ()
   const draftCalc = calculateDocument(draftLines.map((l) => ({ qtyMilli: milli(l.qty), unitPrice: BigInt(pid(l.product).meta.salePrice) })));
   const dilnoza = customers.find((c) => c.key === 'dilnoza');
 
-  return {
+  const tables: Tables = {
     shops: [shop],
     shop_members: [{ shop_id: shopId, user_id: DEMO_USER_ID, role: 'owner', created_at: shop.created_at }],
     customers: [
@@ -153,4 +153,20 @@ export function buildDemoTables(now: Date = new Date(), newId: () => string = ()
       },
     ],
   };
+
+  // Ombor harakatlari (Chiqim ko'rinishi): har savdo qatori — 'sale' harakati; ikkita inventarizatsiya tuzatishi
+  const docAt = new Map(tables.documents!.map((d) => [d.id as string, d.created_at as string]));
+  const saleMoves: Row[] = tables.document_lines!
+    .filter((l) => l.product_id && docAt.has(l.document_id as string))
+    .map((l) => ({
+      id: newId(), shop_id: shopId, product_id: l.product_id, kind: 'sale', qty_milli: (-BigInt(l.qty_milli as string)).toString(),
+      document_id: l.document_id, note: null, created_at: docAt.get(l.document_id as string),
+    }));
+  const someProducts = products.slice(0, 2);
+  const adjustments: Row[] = someProducts.map((p, i) => ({
+    id: newId(), shop_id: shopId, product_id: p.id, kind: 'adjustment', qty_milli: (i === 0 ? -2000n : 1000n).toString(),
+    document_id: null, note: i === 0 ? 'Inventarizatsiya: singan' : 'Inventarizatsiya: ortiqcha chiqdi', created_at: iso(-2),
+  }));
+  tables.stock_movements = [...saleMoves, ...adjustments];
+  return tables;
 }
