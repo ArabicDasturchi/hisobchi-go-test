@@ -50,7 +50,7 @@ describe("ta'minotchi hisobi (core)", () => {
   const b = buildBooks(raw());
   it("kirim 1 450 000 + 90 000, bekor qilingan kirim va bekor to'lov hisobga kirmaydi", () => {
     const t = supplierTotals(b).get('s1')!;
-    expect(t).toEqual({ goods: 1540000n, paid: 1000000n, outstanding: 540000n });
+    expect(t).toEqual({ opening: 0n, goods: 1540000n, paid: 1000000n, outstanding: 540000n });
     expect(supplierTotals(b).has('s2')).toBe(false);
   });
   it("Eski + Tovar − Berildi = Ostatka davr bo'yicha", () => {

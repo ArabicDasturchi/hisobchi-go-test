@@ -132,23 +132,32 @@ export function buildBooks(raw: {
 // ---------------------------------------------------------------------------
 
 export interface PartnerTotals {
+  /** Boshlang'ich qarz (ochilish qoldig'i, 009). Kirim/tovar jamiga KIRMAYDI */
+  opening: bigint;
+  /** Kirim jami (ochilish qoldig'isiz, bekor qilinmagan) */
   goods: bigint;
   paid: bigint;
-  /** goods − paid: musbat = qarz */
+  /** opening + goods − paid: musbat = qarz */
   outstanding: bigint;
 }
 
-/** Ta'minotchi qarzi: kirimlar (bekor qilinmagan) − to'lovlar (bekor qilinmagan) */
+/** Ta'minotchi qarzi: ochilish qoldig'i + kirimlar (bekor qilinmagan) − to'lovlar (bekor qilinmagan) */
 export function supplierTotals(data: Pick<BooksData, 'purchases' | 'payments'>): Map<string, PartnerTotals> {
   const goods = new Map<string, bigint[]>();
+  const opening = new Map<string, bigint[]>();
   const paid = new Map<string, bigint[]>();
-  for (const p of data.purchases) if (p.status === 'posted') goods.set(p.supplier_id, [...(goods.get(p.supplier_id) ?? []), p.subtotal]);
+  for (const p of data.purchases) {
+    if (p.status !== 'posted') continue;
+    const bucket = p.kind === 'opening' ? opening : goods;
+    bucket.set(p.supplier_id, [...(bucket.get(p.supplier_id) ?? []), p.subtotal]);
+  }
   for (const p of data.payments) if (!p.voided) paid.set(p.supplier_id, [...(paid.get(p.supplier_id) ?? []), p.amount]);
   const out = new Map<string, PartnerTotals>();
-  for (const id of new Set([...goods.keys(), ...paid.keys()])) {
+  for (const id of new Set([...goods.keys(), ...opening.keys(), ...paid.keys()])) {
+    const o = sumAmounts(opening.get(id) ?? []);
     const g = sumAmounts(goods.get(id) ?? []);
     const pd = sumAmounts(paid.get(id) ?? []);
-    out.set(id, { goods: g, paid: pd, outstanding: g - pd });
+    out.set(id, { opening: o, goods: g, paid: pd, outstanding: o + g - pd });
   }
   return out;
 }

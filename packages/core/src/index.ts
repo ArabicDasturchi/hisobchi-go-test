@@ -64,3 +64,7 @@ export { dayTotals, debtSummary, lowStock, saleLineTotal, DEFAULT_LOW_STOCK_MILL
 // Savdo paytidagi ogohlantirishlar va ko'p sotilgan tovarlar (PANEL-1, S2-S3)
 export type { StockCheck, TopSellingLine, TopSelling } from './sale-checks.js';
 export { LOW_STOCK_MILLI, stockCheck, soldBelowCost, topSellingProducts } from './sale-checks.js';
+
+// Daftar varag'i: ketma-ket qoldiq Eski → Ostatka (MENYU-DAFTAR M2)
+export type { LedgerEntry, LedgerEntryKind, LedgerRow } from './ledger.js';
+export { ledgerRows, ledgerBalance, assertLedgerChain, assertLedgerMatches } from './ledger.js';
