@@ -15,6 +15,7 @@ import { uz } from '@/i18n/uz';
 import { formatDateTime } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
 import { getSupabase } from '@/lib/supabase/client';
+import { can } from '@/lib/permissions';
 import { firstError, profileNameSchema, shopNameSchema } from '@/lib/validation';
 
 function SettingsCard({ icon, title, description, children }: { icon: ReactNode; title: string; description: string; children: ReactNode }) {
@@ -153,7 +154,7 @@ function ProfileCard() {
 function ShopCard() {
   const { membership, shopId, setMembership } = useShop();
   const toast = useToast();
-  const isOwner = membership.role === 'owner';
+  const isOwner = can(membership.role, 'settings.manage');
   return (
     <SettingsCard icon={<Store className="h-[18px] w-[18px]" />} title="Do'kon" description="Do'kon nomi sahifalarda va hisobotlarda ko'rinadi">
       <InlineSaveForm
@@ -178,7 +179,7 @@ function ShopCard() {
 function UnitsCard() {
   const { membership, shopId, setMembership } = useShop();
   const toast = useToast();
-  const isOwner = membership.role === 'owner';
+  const isOwner = can(membership.role, 'settings.manage');
   const enabled = parseEnabledUnits(membership.shop.settings);
   const [picked, setPicked] = useState<string[]>(enabled);
   const [busy, setBusy] = useState(false);

@@ -77,10 +77,10 @@ describe('kirim qoralamasi', () => {
     expect(html).toContain("Tasdiqlab bo&#x27;lmaydi");
   });
 
-  it("tasdiqlangan kirim qoralamasi Kirim daftariga havola beradi", () => {
+  it("tasdiqlangan kirim qoralamasi Ta'minotchilar daftariga havola beradi", () => {
     const html = render(row({ status: 'accepted', decided_at: '2026-11-02T11:00:00Z' }));
-    expect(html).toContain('/books/in');
-    expect(html).toContain("Kirim daftarini ko");
+    expect(html).toContain('/suppliers');
+    expect(html).toContain("Ta&#x27;minotchilar daftarini ko");
   });
 });
 

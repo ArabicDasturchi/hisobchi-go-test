@@ -98,14 +98,14 @@ describe('ombor ko\'rinishi', () => {
 });
 
 describe('menyu', () => {
-  it("Daftarlar va ombor bo'limi, sarlavhalar", () => {
-    const g = NAV_GROUPS.find((x) => x.label === 'Daftarlar va ombor')!;
-    expect(g.items.map((i) => i.href)).toEqual(['/books/in', '/books/out', '/warehouse', '/suppliers']);
-    expect(pageTitle('/books/in')).toBe('Kirim daftari');
-    expect(pageTitle('/books/out')).toBe('Chiqim daftari');
+  it("Daftarlar va Baza bo'limi, sarlavhalar", () => {
+    const ledgers = NAV_GROUPS.find((x) => x.label === 'Daftarlar')!;
+    expect(ledgers.items.map((i) => i.href)).toEqual(['/suppliers', '/customers']);
+    const base = NAV_GROUPS.find((x) => x.label === 'Baza')!;
+    expect(base.items.map((i) => i.href)).toEqual(['/products', '/warehouse']);
     expect(pageTitle('/warehouse')).toBe('Ombor');
     expect(NAV_ITEMS.filter((i) => i.href === '/suppliers')).toHaveLength(1);
-    expect(isActive('/books/in', '/books/out')).toBe(false);
+    expect(isActive('/suppliers', '/customers')).toBe(false);
   });
 });
 

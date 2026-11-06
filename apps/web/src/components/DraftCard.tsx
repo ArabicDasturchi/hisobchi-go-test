@@ -265,10 +265,10 @@ export function DraftCard({
       {d.status === 'accepted' && (
         <div className="border-t border-line px-4 py-2.5 text-sm">
           <Link
-            href={isPayment ? '/payments' : isPurchase ? '/books/in' : `/sales/${d.id}`}
+            href={isPayment ? '/customers' : isPurchase ? '/suppliers' : `/sales/${d.id}`}
             className="font-medium text-emerald-700 hover:underline dark:text-emerald-400"
           >
-            {isPayment ? "To'lovlarni ko'rish" : isPurchase ? "Kirim daftarini ko'rish" : "Savdoni ko'rish"}
+            {isPayment ? "Mijozlar daftarini ko'rish" : isPurchase ? "Ta'minotchilar daftarini ko'rish" : "Savdoni ko'rish"}
           </Link>
         </div>
       )}

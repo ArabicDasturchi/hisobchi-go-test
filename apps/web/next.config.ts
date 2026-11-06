@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { MENU_REDIRECTS } from './src/lib/redirects';
 
 const nextConfig: NextConfig = {
   // Umumiy hisob-kitob moduli (BigInt formulasi) TypeScript manba sifatida ulanadi
@@ -13,6 +14,9 @@ const nextConfig: NextConfig = {
   webpack: (config) => {
     config.resolve.extensionAlias = { '.js': ['.ts', '.tsx', '.js'] };
     return config;
+  },
+  async redirects() {
+    return [...MENU_REDIRECTS];
   },
   async headers() {
     return [

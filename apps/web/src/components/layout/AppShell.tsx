@@ -8,7 +8,7 @@ import { useAuth } from '../AuthProvider';
 import { Logo, LogoMark } from '../Logo';
 import { useShop } from '../ShopDataProvider';
 import { Avatar, cn } from '../ui/primitives';
-import { BOTTOM_ITEMS, isActive, NAV_GROUPS, parentSection, pageTitle, SETTINGS_ITEM, type NavItem } from './nav';
+import { BOTTOM_ITEMS, isItemActive, NAV_GROUPS, parentSection, pageTitle, SETTINGS_ITEM, type NavItem } from './nav';
 import { SyncIndicator } from './SyncIndicator';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -23,7 +23,7 @@ function displayName(user: ReturnType<typeof useAuth>['user']): string {
 function NavLink({ item, compact, onNavigate }: { item: NavItem; compact?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
   const { pendingDrafts } = useShop();
-  const active = isActive(pathname, item.href);
+  const active = isItemActive(pathname, item);
   const badge = item.href === '/drafts' ? pendingDrafts : 0;
   return (
     <Link
@@ -237,7 +237,7 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
   const pathname = usePathname();
   const { pendingDrafts } = useShop();
   const link = (item: NavItem) => {
-    const active = isActive(pathname, item.href);
+    const active = isItemActive(pathname, item);
     return (
       <Link
         key={item.href}
@@ -253,17 +253,7 @@ function BottomNav({ onMenu }: { onMenu: () => void }) {
   return (
     <nav className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Pastki menyu">
       <div className="mx-auto flex max-w-lg items-stretch">
-        {BOTTOM_ITEMS.slice(0, 2).map(link)}
-        <div className="flex flex-1 items-center justify-center">
-          <Link
-            href="/sales/new"
-            className="-mt-4 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 dark:bg-emerald-500 dark:text-emerald-950"
-            aria-label={uz.nav.newSale}
-          >
-            <Plus className="h-5 w-5" />
-          </Link>
-        </div>
-        {BOTTOM_ITEMS.slice(2).map(link)}
+        {BOTTOM_ITEMS.map(link)}
         <button type="button" onClick={onMenu} className="flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-medium text-muted">
           <span className="relative">
             <Menu className="h-5 w-5" />

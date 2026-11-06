@@ -194,8 +194,8 @@ function NewPurchase({ data }: { data: ShopData }) {
   const frozen = busy || locked;
   return (
     <>
-      <Link href="/books/in" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-fg">
-        <ArrowLeft className="h-4 w-4" /> Kirim daftari
+      <Link href="/suppliers" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-fg">
+        <ArrowLeft className="h-4 w-4" /> Ta&apos;minotchilar
       </Link>
       <PageHeader title="Kirim yozish" description="Ta'minotchidan kelgan tovar: qatorlar, berilgan summa, qoldiq qarz" />
 

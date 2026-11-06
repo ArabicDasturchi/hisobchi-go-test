@@ -1,5 +1,5 @@
 'use client';
-import { AlertTriangle, ArrowRight, Banknote, Boxes, PackagePlus, Plus, Receipt, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Banknote, BarChart3, Boxes, PackagePlus, Plus, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { TrendChart, type ChartSeries } from '@/components/charts/TrendChart';
@@ -51,7 +51,15 @@ function Dashboard({ data }: { data: ShopData }) {
 
   return (
     <>
-      <PageHeader title="Bosh sahifa" description={`${membership.shop.name} — bugungi holat`} />
+      <PageHeader
+        title="Bosh sahifa"
+        description={`${membership.shop.name} — bugungi holat`}
+        actions={
+          <LinkButton href="/dashboard/report" variant="outline" size="sm" icon={<BarChart3 className="h-4 w-4" />}>
+            {uz.nav.report}
+          </LinkButton>
+        }
+      />
 
       {/* 1. Asosiy harakat */}
       <div className="grid gap-2 sm:grid-cols-3" data-testid="actions">
@@ -97,7 +105,7 @@ function Dashboard({ data }: { data: ShopData }) {
                 title="Menga qarzdorlar"
                 description={debts.debtorCount > 0 ? `${debts.debtorCount} ta mijoz` : undefined}
                 action={
-                  <Link href="/debts" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400">
+                  <Link href="/customers?filter=debt" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400">
                     Hammasi <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 }
