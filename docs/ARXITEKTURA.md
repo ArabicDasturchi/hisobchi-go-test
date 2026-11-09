@@ -211,6 +211,7 @@ Daftar varag'i:
 
 Platforma egalari (asoschilar) uchun alohida ilova `apps/admin`, do'kon egasi ilovasi (`apps/web`) bilan aralashmaydi. Faqat o'qish.
 Migratsiya `011_platform_admin.sql`: `platform_admins` (bo'sh), `admin_audit` (append-only), `is_platform_admin()`, `admin_overview/shops/shop_detail/funnel/my_audit/shop_stage` (hammasi `SECURITY DEFINER`, birinchi qadamda admin tekshiruvi + audit, `anon` ga EXECUTE yo'q). Do'kon jadvallariga RLS orqali kirish ochilmaydi; admin faqat RPC natijasini (sonlar, holatlar) ko'radi. To'liq: [ADMIN.md](ADMIN.md).
+Ilova `apps/admin` (Next.js, alohida Vercel loyiha, port 3100): `src/lib/api.ts` (faqat `admin_*` RPC), `src/lib/demo.ts` (demo API, bir xil interfeys), `src/proxy.ts` (sessiya + `is_platform_admin()`), `src/app/(panel)/*` (ekranlar). `npm run demo:admin` Supabase'siz ishlaydi.
 
 
 ## Ochiq bosh sahifa (landing, 09.11.2026)

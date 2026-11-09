@@ -1,6 +1,6 @@
 # Admin panel (platforma egalari uchun)
 
-Holat (09.11.2026): **A1 tayyor** (migratsiya `011_platform_admin.sql` + SQL testlar + shu hujjat). Ilova (`apps/admin`) A2-A4 bosqichlarida.
+Holat (09.11.2026): **A1** (migratsiya `011_platform_admin.sql` + SQL testlar + shu hujjat) va **A2** (`apps/admin` skeleti, kirish, ruxsat himoyasi, demo, Umumiy ko'rinish) tayyor. Do'konlar, voronka, jurnal sahifalari A3-A4 da.
 Haqiqiy Supabase'da **sinalmagan**: SQL testlar lokal PostgreSQL emas, PGlite (WASM Postgres) da o'tdi; CI'da `supabase/tests/run_local.sh` haqiqiy PostgreSQL'da ishlaydi.
 
 Admin panel do'kon egasi ilovasidan (`apps/web`) alohida: faqat asoschilar, faqat o'qish.
@@ -68,3 +68,25 @@ Tekshirish: shu foydalanuvchi bilan kirib `select is_platform_admin();` → `tru
 ## Production'ga qo'llash
 
 `011` qo'shuvchi migratsiya (xavfli buyruq yo'q), `main` ga merge bo'lganda CI qo'llaydi (`docs/MIGRATSIYA-CI.md`). Merge va qo'llashni asoschi/arxitektor qiladi.
+
+## Ilova (`apps/admin`)
+
+Next.js 16 + React 19 + Tailwind 4, `apps/web` bilan bir xil stack, lekin alohida ilova va alohida sessiya (alohida domen). Umumiy kod `apps/web` dan ko'chirilmagan: admin o'zining kichik komponentlariga ega (`QARORLAR.md`).
+
+```bash
+npm run demo:admin          # http://localhost:3100  (soxta 6 do'kon, Supabase'siz; faqat dev serverda)
+npm run dev:admin           # haqiqiy rejim: apps/admin/.env.local kerak (.env.example)
+npm run build:admin
+npm run screenshots:admin   # docs/ekranlar/admin/ (telefon va kompyuter)
+```
+
+Kirish: email + parol (ro'yxatdan o'tish yo'q). `src/proxy.ts`: sessiya yo'q → `/login`; sessiya bor, lekin `is_platform_admin()` false → `/forbidden` («Ruxsat yo'q», «Chiqish» tugmasi). Bu birinchi qatlam; haqiqiy himoya RPC ichida.
+Ma'lumot faqat `admin_*` RPC orqali (`src/lib/api.ts`); jadvallarga to'g'ridan-to'g'ri so'rov yo'q (testda tekshiriladi).
+
+## Vercel (asoschi qiladi)
+
+1. Yangi loyiha `hisobchi-go-admin`, **Root Directory = `apps/admin`** (`vercel.json` tayyor).
+2. Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (faqat public kalit).
+3. Supabase → Auth → URL Configuration: admin domenini ruxsat ro'yxatiga qo'shing.
+4. `NEXT_PUBLIC_ADMIN_DEMO` production'da e'tiborga olinmaydi (demo orqali kirib bo'lmaydi).
+

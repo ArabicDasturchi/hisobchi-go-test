@@ -36,7 +36,7 @@ jobs:
       - name: Testlar
         run: npm test
 
-  # Veb panel yig'iladimi (Next.js build). Kalitsiz: sahifalar /setup'ga yo'naltiriladi, build baribir o'tadi.
+  # Veb panel va admin panel yig'iladimi (Next.js build). Kalitsiz: sahifalar /setup'ga yo'naltiriladi, build baribir o'tadi.
   web-build:
     name: Veb build
     runs-on: ubuntu-latest
@@ -52,6 +52,9 @@ jobs:
       - run: npm ci
       - name: Next.js build
         run: npm run build:web
+      # Admin panel (apps/admin): alohida Vercel loyihasi, lekin shu yerda yig'iladi. Kalitsiz build o'tadi.
+      - name: Admin panel build
+        run: npm run build:admin
 
   # Mobil ilova Metro bundle'ga yig'iladimi (import/sintaksis xatolarini telefonsiz ushlaydi)
   mobile-bundle:

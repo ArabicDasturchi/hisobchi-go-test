@@ -18,6 +18,8 @@ npm run demo             # http://localhost:3000 (kalitsiz, soxta ma'lumot, faqa
 
 Node yo'q bo'lsa: `winget install OpenJS.NodeJS.LTS` yoki nodejs.org.
 
+Admin panel demo: `npm run demo:admin` (http://localhost:3100, soxta ma'lumot), tafsilot: [ADMIN.md](ADMIN.md).
+
 Demo haqida: [scripts/demo-seed/README.md](../scripts/demo-seed/README.md). Windows'da `scripts/demo-seed/run.mjs` env'ni o'zi beradi, `VAR=1 buyruq` yozish shart emas.
 
 ## 2. Haqiqiy baza bilan veb (ixtiyoriy)
