@@ -207,6 +207,12 @@ Daftar varag'i:
 - **web**: `components/ledger/LedgerSheet.tsx` (bitta komponent, mijoz/ta'minotchi sozlamasi `lib/ledgerView.ts`), ulagichlar `CustomerLedger.tsx` / `SupplierLedger.tsx`, ma'lumot `lib/data/partnerLedger.ts` va `supplierPayments.ts`, ro'yxatlar `lib/customerBook.ts` / `lib/supplierBook.ts`. Yangi jadval va migratsiya yo'q.
 - **ruxsat**: `can(role, action)` (`lib/permissions.ts`) — yagona nuqta; rollar keyin qo'shilganda faqat shu jadval o'zgaradi.
 
+## Admin panel (ADMIN-1, 09.11.2026)
+
+Platforma egalari (asoschilar) uchun alohida ilova `apps/admin`, do'kon egasi ilovasi (`apps/web`) bilan aralashmaydi. Faqat o'qish.
+Migratsiya `011_platform_admin.sql`: `platform_admins` (bo'sh), `admin_audit` (append-only), `is_platform_admin()`, `admin_overview/shops/shop_detail/funnel/my_audit/shop_stage` (hammasi `SECURITY DEFINER`, birinchi qadamda admin tekshiruvi + audit, `anon` ga EXECUTE yo'q). Do'kon jadvallariga RLS orqali kirish ochilmaydi; admin faqat RPC natijasini (sonlar, holatlar) ko'radi. To'liq: [ADMIN.md](ADMIN.md).
+
+
 ## Ochiq bosh sahifa (landing, 09.11.2026)
 
 - `apps/web/src/app/page.tsx` (`/`) va `app/maxfiylik/` — server komponentlar, kirishsiz ochiq. Komponentlar: `src/components/landing/` (`Brand`, `Hero`, `Sections`, `Footer`, `LandingPage`). Landing `Logo.tsx` ni ishlatmaydi (u klient moduli).

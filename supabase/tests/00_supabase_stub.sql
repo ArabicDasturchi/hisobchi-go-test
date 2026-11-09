@@ -16,6 +16,14 @@ $$;
 CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
   SELECT coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
 $$;
+-- auth.users — Supabase'dagining kerakli ustunlari (011 platform_admins FK va admin RPC'lar o'qiydi). Faqat test uchun.
+CREATE TABLE IF NOT EXISTS auth.users (
+  id                 uuid PRIMARY KEY,
+  email              text,
+  raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  last_sign_in_at    timestamptz,
+  created_at         timestamptz NOT NULL DEFAULT now()
+);
 GRANT USAGE ON SCHEMA auth TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION auth.jwt() TO anon, authenticated;
