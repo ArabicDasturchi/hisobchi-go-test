@@ -2,6 +2,7 @@
 import { BarChart } from '@/components/BarChart';
 import { Card, EmptyState, ErrorBox, LoadingBlock, PageTitle, StatCard } from '@/components/ui';
 import { formatCount, shortDay } from '@/lib/format';
+import { OVERVIEW_LINKS } from '@/lib/links';
 import { useAsync } from '@/lib/useApi';
 
 export default function OverviewPage() {
@@ -16,10 +17,10 @@ export default function OverviewPage() {
       {data && !error && data.shops > 0 && (
         <div className="space-y-4 sm:space-y-6">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
-            <StatCard label="Do'konlar" value={formatCount(data.shops)} hint={`Bugun +${data.new_shops_today} · 7 kunda +${data.new_shops_7d} · 30 kunda +${data.new_shops_30d}`} />
-            <StatCard label="Foydalanuvchilar" value={formatCount(data.users)} hint="Ro'yxatdan o'tganlar" />
-            <StatCard label="Bugungi savdolar" value={formatCount(data.sales_today)} hint="Bekor qilinganlarsiz" />
-            <StatCard label="7 kunda faol do'konlar" value={formatCount(data.active_shops_7d)} hint={`${formatCount(data.shops)} tadan`} />
+            <StatCard href={OVERVIEW_LINKS.shops} label="Do'konlar" value={formatCount(data.shops)} hint={`Bugun +${data.new_shops_today} · 7 kunda +${data.new_shops_7d} · 30 kunda +${data.new_shops_30d}`} />
+            <StatCard href={OVERVIEW_LINKS.users} label="Foydalanuvchilar" value={formatCount(data.users)} hint="Ro'yxatdan o'tganlar" />
+            <StatCard href={OVERVIEW_LINKS.salesToday} label="Bugungi savdolar" value={formatCount(data.sales_today)} hint="Bekor qilinganlarsiz" />
+            <StatCard href={OVERVIEW_LINKS.active7d} label="7 kunda faol do'konlar" value={formatCount(data.active_shops_7d)} hint={`${formatCount(data.shops)} tadan`} />
           </div>
           <div className="grid gap-4 lg:grid-cols-2 sm:gap-6">
             <Card title="Savdolar soni (14 kun)">

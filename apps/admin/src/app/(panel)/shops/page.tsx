@@ -1,13 +1,18 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { StageBadge, StaleBadge } from '@/components/badges';
 import { Button, Card, EmptyState, ErrorBox, LoadingBlock, PageTitle } from '@/components/ui';
 import { formatCount, formatDate, timeAgo } from '@/lib/format';
+import { shopHref } from '@/lib/links';
+import { filterActive, parseShopsParams } from '@/lib/shopsView';
 import type { AdminShopRow, ShopsSort } from '@/lib/types';
 import { useAsync } from '@/lib/useApi';
 
 const PAGE_SIZE = 20;
+/** `admin_shops` eng ko'pi 200 qator qaytaradi; faol filtr shu oynada (oxirgi faollik bo'yicha tartiblangan) ishlaydi */
+const ACTIVE_WINDOW = 200;
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -27,10 +32,13 @@ function Owner({ row }: { row: AdminShopRow }) {
   );
 }
 
-export default function ShopsPage() {
+function ShopsView() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const { activeDays, sort: urlSort } = parseShopsParams((k) => params.get(k));
   const [input, setInput] = useState('');
   const search = useDebounced(input.trim(), 300);
-  const [sort, setSort] = useState<ShopsSort>('activity');
+  const [sort, setSort] = useState<ShopsSort>(urlSort);
   const [page, setPage] = useState(0);
 
   // Qidiruv yoki tartib o'zgarsa birinchi sahifaga qaytish (hodisa ichida, effektda emas)
@@ -43,12 +51,31 @@ export default function ShopsPage() {
     setPage(0);
   };
 
-  const { data, error, loading, reload } = useAsync(
-    (api) => api.shops({ search, sort, limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
-    [search, sort, page],
+  const raw = useAsync(
+    (api) =>
+      activeDays
+        ? api.shops({ search, sort: 'activity', limit: ACTIVE_WINDOW, offset: 0 })
+        : api.shops({ search, sort, limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+    [search, sort, page, activeDays],
   );
+  const { error, loading, reload } = raw;
+
+  // Faol filtr: klientda (SQL'ga tegilmagan), so'ng klientda sahifalanadi
+  const data = useMemo(() => {
+    if (!raw.data) return null;
+    if (!activeDays) return raw.data;
+    const rows = filterActive(raw.data.rows, activeDays);
+    return { total: rows.length, rows: rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) };
+  }, [raw.data, activeDays, page]);
 
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  const goRow = (id: string) => router.push(shopHref(id));
+  const onRowKey = (e: KeyboardEvent, id: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      goRow(id);
+    }
+  };
 
   return (
     <>
@@ -80,10 +107,19 @@ export default function ShopsPage() {
         </div>
       </div>
 
+      {activeDays && (
+        <p className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="rounded-full bg-ok-bg px-3 py-1 font-semibold text-ok-fg">Faqat {activeDays} kunda faol do&apos;konlar</span>
+          <Link href="/shops" className="font-medium text-accent underline-offset-2 hover:underline">
+            Hammasini ko&apos;rsatish
+          </Link>
+        </p>
+      )}
+
       {loading && !data && <LoadingBlock rows={4} />}
       {error && <ErrorBox message={error} onRetry={reload} />}
       {data && !error && data.total === 0 && (
-        <EmptyState title={search ? 'Hech narsa topilmadi' : "Hali do'kon yo'q"} hint={search ? "Boshqa so'z bilan qidirib ko'ring." : "Birinchi do'kon yaratilgach, shu yerda ko'rinadi."} />
+        <EmptyState title={search || activeDays ? 'Hech narsa topilmadi' : "Hali do'kon yo'q"} hint={search || activeDays ? "Boshqa so'z yoki filtr bilan urinib ko'ring." : "Birinchi do'kon yaratilgach, shu yerda ko'rinadi."} />
       )}
 
       {data && !error && data.total > 0 && (
@@ -105,9 +141,18 @@ export default function ShopsPage() {
               </thead>
               <tbody>
                 {data.rows.map((r) => (
-                  <tr key={r.id} className={`border-b border-line last:border-0 hover:bg-subtle ${r.is_stale ? 'bg-warn-bg/40' : ''}`}>
+                  <tr
+                    key={r.id}
+                    tabIndex={0}
+                    onClick={() => goRow(r.id)}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget) onRowKey(e, r.id);
+                    }}
+                    aria-label={`${r.name} sahifasini ochish`}
+                    className={`cursor-pointer border-b border-line last:border-0 hover:bg-subtle focus-visible:bg-subtle focus-visible:outline-offset-[-2px] ${r.is_stale ? 'bg-warn-bg/40' : ''}`}
+                  >
                     <td className="px-4 py-3 font-semibold">
-                      <Link href={`/shops/${r.id}`} className="underline-offset-2 hover:underline">
+                      <Link href={shopHref(r.id)} onClick={(e) => e.stopPropagation()} className="underline-offset-2 hover:underline">
                         {r.name}
                       </Link>
                     </td>
@@ -135,7 +180,7 @@ export default function ShopsPage() {
           <ul className="space-y-3 sm:hidden">
             {data.rows.map((r) => (
               <li key={r.id}>
-                <Link href={`/shops/${r.id}`} className={`block rounded-2xl border border-line p-4 ${r.is_stale ? 'bg-warn-bg/40' : 'bg-surface'}`}>
+                <Link href={shopHref(r.id)} className={`block cursor-pointer rounded-2xl border border-line p-4 transition hover:border-accent ${r.is_stale ? 'bg-warn-bg/40' : 'bg-surface'}`}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-base font-semibold">{r.name}</span>
                     <StageBadge stage={r.stage} short />
@@ -174,5 +219,14 @@ export default function ShopsPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function ShopsPage() {
+  // useSearchParams build vaqtida Suspense chegarasini talab qiladi
+  return (
+    <Suspense fallback={<LoadingBlock rows={4} />}>
+      <ShopsView />
+    </Suspense>
   );
 }

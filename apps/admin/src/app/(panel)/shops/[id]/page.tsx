@@ -6,6 +6,8 @@ import { StageBadge, StaleBadge } from '@/components/badges';
 import { Card, ErrorBox, LoadingBlock, PageTitle, StatCard } from '@/components/ui';
 import { formatCount, formatDate, formatDateTime, shortDay, timeAgo } from '@/lib/format';
 import { describeSteps, stoppedAt, type StepState } from '@/lib/shopSteps';
+import { recommendation } from '@/lib/shopsView';
+import { STAGE_LABELS } from '@/lib/stage';
 import { useAsync } from '@/lib/useApi';
 
 const STATE_MARK: Record<StepState, { mark: string; cls: string; note: string }> = {
@@ -39,7 +41,19 @@ export default function ShopDetailPage() {
             <span>Ochilgan {formatDate(data.created_at)}</span>
             <span>· Oxirgi faollik: {timeAgo(data.last_activity_at)}</span>
           </div>
-          {stoppedAt(data.stage) && <p className="text-sm font-medium text-warn-fg">{stoppedAt(data.stage)}</p>}
+
+          <Card title={`Bosqich: ${data.stage}/6 · ${STAGE_LABELS[data.stage]}`}>
+            <ol className="flex gap-1.5" aria-label={`6 qadamdan ${data.stage}-qadamga yetgan`}>
+              {([1, 2, 3, 4, 5, 6] as const).map((n) => (
+                <li key={n} className={`h-2.5 flex-1 rounded-full ${n <= data.stage ? 'bg-accent' : 'bg-subtle'}`} title={`${n}. ${STAGE_LABELS[n]}`} />
+              ))}
+            </ol>
+            {stoppedAt(data.stage) && <p className="mt-3 text-sm font-semibold text-warn-fg">{stoppedAt(data.stage)}</p>}
+            <p className="mt-1 text-sm">
+              <span className="font-semibold">Tavsiya: </span>
+              {recommendation(data.stage, data.is_stale)}
+            </p>
+          </Card>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 sm:gap-4">
             <StatCard label="Tovar" value={formatCount(data.counts.products)} />

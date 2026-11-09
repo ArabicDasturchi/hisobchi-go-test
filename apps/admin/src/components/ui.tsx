@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 /** Kichik umumiy komponentlar (apps/web dan alohida: admin panel o'zining minimal to'plamiga ega, QARORLAR.md) */
@@ -17,13 +18,23 @@ export function Card({ title, action, children, className = '' }: { title?: stri
   );
 }
 
-export function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-      <p className="text-xs font-medium text-muted sm:text-sm">{label}</p>
+export function StatCard({ label, value, hint, href }: { label: string; value: string; hint?: string; href?: string }) {
+  const inner = (
+    <>
+      <p className="flex items-center justify-between gap-2 text-xs font-medium text-muted sm:text-sm">
+        <span>{label}</span>
+        {href && <span aria-hidden className="text-base leading-none">→</span>}
+      </p>
       <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">{value}</p>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
-    </div>
+    </>
+  );
+  const base = 'block rounded-2xl border border-line bg-surface p-4 sm:p-5';
+  if (!href) return <div className={base}>{inner}</div>;
+  return (
+    <Link href={href} className={`${base} cursor-pointer transition hover:border-accent hover:bg-subtle focus-visible:border-accent`}>
+      {inner}
+    </Link>
   );
 }
 
