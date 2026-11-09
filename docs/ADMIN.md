@@ -1,6 +1,6 @@
 # Admin panel (platforma egalari uchun)
 
-Holat (09.11.2026): **A1** (migratsiya `011_platform_admin.sql` + SQL testlar + shu hujjat) va **A2** (`apps/admin` skeleti, kirish, ruxsat himoyasi, demo, Umumiy ko'rinish) tayyor. Do'konlar, voronka, jurnal sahifalari A3-A4 da.
+Holat (09.11.2026): **A3** (Do'konlar ro'yxati, do'kon sahifasi) ham tayyor. **A1** (migratsiya `011_platform_admin.sql` + SQL testlar + shu hujjat) va **A2** (`apps/admin` skeleti, kirish, ruxsat himoyasi, demo, Umumiy ko'rinish) tayyor. Do'konlar, voronka, jurnal sahifalari A3-A4 da.
 Haqiqiy Supabase'da **sinalmagan**: SQL testlar lokal PostgreSQL emas, PGlite (WASM Postgres) da o'tdi; CI'da `supabase/tests/run_local.sh` haqiqiy PostgreSQL'da ishlaydi.
 
 Admin panel do'kon egasi ilovasidan (`apps/web`) alohida: faqat asoschilar, faqat o'qish.

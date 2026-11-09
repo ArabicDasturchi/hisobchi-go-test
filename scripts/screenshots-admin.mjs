@@ -87,6 +87,8 @@ try {
           continue;
         }
         await target.click();
+        await page.waitForURL((u) => u.pathname !== route.split('?')[0], { timeout: 8000 }).catch(() => {});
+        await page.waitForTimeout(500);
         await page.waitForLoadState('networkidle');
         await page.waitForFunction(() => !document.body.innerText.includes('Yuklanmoqda'), null, { timeout: 20_000 }).catch(() => {});
       }
