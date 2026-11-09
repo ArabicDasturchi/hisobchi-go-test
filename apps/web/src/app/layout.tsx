@@ -4,11 +4,14 @@ import Script from 'next/script';
 import { AuthProvider } from '@/components/AuthProvider';
 import { ThemeProvider, themeInitScript } from '@/components/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
+import { SITE_URL } from '@/lib/env';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin', 'latin-ext', 'cyrillic'], variable: '--font-inter', display: 'swap' });
 
 export const metadata: Metadata = {
+  // Open Graph va canonical havolalari mutlaq bo'lishi uchun (faqat NEXT_PUBLIC_SITE_URL berilganda)
+  ...(SITE_URL ? { metadataBase: new URL(SITE_URL) } : {}),
   title: { default: 'Hisobchi Go', template: '%s · Hisobchi Go' },
   description: 'Savdo, mijozlar, qarz va to\'lovlar hisobi — kichik biznes uchun.',
   icons: { icon: '/icon.svg' },

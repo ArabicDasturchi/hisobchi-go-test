@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { DEMO_MODE, SUPABASE_ANON_KEY, SUPABASE_URL, supabaseConfigured } from './lib/env';
 import { loginNextFor } from './lib/oauthConsent';
+import { decideLanding } from './lib/rootRoute';
 
 /** Kirishsiz ochiladigan sahifalar */
 const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/check-email', '/auth/'];
@@ -14,6 +15,12 @@ function isPublic(path: string) {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  // Ochiq bosh sahifa (landing) va unga tegishli yo'llar
+  const early = decideLanding(path, { demo: DEMO_MODE, configured: supabaseConfigured, signedIn: false });
+  // Sozlangan (demo emas) rejimda '/' sessiyaga bog'liq: pastda getUser() dan keyin hal qilinadi
+  const rootNeedsAuth = path === '/' && supabaseConfigured && !DEMO_MODE;
+  if (early === 'pass' && !rootNeedsAuth) return NextResponse.next();
+  if (early === 'dashboard') return NextResponse.redirect(new URL('/dashboard', request.url));
   if (DEMO_MODE) {
     // Demo: sessiya doim "kirgan" (soxta klient), Supabase'ga murojaat yo'q
     if (GUEST_ONLY.includes(path) || path === '/setup') return NextResponse.redirect(new URL('/dashboard', request.url));
@@ -50,6 +57,8 @@ export async function proxy(request: NextRequest) {
     return res;
   };
 
+  // '/' : kirgan foydalanuvchi — dashboard, kirmagan — landing (yuqorida o'tgan)
+  if (path === '/') return user ? redirect('/dashboard') : response;
   if (!user && !isPublic(path) && path !== '/setup') return redirect('/login');
   if (user && GUEST_ONLY.includes(path)) return redirect('/dashboard');
   return response;

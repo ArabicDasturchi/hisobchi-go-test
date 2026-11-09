@@ -1,7 +1,9 @@
 'use client';
 import type { User } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { supabaseConfigured } from '@/lib/env';
+import { isLandingPath } from '@/lib/rootRoute';
 import { getSupabase } from '@/lib/supabase/client';
 
 interface AuthCtx {
@@ -15,10 +17,13 @@ const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  // Ochiq landing sahifalarda sessiya so'rovi kerak emas (tez yuklanish; sozlanmagan muhitda ham xato bermaydi)
+  const skip = isLandingPath(usePathname()) || !supabaseConfigured;
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (skip) return;
     const sb = getSupabase();
     let active = true;
     // Sessiyani tiklash: getUser() tokenni serverda tekshiradi (muddati o'tgan/bekor qilingan sessiya qabul qilinmaydi)
@@ -40,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       sub.subscription.unsubscribe();
     };
-  }, [router]);
+  }, [router, skip]);
 
   const signOut = useCallback(async () => {
     // 'local': faqat shu brauzer sessiyasi. Standart 'global' mobil ilovadagi sessiyani ham bekor qilardi
@@ -51,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.refresh();
   }, [router]);
 
-  return <Ctx.Provider value={{ user, loading, signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading: skip ? false : loading, signOut }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth(): AuthCtx {

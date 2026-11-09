@@ -206,3 +206,11 @@ Daftar varag'i:
 - **ikkinchi yo'l**: PostgreSQL `partner_statement` (butun davr Ostatka'si); mos kelmasa varaq yozishni to'xtatadi. SQL'ga yetib bo'lmasa core `partnerBalance` bilan mahalliy tekshiruv.
 - **web**: `components/ledger/LedgerSheet.tsx` (bitta komponent, mijoz/ta'minotchi sozlamasi `lib/ledgerView.ts`), ulagichlar `CustomerLedger.tsx` / `SupplierLedger.tsx`, ma'lumot `lib/data/partnerLedger.ts` va `supplierPayments.ts`, ro'yxatlar `lib/customerBook.ts` / `lib/supplierBook.ts`. Yangi jadval va migratsiya yo'q.
 - **ruxsat**: `can(role, action)` (`lib/permissions.ts`) — yagona nuqta; rollar keyin qo'shilganda faqat shu jadval o'zgaradi.
+
+## Ochiq bosh sahifa (landing, 09.11.2026)
+
+- `apps/web/src/app/page.tsx` (`/`) va `app/maxfiylik/` — server komponentlar, kirishsiz ochiq. Komponentlar: `src/components/landing/` (`Brand`, `Hero`, `Sections`, `Footer`, `LandingPage`). Landing `Logo.tsx` ni ishlatmaydi (u klient moduli).
+- Yo'naltirish: `src/lib/rootRoute.ts` (`decideLanding`, sof funksiya, testlangan) va `src/proxy.ts`. Kirgan foydalanuvchi `/` dan `/dashboard` ga o'tadi; ochiq yo'llar ro'yxati (`/`, `/maxfiylik`, `/robots.txt`, `/sitemap.xml`, `/opengraph-image`) shu faylda, boshqa sahifalar himoyalangan.
+- SEO: `app/robots.ts`, `app/sitemap.ts`, `app/opengraph-image.tsx` (1200×630), sahifa metadata'si va FAQ uchun JSON-LD. Kuzatuv skripti yo'q.
+- Rasmlar: `docs/ekranlar` dagi demo skrinshotlardan `node scripts/landing-images.mjs` bilan qirqilib WebP qilinadi (`public/landing/`), `next/image` orqali beriladi. Landing skrinshotlari: `scripts/landing-screenshots.mjs` → `docs/ekranlar/sayt/`.
+- Aloqa: `lib/contact.ts`, env `NEXT_PUBLIC_CONTACT_TELEGRAM`, `NEXT_PUBLIC_CONTACT_PHONE` (bo'sh bo'lsa tugma yo'q).

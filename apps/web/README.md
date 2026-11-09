@@ -33,6 +33,8 @@ Tekshiruvlar (`apps/web` ichida): `npm run typecheck`, `npm run lint`, `npm test
 | `NEXT_PUBLIC_SUPABASE_URL` | ha | Supabase loyiha URL'i |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ha | **Public** (publishable/anon) kalit. Service-role kaliti hech qachon bu yerga va hech qachon `NEXT_PUBLIC_*` nomi bilan yozilmaydi |
 | `NEXT_PUBLIC_SITE_URL` | yo'q | Email havolalari qaytadigan origin. Bo'sh bo'lsa — sahifa ochilgan joriy origin |
+| `NEXT_PUBLIC_CONTACT_TELEGRAM` | yo'q | Landing aloqa tugmasi: `@nom` yoki `https://t.me/nom`. Bo'sh bo'lsa tugma ko'rinmaydi |
+| `NEXT_PUBLIC_CONTACT_PHONE` | yo'q | Landing aloqa tugmasi: `+998...`. Bo'sh bo'lsa tugma ko'rinmaydi |
 
 `.env.local` git'ga tushmaydi (`apps/web/.gitignore` va ildizdagi `.gitignore`).
 `NEXT_PUBLIC_*` qiymatlar **build vaqtida** bundle'ga joylanadi — o'zgartirgandan keyin qayta build (Vercel'da Redeploy) kerak.
