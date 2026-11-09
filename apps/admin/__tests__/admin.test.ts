@@ -179,3 +179,11 @@ describe('demo ma\'lumot', () => {
     expect(JSON.stringify(rows)).not.toContain('maxfiy@email.test');
   });
 });
+
+describe('voronka demo: to\'xtaganlar ro\'yxati bosqichga mos', () => {
+  it("3-bosqichda faqat Nilufar; barcha ro'yxatlarda faqat id va nom", () => {
+    const f = demoFunnel(NOW);
+    expect(f.stuck['3'].map((s) => s.name)).toEqual(['Nilufar kiyim']);
+    for (const list of Object.values(f.stuck)) for (const s of list) expect(Object.keys(s).sort()).toEqual(['id', 'name']);
+  });
+});

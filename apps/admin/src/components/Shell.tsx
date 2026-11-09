@@ -9,6 +9,8 @@ import { useTheme } from './ThemeProvider';
 export const NAV: { href: string; label: string }[] = [
   { href: '/overview', label: "Umumiy ko'rinish" },
   { href: '/shops', label: "Do'konlar" },
+  { href: '/funnel', label: 'Voronka' },
+  { href: '/audit', label: 'Jurnal' },
 ];
 
 export function ThemeToggle() {
