@@ -1,11 +1,13 @@
 'use client';
-import { AlertTriangle, ArrowRight, Banknote, BarChart3, Boxes, PackagePlus, Plus, Receipt, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Banknote, BarChart3, Boxes, PackagePlus, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useMemo, useState, type ReactNode } from 'react';
 import { TrendChart, type ChartSeries } from '@/components/charts/TrendChart';
 import { PaymentModal } from '@/components/forms/PaymentModal';
 import { DataGate, Money, StatCard, StatusBadge } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
+import { SaleWorkspace } from '@/components/sale/SaleWorkspace';
 import { Avatar, Button, Card, CardHeader, EmptyState, LinkButton, PageHeader, Segmented } from '@/components/ui/primitives';
 import { useBooks } from '@/components/useBooks';
 import { uz } from '@/i18n/uz';
@@ -20,7 +22,17 @@ const CHART_SERIES: readonly ChartSeries[] = [
   { key: 'profit', label: 'Foyda', color: 'var(--series-2)' },
 ];
 
+function KpiLink({ href, label, value }: { href: string; label: string; value: ReactNode }) {
+  return (
+    <Link href={href} className="block min-h-14 rounded-xl border border-line bg-surface px-3.5 py-2.5 transition-colors hover:border-emerald-300/60 dark:hover:border-emerald-500/30">
+      <span className="block text-[13px] text-muted">{label}</span>
+      <span className="block truncate text-lg font-semibold tracking-tight text-fg">{value}</span>
+    </Link>
+  );
+}
+
 function Dashboard({ data }: { data: ShopData }) {
+  const initialCustomer = useSearchParams().get('customer');
   const { balances, customerById, membership } = useShop();
   const { data: books } = useBooks();
   const [range, setRange] = useState<Range>('7');
@@ -61,11 +73,20 @@ function Dashboard({ data }: { data: ShopData }) {
         }
       />
 
-      {/* 1. Asosiy harakat */}
-      <div className="grid gap-2 sm:grid-cols-3" data-testid="actions">
-        <LinkButton href="/sales/new" size="lg" className="h-14 text-base sm:col-span-1" icon={<Plus className="h-5 w-5" />}>
-          {uz.nav.newSale}
-        </LinkButton>
+      {/* 1. Ixcham ko'rsatkichlar (bosiladi) */}
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" data-testid="kpis">
+        <KpiLink href="/sales" label="Bugungi savdo" value={<Money value={today.sales} />} />
+        <KpiLink href="/customers?filter=debt" label="Qarz (jami)" value={<Money value={debts.owedToMe} />} />
+        <KpiLink href="/dashboard/report" label="Foyda (bugun)" value={<Money value={today.profit} signed />} />
+        <KpiLink href="/warehouse" label="Omborda kam" value={`${model.lowStock.length} ta tovar`} />
+      </div>
+
+      {/* 2. Yagona kiritish oynasi: savdo va to'lov */}
+      <div className="mx-auto mt-5 w-full max-w-[780px]">
+        <SaleWorkspace data={data} initialCustomerId={initialCustomer} />
+      </div>
+
+      <div className="mt-5 grid gap-2 sm:grid-cols-2" data-testid="actions">
         <Button size="lg" variant="outline" className="h-14" onClick={() => setPayingFor(null)} icon={<Banknote className="h-4 w-4" />}>
           To&apos;lov oldim
         </Button>
@@ -273,5 +294,13 @@ function Dashboard({ data }: { data: ShopData }) {
 }
 
 export default function DashboardPage() {
-  return <DataGate>{(data) => <Dashboard data={data} />}</DataGate>;
+  return (
+    <DataGate>
+      {(data) => (
+        <Suspense>
+          <Dashboard data={data} />
+        </Suspense>
+      )}
+    </DataGate>
+  );
 }

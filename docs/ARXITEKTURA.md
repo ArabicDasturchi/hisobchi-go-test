@@ -221,3 +221,10 @@ Ilova `apps/admin` (Next.js, alohida Vercel loyiha, port 3100): `src/lib/api.ts`
 - SEO: `app/robots.ts`, `app/sitemap.ts`, `app/opengraph-image.tsx` (1200×630), sahifa metadata'si va FAQ uchun JSON-LD. Kuzatuv skripti yo'q.
 - Rasmlar: `docs/ekranlar` dagi demo skrinshotlardan `node scripts/landing-images.mjs` bilan qirqilib WebP qilinadi (`public/landing/`), `next/image` orqali beriladi. Landing skrinshotlari: `scripts/landing-screenshots.mjs` → `docs/ekranlar/sayt/`.
 - Aloqa: `lib/contact.ts`, env `NEXT_PUBLIC_CONTACT_TELEGRAM`, `NEXT_PUBLIC_CONTACT_PHONE` (bo'sh bo'lsa tugma yo'q).
+
+## Asosiy oyna (yagona kiritish oynasi, 09.11.2026)
+Bosh sahifa (`/dashboard`) tepasida `SaleWorkspace` ([components/sale/](../apps/web/src/components/sale/)). Qatlamlar:
+- **Sof mantiq** (`apps/web/src/lib`, testlanadi, UI'siz): `translit.ts` (Kirill→Lotin qidiruv kaliti), `productSearch.ts` (`searchProductsAll`, `toggleSelection`, `applySelection`), `lineStatus.ts` (`lineStatus` ok/sariq, `summarizeLines`). Summa faqat mavjud `buildSalePlan`/`lineTotal`/`post_sale`; yangi formula yo'q.
+- **Komponentlar**: `SaleComposer` (yumaloq kiritish), `SuggestionPanel` (ko'p tanlash), `SaleLineCard`, `SaleSummaryBar`, `CustomerChip`, `ConfirmSaleModal`, `SaleResultCard`.
+- **Hooklar**: `useSaleSubmit` (eski /sales/new oqimi: kalitlar, qulflash, `payment_failed`, chek), `usePaymentSubmit` (To'lov amali), `useKeyboardInset` (ekran klaviaturasi).
+- Hamma ma'lumot xotiradagi katalogdan (`ShopDataProvider`): takliflar uchun serverga so'rov yo'q. Saqlash faqat tasdiq oynasidagi «Saqlash» bosilganda. `/sales/new` → `/dashboard` yo'naltirish.
