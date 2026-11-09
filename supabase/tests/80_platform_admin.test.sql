@@ -186,7 +186,7 @@ SELECT pg_temp.assert_eq((admin_shops('example.test', 1, 0, 'new') -> 'rows' -> 
 SELECT pg_temp.expect_error($$SELECT admin_shops(NULL, 10, 0, 'summa')$$, 'invalid_sort');
 
 INSERT INTO r VALUES ('dt', admin_shop_detail((SELECT v FROM t WHERE k = 'shopA')));
-SELECT pg_temp.assert_eq(pg_temp.keys((SELECT v FROM r WHERE k = 'dt')), 'counts,created_at,daily_sales,id,is_stale,last_activity_at,name,owner_email,owner_name,stage,steps', 'admin_shop_detail kalitlari');
+SELECT pg_temp.assert_eq(pg_temp.keys((SELECT v FROM r WHERE k = 'dt')), 'activity,counts,created_at,daily_sales,id,is_stale,last_activity_at,name,owner_email,owner_name,stage,steps', 'admin_shop_detail kalitlari');
 SELECT pg_temp.assert_eq(pg_temp.keys((SELECT v -> 'counts' FROM r WHERE k = 'dt')), 'customers,products,purchases,sales,sales_7d,suppliers', 'detail counts kalitlari (summa yo''q)');
 SELECT pg_temp.assert_eq((SELECT jsonb_array_length(v -> 'daily_sales') FROM r WHERE k = 'dt'), 14, 'detail: 14 kunlik qator');
 SELECT pg_temp.assert_eq((SELECT (v -> 'daily_sales' -> 13 ->> 'sales')::int FROM r WHERE k = 'dt'), 6, 'detail: bugun 6 savdo');

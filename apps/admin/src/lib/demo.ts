@@ -48,6 +48,10 @@ interface DemoShop {
   firstSupplierH: number | null;
   firstPurchaseH: number | null;
   firstSaleH: number | null;
+  payments: number;
+  supplierPayments: number;
+  draftsPending: number;
+  draftsAccepted: number;
 }
 
 export const DEMO_USERS = 8;
@@ -57,37 +61,37 @@ export const DEMO_SHOPS: DemoShop[] = [
     id: 'd0000000-0000-4000-8000-000000000001', name: 'Bahor oziq-ovqat', owner: 'Karim Rahimov', email: 'karim@example.test',
     createdDaysAgo: 120, lastActivityHoursAgo: 0.3, products: 84, customers: 31, suppliers: 7, sales: 412, purchases: 22,
     daily: [14, 18, 12, 20, 16, 9, 11, 15, 19, 17, 21, 14, 18, 16],
-    firstProductH: 2, firstSupplierH: 26, firstPurchaseH: 30, firstSaleH: 52,
+    firstProductH: 2, firstSupplierH: 26, firstPurchaseH: 30, firstSaleH: 52, payments: 96, supplierPayments: 5, draftsPending: 2, draftsAccepted: 19,
   },
   {
     id: 'd0000000-0000-4000-8000-000000000002', name: 'Dilshod ulgurji', owner: 'Dilshod Aliyev', email: 'dilshod@example.test',
     createdDaysAgo: 60, lastActivityHoursAgo: 5, products: 51, customers: 17, suppliers: 4, sales: 133, purchases: 8,
     daily: [4, 0, 6, 5, 3, 2, 0, 4, 3, 1, 5, 4, 2, 3],
-    firstProductH: 5, firstSupplierH: 70, firstPurchaseH: 96, firstSaleH: 120,
+    firstProductH: 5, firstSupplierH: 70, firstPurchaseH: 96, firstSaleH: 120, payments: 40, supplierPayments: 3, draftsPending: 0, draftsAccepted: 6,
   },
   {
     id: 'd0000000-0000-4000-8000-000000000003', name: 'Madina market', owner: 'Madina Karimova', email: 'madina@example.test',
     createdDaysAgo: 28, lastActivityHoursAgo: 24 * 9, products: 23, customers: 6, suppliers: 2, sales: 12, purchases: 1,
     daily: [2, 3, 1, 0, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0],
-    firstProductH: 3, firstSupplierH: 30, firstPurchaseH: 50, firstSaleH: 200,
+    firstProductH: 3, firstSupplierH: 30, firstPurchaseH: 50, firstSaleH: 200, payments: 5, supplierPayments: 1, draftsPending: 1, draftsAccepted: 2,
   },
   {
     id: 'd0000000-0000-4000-8000-000000000004', name: 'Sardor savdo', owner: 'Sardor Yusupov', email: 'sardor@example.test',
     createdDaysAgo: 6, lastActivityHoursAgo: 48, products: 15, customers: 2, suppliers: 3, sales: 0, purchases: 2,
     daily: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    firstProductH: 1, firstSupplierH: 20, firstPurchaseH: 44, firstSaleH: null,
+    firstProductH: 1, firstSupplierH: 20, firstPurchaseH: 44, firstSaleH: null, payments: 0, supplierPayments: 2, draftsPending: 0, draftsAccepted: 0,
   },
   {
     id: 'd0000000-0000-4000-8000-000000000005', name: 'Nilufar kiyim', owner: 'Nilufar Saidova', email: 'nilufar@example.test',
     createdDaysAgo: 12, lastActivityHoursAgo: 24 * 11, products: 9, customers: 0, suppliers: 1, sales: 0, purchases: 0,
     daily: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    firstProductH: 4, firstSupplierH: 8, firstPurchaseH: null, firstSaleH: null,
+    firstProductH: 4, firstSupplierH: 8, firstPurchaseH: null, firstSaleH: null, payments: 0, supplierPayments: 0, draftsPending: 0, draftsAccepted: 0,
   },
   {
     id: 'd0000000-0000-4000-8000-000000000006', name: "Yangi do'kon", owner: 'Olim Hasanov', email: 'olim@example.test',
     createdDaysAgo: 1, lastActivityHoursAgo: 22, products: 0, customers: 0, suppliers: 0, sales: 0, purchases: 0,
     daily: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    firstProductH: null, firstSupplierH: null, firstPurchaseH: null, firstSaleH: null,
+    firstProductH: null, firstSupplierH: null, firstPurchaseH: null, firstSaleH: null, payments: 0, supplierPayments: 0, draftsPending: 0, draftsAccepted: 0,
   },
 ];
 
@@ -200,6 +204,7 @@ export function demoShopDetail(now: Date, id: string): AdminShopDetail {
     last_activity_at: row.last_activity_at,
     is_stale: row.is_stale,
     stage: row.stage,
+    activity: { payments: s.payments, supplier_payments: s.supplierPayments, drafts_pending: s.draftsPending, drafts_accepted: s.draftsAccepted },
     counts: { products: s.products, customers: s.customers, suppliers: s.suppliers, sales: s.sales, purchases: s.purchases, sales_7d: f.sales7d },
     daily_sales: keys.map((day, i) => ({ day, sales: s.daily[i] ?? 0 })),
     steps,

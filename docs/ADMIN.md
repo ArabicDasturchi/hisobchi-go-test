@@ -33,7 +33,7 @@ Bu `supabase/tests/80_platform_admin.test.sql` da tekshiriladi (natija kalitlari
 | `is_platform_admin()` | boolean |
 | `admin_overview(p_days default 14)` | `shops, users, new_shops_today/7d/30d, sales_today, active_shops_7d, daily[{day,new_shops,sales}]` |
 | `admin_shops(search, limit, offset, sort)` | `{total, rows[{id,name,owner_name,owner_email,created_at,last_activity_at,is_stale,products,customers,suppliers,sales,purchases,stage}]}`; `sort` = `activity` \| `new` |
-| `admin_shop_detail(shop_id)` | `{...do'kon, counts{...,sales_7d}, daily_sales[14 kun], steps[{key,at}]}` |
+| `admin_shop_detail(shop_id)` | `{...do'kon, counts{...,sales_7d}, activity{payments,supplier_payments,drafts_pending,drafts_accepted} (012), daily_sales[14 kun], steps[{key,at}]}` |
 | `admin_funnel()` | `{users, shops, users_without_shop, steps[{key,stage,count,pct_of_registered,pct_of_prev}], stuck{"1".."5": [{id,name}]}}` |
 | `admin_my_audit(limit)` | adminning o'z harakatlari (oxirgi 100) |
 | `admin_shop_stage(shop_id)` | int (1..6) |
@@ -90,3 +90,6 @@ Ma'lumot faqat `admin_*` RPC orqali (`src/lib/api.ts`); jadvallarga to'g'ridan-t
 3. Supabase → Auth → URL Configuration: admin domenini ruxsat ro'yxatiga qo'shing.
 4. `NEXT_PUBLIC_ADMIN_DEMO` production'da e'tiborga olinmaydi (demo orqali kirib bo'lmaydi).
 
+## Migratsiya 012
+
+`012_admin_shop_activity.sql`: faqat `admin_shop_detail` qayta yoziladi (imzo o'sha, eski maydonlar o'zgarmagan), yangi kalit `activity`: to'lov sonlari (bekor qilinganlarsiz) va agent qoralamalari (`draft` = kutayotgan, `accepted` = tasdiqlangan; rad etilganlar sanalmaydi). Faqat sonlar. 012 qo'llanmaguncha ilova do'kon sahifasida bu to'rt kartani ko'rsatmaydi (kalit ixtiyoriy).

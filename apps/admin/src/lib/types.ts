@@ -64,6 +64,11 @@ export interface AdminShopDetail {
   is_stale: boolean;
   stage: Stage;
   counts: { products: number; customers: number; suppliers: number; sales: number; purchases: number; sales_7d: number };
+  /**
+   * To'lov va qoralama SONLARI (migratsiya 012). 012 qo'llanmaguncha server bu kalitni qaytarmaydi, shuning uchun ixtiyoriy.
+   * payments = mijoz to'lovlari, supplier_payments = ta'minotchiga to'lovlar (bekor qilinganlarsiz); drafts_* = agent qoralamalari.
+   */
+  activity?: { payments: number; supplier_payments: number; drafts_pending: number; drafts_accepted: number };
   daily_sales: { day: string; sales: number }[];
   /** Har qadamning birinchi bajarilgan vaqti; bajarilmagan bo'lsa null */
   steps: { key: StepKey; at: string | null }[];

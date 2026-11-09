@@ -64,6 +64,15 @@ export default function ShopDetailPage() {
             <StatCard label="7 kunda savdo" value={formatCount(data.counts.sales_7d)} />
           </div>
 
+          {data.activity && (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4" data-testid="activity">
+              <StatCard label="Mijoz to'lovlari" value={formatCount(data.activity.payments)} hint="Bekor qilinganlarsiz" />
+              <StatCard label="Ta'minotchiga to'lov" value={formatCount(data.activity.supplier_payments)} hint="Bekor qilinganlarsiz" />
+              <StatCard label="Qoralama: kutayotgan" value={formatCount(data.activity.drafts_pending)} hint="Agent yozgan, tasdiqlanmagan" />
+              <StatCard label="Qoralama: tasdiqlangan" value={formatCount(data.activity.drafts_accepted)} />
+            </div>
+          )}
+
           <div className="grid gap-4 lg:grid-cols-2 sm:gap-6">
             <Card title="Savdolar soni (14 kun)">
               <BarChart color="var(--series-1)" unit="savdo" points={data.daily_sales.map((d) => ({ label: shortDay(d.day), value: d.sales }))} />

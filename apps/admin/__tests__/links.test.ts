@@ -43,3 +43,14 @@ describe('recommendation', () => {
     expect(recommendation(3, false)).not.toContain('Faolsiz');
   });
 });
+
+describe('do\'kon faoliyati (012): demo', () => {
+  it("faqat to'rt son; sonlar manfiy emas", async () => {
+    const { demoShopDetail } = await import('@/lib/demo');
+    for (const s of DEMO_SHOPS) {
+      const a = demoShopDetail(NOW, s.id).activity!;
+      expect(Object.keys(a).sort()).toEqual(['drafts_accepted', 'drafts_pending', 'payments', 'supplier_payments']);
+      for (const n of Object.values(a)) expect(Number.isInteger(n) && n >= 0).toBe(true);
+    }
+  });
+});
