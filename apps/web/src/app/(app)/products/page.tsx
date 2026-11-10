@@ -1,135 +1,53 @@
 'use client';
-import { Archive, ArchiveRestore, Package, Pencil, Plus } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
-import { DataGate, Money, RecordBadges, ResponsiveTable } from '@/components/shared';
+/**
+ * Mahsulotlar (P-09/M-09): nom, birlik, sotuv narxi, holat. Tan narx va foyda ustuni YO'Q (savdogar mijoz ko'rib
+ * turganda ro'yxat yozishi mumkin). Nom, birlik, narx va arxivlash joyida tuzatiladi (`updateProduct`).
+ * Narxi yo'q mahsulotlar sariq belgi bilan haqiqiy holatda ko'rsatiladi, yashirilmaydi.
+ */
+import { Plus } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { BaseTabs } from '@/components/base/BaseTabs';
+import { EditableCell } from '@/components/edit/EditableCell';
+import { EditableRow, RowActions, RowError } from '@/components/edit/EditableRow';
+import { useRowEdit } from '@/components/edit/useRowEdit';
+import { usePageQuery } from '@/components/layout/pageQuery';
+import { DataGate } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
-import { Modal } from '@/components/ui/Modal';
-import { Alert, Badge, Button, Card, EmptyState, Input, PageHeader, SearchInput, Segmented, Select, TableSkeleton } from '@/components/ui/primitives';
+import { Alert, Badge, Button, Card, cn, EmptyState, Input, SearchInput, Select, TableSkeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { uz } from '@/i18n/uz';
 import { createProduct, updateProduct } from '@/lib/data/api';
 import type { Product, Unit } from '@/lib/data/types';
-import { parseEnabledUnits, unitChoices } from '@/lib/units';
-import { formatDate } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
-import { formatMoneyInput, parseMoneyInput } from '@/lib/money';
+import { formatMoneyInput } from '@/lib/money';
+import { filterProducts, productFields, productInitial, valuesToInput, type ProductFilter } from '@/lib/productsView';
+import { validateRow } from '@/lib/rowEdit';
 import { getSupabase } from '@/lib/supabase/client';
-import { firstError, productNameSchema } from '@/lib/validation';
+import { parseEnabledUnits, unitChoices } from '@/lib/units';
 
-type Filter = 'active' | 'archived' | 'all';
-type Sort = 'name' | 'price_desc' | 'price_asc' | 'updated';
+const GRID = 'grid items-center gap-x-3 gap-y-1 md:grid-cols-[minmax(0,2fr)_7rem_10rem_5rem_auto]';
 
-function ProductForm({ product, onClose }: { product: Product | null; onClose: () => void }) {
-  const { shopId, reload, membership } = useShop();
-  const toast = useToast();
-  const choices = unitChoices(parseEnabledUnits(membership.shop.settings), product?.unit);
-  const [name, setName] = useState(product?.name ?? '');
-  const [unit, setUnit] = useState<Unit>(product?.unit ?? choices[0] ?? 'dona');
-  const [price, setPrice] = useState(product?.last_price !== null && product?.last_price !== undefined ? formatMoneyInput(product.last_price.toString()) : '');
-  const [errors, setErrors] = useState<Record<string, string | null>>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    const nameErr = firstError(productNameSchema.safeParse(name));
-    const priceRes = price.trim() ? parseMoneyInput(price, { allowZero: true }) : null;
-    const next = { name: nameErr, price: priceRes && !priceRes.ok ? priceRes.message : null };
-    setErrors(next);
-    if (next.name || next.price) return;
-    setBusy(true);
-    setFormError(null);
-    const input = { name: name.trim(), unit, last_price: priceRes?.ok ? priceRes.value : null, is_active: product?.is_active ?? true };
-    try {
-      const sb = getSupabase();
-      if (product) await updateProduct(sb, shopId, product.id, input);
-      else await createProduct(sb, shopId, input);
-      await reload();
-      toast.success(product ? 'Mahsulot yangilandi.' : `«${input.name}» qo'shildi.`);
-      onClose();
-    } catch (err) {
-      setFormError(errorMessage(err));
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      busy={busy}
-      title={product ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot'}
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose} disabled={busy}>
-            Bekor qilish
-          </Button>
-          <Button type="submit" form="product-form" loading={busy}>
-            Saqlash
-          </Button>
-        </>
-      }
-    >
-      <form id="product-form" onSubmit={onSubmit} className="space-y-4" noValidate>
-        {formError && <Alert tone="red">{formError}</Alert>}
-        <Input label="Nomi" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} required maxLength={120} placeholder="Masalan: Shakar" />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Select label="O'lchov birligi" value={unit} onChange={(e) => setUnit(e.target.value as Unit)} required>
-            {choices.map((u) => (
-              <option key={u} value={u}>
-                {uz.units[u]}
-              </option>
-            ))}
-          </Select>
-          <Input
-            label="Narx (1 birlik uchun)"
-            inputMode="numeric"
-            value={price}
-            onChange={(e) => setPrice(formatMoneyInput(e.target.value))}
-            error={errors.price}
-            suffix="so'm"
-            placeholder="Ixtiyoriy"
-            hint="Savdoda avtomatik qo'yiladi, o'zgartirish mumkin"
-          />
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function Products({ data }: { data: ShopData }) {
+function ProductRow({ p, units }: { p: Product; units: readonly Unit[] }) {
   const { shopId, reload } = useShop();
   const toast = useToast();
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<Filter>('active');
-  const [sort, setSort] = useState<Sort>('name');
-  const [editing, setEditing] = useState<Product | 'new' | null>(null);
-  const [toggling, setToggling] = useState<string | null>(null);
+  const fields = useMemo(() => productFields(units), [units]);
+  const initial = useMemo(() => productInitial(p), [p]);
+  const row = useRowEdit({
+    fields,
+    initial,
+    onSave: async (v) => {
+      await updateProduct(getSupabase(), shopId, p.id, valuesToInput(v, p.is_active));
+      await reload();
+      toast.success('Mahsulot yangilandi.');
+    },
+  });
+  const [toggling, setToggling] = useState(false);
+  const noPrice = p.last_price === null;
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase('uz');
-    const list = data.products.filter((p) => {
-      if (filter === 'active' && !p.is_active) return false;
-      if (filter === 'archived' && p.is_active) return false;
-      return !q || p.name.toLocaleLowerCase('uz').includes(q);
-    });
-    // Narx BigInt'da solishtiriladi; narxi yo'qlar oxirida
-    const byPrice = (dir: 1 | -1) => (a: typeof list[number], b: typeof list[number]) => {
-      const x = a.last_price, y = b.last_price;
-      if (x === null || y === null) return x === y ? 0 : x === null ? 1 : -1;
-      return x === y ? 0 : (x < y ? -1 : 1) * dir;
-    };
-    if (sort === 'price_desc') list.sort(byPrice(-1));
-    else if (sort === 'price_asc') list.sort(byPrice(1));
-    else if (sort === 'updated') list.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-    else list.sort((a, b) => a.name.localeCompare(b.name, 'uz'));
-    return list;
-  }, [data.products, query, filter, sort]);
-
-  async function toggleActive(p: Product) {
+  async function toggleActive() {
     if (toggling) return;
-    setToggling(p.id);
+    setToggling(true);
     try {
       await updateProduct(getSupabase(), shopId, p.id, { name: p.name, unit: p.unit, last_price: p.last_price, is_active: !p.is_active });
       await reload();
@@ -137,124 +55,207 @@ function Products({ data }: { data: ShopData }) {
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
-      setToggling(null);
+      setToggling(false);
     }
   }
 
-  const actions = (p: Product) => (
-    <div className="flex justify-end gap-1">
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(p)} aria-label={`${p.name} — tahrirlash`} title="Tahrirlash">
-        <Pencil className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        onClick={() => void toggleActive(p)}
-        loading={toggling === p.id}
-        aria-label={p.is_active ? 'Arxivlash' : 'Faollashtirish'}
-        title={p.is_active ? 'Arxivlash (savdo tanlovida ko‘rinmaydi)' : 'Faollashtirish'}
+  return (
+    <EditableRow row={row} as="li" className={cn('px-3 py-2.5', GRID, noPrice && p.is_active ? 'bg-amber-50 dark:bg-amber-500/10' : '')}>
+      <EditableCell field={row.fields[0]!} row={row} className="font-medium text-fg" display={<span className="block truncate text-[15px] font-semibold">{p.name}</span>} />
+      <EditableCell field={row.fields[1]!} row={row} className="text-sm text-muted" display={<span>{uz.units[p.unit] ?? p.unit}</span>} />
+      <EditableCell
+        field={row.fields[2]!}
+        row={row}
+        right
+        className="md:justify-self-stretch"
+        display={
+          noPrice ? (
+            <span className="inline-block rounded-lg border border-dashed border-amber-500 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-400">narx kiriting</span>
+          ) : (
+            <span className="text-[15px] font-semibold tabular-nums text-fg">{groupPrice(p.last_price!)} so&apos;m</span>
+          )
+        }
+      />
+      <span className="hidden md:block">{p.is_active ? <Badge tone="green">Faol</Badge> : <Badge>Arxiv</Badge>}</span>
+      <div className="flex flex-wrap items-center justify-end gap-2 md:col-auto">
+        <RowActions
+          row={row}
+          label={p.name}
+          extra={
+            row.mode?.only === null ? (
+              <Button variant="ghost" size="lg" className="h-11" loading={toggling} disabled={row.busy} onClick={() => void toggleActive()}>
+                {p.is_active ? 'Arxivlash' : 'Faollashtirish'}
+              </Button>
+            ) : null
+          }
+        />
+      </div>
+      {row.formError && (
+        <div className="md:col-span-full">
+          <RowError row={row} />
+        </div>
+      )}
+    </EditableRow>
+  );
+}
+
+const groupPrice = (v: bigint) => v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
+/** Yangi mahsulot (P-09n): "Tasdiqlanmagan" paneli; Saqlash bosilmaguncha hech narsa yozilmaydi */
+function NewProduct({ units, onClose }: { units: readonly Unit[]; onClose: () => void }) {
+  const { shopId, reload } = useShop();
+  const toast = useToast();
+  const fields = useMemo(() => productFields(units), [units]);
+  const [v, setV] = useState({ name: '', unit: units[0] ?? 'dona', price: '' });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (busy) return;
+    const errs = validateRow(fields, v);
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setBusy(true);
+    setFormError(null);
+    try {
+      await createProduct(getSupabase(), shopId, valuesToInput(v, true));
+      await reload();
+      toast.success(`«${v.name.trim()}» qo'shildi.`);
+      onClose();
+    } catch (e) {
+      setFormError(errorMessage(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="mb-3 border-2 border-emerald-500/60 p-4" data-testid="new-product">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-[15px] font-semibold text-fg">Yangi mahsulot</h2>
+        <span className="rounded-full border border-amber-500/60 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">Tasdiqlanmagan</span>
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+        className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_8rem_10rem_auto] sm:items-start"
+        noValidate
       >
-        {toggling === p.id ? null : p.is_active ? <Archive className="h-4 w-4" /> : <ArchiveRestore className="h-4 w-4" />}
-      </Button>
-    </div>
+        <Input label="Nomi" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} error={errors.name} maxLength={120} autoFocus placeholder="Masalan: Shakar" className="h-11" />
+        <Select label="Birlik" value={v.unit} onChange={(e) => setV({ ...v, unit: e.target.value as Unit })} className="h-11">
+          {units.map((u) => (
+            <option key={u} value={u}>
+              {uz.units[u]}
+            </option>
+          ))}
+        </Select>
+        <Input label="Sotuv narxi" inputMode="numeric" value={v.price} onChange={(e) => setV({ ...v, price: formatMoneyInput(e.target.value) })} error={errors.price} suffix="so'm" placeholder="narx kiriting" className="h-11" />
+        <div className="flex gap-2 sm:mt-6">
+          <Button type="submit" size="lg" className="h-11" loading={busy}>
+            Saqlash
+          </Button>
+          <Button size="lg" variant="outline" className="h-11" onClick={onClose} disabled={busy}>
+            Bekor
+          </Button>
+        </div>
+      </form>
+      <p className="mt-2 text-xs text-muted">Tan narx kirim orqali tushadi. Sotuv narxi keyin ham kiritilishi mumkin.</p>
+      {formError && <Alert tone="red" className="mt-2">{formError}</Alert>}
+    </Card>
+  );
+}
+
+function Products({ data }: { data: ShopData }) {
+  const { membership } = useShop();
+  const router = useRouter();
+  const params = useSearchParams();
+  const [q, setQ] = usePageQuery();
+  const [filter, setFilter] = useState<ProductFilter>('active');
+  const [adding, setAdding] = useState(params.get('yangi') === '1');
+  const units = useMemo(() => unitChoices(parseEnabledUnits(membership.shop.settings)), [membership.shop.settings]);
+
+  useEffect(() => {
+    // `+` menyusidan ochilgan bo'lsa manzil tozalanadi (yangilashda qayta ochilmasin)
+    if (params.get('yangi') === '1') router.replace('/products', { scroll: false });
+  }, [params, router]);
+
+  const noPrice = useMemo(() => data.products.filter((p) => p.is_active && p.last_price === null).length, [data.products]);
+  const rows = useMemo(() => filterProducts(data.products, { query: q, filter }), [data.products, q, filter]);
+  const active = data.products.filter((p) => p.is_active).length;
+
+  const pill = (value: ProductFilter, label: string, amber?: boolean) => (
+    <button
+      key={value}
+      type="button"
+      aria-pressed={filter === value}
+      onClick={() => setFilter(value)}
+      className={cn(
+        'min-h-11 shrink-0 rounded-full border px-4 text-sm font-medium transition-colors',
+        filter === value ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : amber ? 'border-amber-500/70 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400' : 'border-line text-fg hover:bg-subtle',
+      )}
+    >
+      {label}
+    </button>
   );
 
   return (
     <>
-      <PageHeader
-        title="Mahsulotlar"
-        description="Savdoda tez tanlash uchun mahsulotlar va narxlar"
-        actions={
-          <Button onClick={() => setEditing('new')} icon={<Plus className="h-4 w-4" />}>
-            Mahsulot qo&apos;shish
-          </Button>
-        }
-      />
-      <Card>
-        <div className="flex flex-col gap-2.5 border-b border-line p-3 sm:flex-row sm:items-center">
-          <SearchInput value={query} onChange={setQuery} placeholder="Mahsulot nomi bo'yicha qidirish" className="sm:max-w-sm sm:flex-1" />
-          <Segmented
-            ariaLabel="Holat"
-            className="sm:ml-auto"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: 'active', label: 'Faol' },
-              { value: 'archived', label: 'Arxiv' },
-              { value: 'all', label: 'Hammasi' },
-            ]}
-          />
-          <Select aria-label="Saralash" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="h-8 w-auto py-0 text-xs">
-            <option value="name">Nomi bo&apos;yicha</option>
-            <option value="price_desc">Narx: qimmatdan</option>
-            <option value="price_asc">Narx: arzondan</option>
-            <option value="updated">Oxirgi o&apos;zgargan</option>
-          </Select>
+      <BaseTabs current="products" />
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">Mahsulotlar</h1>
+          <p className="text-sm text-muted">{active} ta tovar</p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {pill('active', 'Faol')}
+          {pill('archived', 'Arxiv')}
+          {pill('noprice', `Sotuv narxi yo'q (${noPrice})`, noPrice > 0)}
+          <Button size="lg" className="h-11" onClick={() => setAdding(true)} disabled={adding} icon={<Plus className="h-4 w-4" />}>
+            Yangi mahsulot
+          </Button>
+        </div>
+      </div>
+      <SearchInput value={q} onChange={setQ} placeholder="Mahsulot qidirish" className="mb-3 md:hidden" />
+
+      {adding && <NewProduct units={units} onClose={() => setAdding(false)} />}
+
+      <Card>
         {data.products.length === 0 ? (
-          <EmptyState
-            icon={<Package className="h-6 w-6" />}
-            title="Katalog bo'sh"
-            description="Tez-tez sotiladigan mahsulotlarni narxi bilan qo'shing — savdo kiritish tezlashadi."
-            action={
-              <Button size="sm" onClick={() => setEditing('new')} icon={<Plus className="h-4 w-4" />}>
-                Mahsulot qo&apos;shish
-              </Button>
-            }
-          />
+          <EmptyState title="Katalog bo'sh" description="«Yangi mahsulot» bilan tez-tez sotiladigan tovarlarni narxi bilan qo'shing." />
         ) : rows.length === 0 ? (
           <EmptyState title="Hech narsa topilmadi" description="Qidiruv yoki filterni o'zgartirib ko'ring." />
         ) : (
-          <ResponsiveTable
-            head={
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Nomi</th>
-                <th className="px-4 py-2.5 font-medium">Birlik</th>
-                <th className="px-4 py-2.5 text-right font-medium">Narx</th>
-                <th className="px-4 py-2.5 font-medium">Holat</th>
-                <th className="px-4 py-2.5 font-medium">Yangilangan</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            }
-            mobile={rows.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-2 truncate text-sm font-medium text-fg">
-                    {p.name} <RecordBadges source={p.source} archived={!p.is_active} />
-                  </p>
-                  <p className="text-xs text-muted">
-                    {p.last_price !== null ? <Money value={p.last_price} /> : "Narx yo'q"} / {uz.units[p.unit] ?? p.unit}
-                  </p>
-                </div>
-                {actions(p)}
-              </div>
-            ))}
-          >
-            {rows.map((p) => (
-              <tr key={p.id} className="transition-colors hover:bg-surface-2">
-                <td className="px-4 py-2.5 font-medium text-fg">
-                  <span className="inline-flex items-center gap-1.5">
-                    {p.name} <RecordBadges source={p.source} />
-                  </span>
-                </td>
-                <td className="px-4 py-2.5 text-muted">{uz.units[p.unit] ?? p.unit}</td>
-                <td className="px-4 py-2.5 text-right">{p.last_price !== null ? <Money value={p.last_price} className="text-fg" /> : <span className="text-muted">—</span>}</td>
-                <td className="px-4 py-2.5">{p.is_active ? <Badge tone="green">Faol</Badge> : <Badge>Arxiv</Badge>}</td>
-                <td className="px-4 py-2.5 text-muted">{formatDate(p.updated_at)}</td>
-                <td className="px-4 py-2.5">{actions(p)}</td>
-              </tr>
-            ))}
-          </ResponsiveTable>
+          <>
+            <div className={cn('hidden border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted md:grid', GRID)} aria-hidden>
+              <span>Nomi</span>
+              <span>Birlik</span>
+              <span className="text-right">Sotuv narxi</span>
+              <span>Holat</span>
+              <span />
+            </div>
+            <ul className="divide-y divide-line" aria-label="Mahsulotlar">
+              {rows.map((p) => (
+                <ProductRow key={p.id} p={p} units={units} />
+              ))}
+            </ul>
+            <p className="hidden border-t border-line px-4 py-2 text-xs text-muted md:block">Katakni ikki marta bosing yoki Enter: tuzatish. Enter saqlaydi, Esc bekor, Tab keyingi katakka.</p>
+          </>
         )}
       </Card>
-      {editing && <ProductForm key={editing === 'new' ? 'new' : editing.id} product={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
 
 export default function ProductsPage() {
   return (
-    <DataGate skeleton={<Card><TableSkeleton /></Card>}>{(data) => <Products data={data} />}</DataGate>
+    <DataGate skeleton={<Card><TableSkeleton /></Card>}>
+      {(data) => (
+        <Suspense>
+          <Products data={data} />
+        </Suspense>
+      )}
+    </DataGate>
   );
 }
