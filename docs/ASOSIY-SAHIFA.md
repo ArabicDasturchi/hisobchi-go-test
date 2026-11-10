@@ -125,3 +125,6 @@ Sabab: MVP tamoyili, bitta to'liq ishlaydigan narsa.
 
 ## 14. Holat: PANEL-3 (10.11.2026, shox `feat/panel-3`)
 Kiritish oynasi endi **faqat Boshqaruv panelida** (`/dashboard`), pastga qotirilgan; Amal: Savdo, To'lov olish, Kirim, Ta'minotchiga to'lov, Daftarga yozish; `+` menyusi (Hisobotlar, Yangi mahsulot/mijoz/ta'minotchi, "Tez orada" bandlar). Boshqa bo'limlar oddiy sahifa. Eski 13-bo'lim (V1) shu bilan almashtirildi: oyna Bosh sahifaning tepasida emas, panelning pastida.
+
+## 15. Holat: PANEL-3 P4-P6 (10.11.2026)
+Hamma jadvalda «Tuzatish» (katak va qator rejimi); Mahsulotlar, Ombor, Mijozlar, Ta'minotchilar, Savdolar yangi ko'rinishda. To'liq holat: [HOLAT-PANEL-3.md](HOLAT-PANEL-3.md). Qoralamalarda tahrir tugallanmagan (RPC kerak).

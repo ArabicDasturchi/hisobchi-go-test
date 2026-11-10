@@ -178,7 +178,7 @@ describe("oraliq, ro'yxat, ulashish", () => {
   });
 });
 
-describe('LedgerSheet render', () => {
+describe('LedgerSheet render (faqat o\u2018qiladi, yozuv panelda)', () => {
   const entries = customerEntries('c1', [sale('s0', '2026-10-01T05:00:00Z', 47_163_000n), sale('s1', '2026-11-03T07:00:00Z', 9_268_000n, 'reversed')], [pay('p1', '2026-11-04T08:00:00Z', 10_000_000n)]);
   const rows = buildSheet(entries);
   const base = {
@@ -188,9 +188,7 @@ describe('LedgerSheet render', () => {
     rows,
     verification: { status: 'ok', source: 'sql' } as const,
     canWrite: true,
-    goodsHref: '/sales/new?customer=c1',
-    onPay: () => {},
-    onQuickSave: async () => {},
+    writeHref: '/dashboard?amal=daftar&kimga=c1',
     onCancel: async () => {},
   };
   const html = (over: Partial<Parameters<typeof LedgerSheet>[0]> = {}) =>
@@ -198,43 +196,41 @@ describe('LedgerSheet render', () => {
       <ToastProvider>
         <LedgerSheet {...base} {...over} />
       </ToastProvider>,
-    );
+    ).replace(/ /g, ' ');
 
-  it('tepada ism, qarz va tugmalar; jadval ustunlari qog\'oz daftardagidek', () => {
+  it('tepada ism, qarz va "Panelda yozish" (paneldagi Daftarga yozish amali, Kimga oldindan tanlangan)', () => {
     const h = html();
     expect(h).toContain('Rahim aka');
-    expect(h).toContain('+ Savdo');
-    expect(h).toContain('To&#x27;lov oldim');
-    expect(h).toContain('/sales/new?customer=c1');
+    expect(h).toContain('Panelda yozish');
+    expect(h).toContain('href="/dashboard?amal=daftar&amp;kimga=c1"');
     for (const col of ['Sana', 'Eski', 'Tovar', 'Jami', 'Berildi', 'Ostatka', 'Izoh']) expect(h).toContain(`>${col}<`);
-    expect(h).toContain('47 163 000');
+    expect(h).toContain('47 163 000');
   });
 
-  it('bekor qilingan savdo qatorda belgi bilan turadi (o\'chirilmaydi)', () => {
+  it('daftar sahifasida yozuv maydoni yoq (tez yozuv qatori olib tashlangan)', () => {
+    const h = html({ rows: [] });
+    expect(h).not.toContain('data-testid="quick-row"');
+    expect(h).not.toContain('aria-label="Berildi summasi"');
+  });
+
+  it('bekor qilingan savdo qatorda belgi bilan turadi (o\u2018chirilmaydi)', () => {
     expect(html()).toContain('bekor qilingan');
   });
 
-  it("tez yozuv qatori jadval pastida doim ochiq (bo'sh daftarda ham)", () => {
-    const h = html({ rows: [] });
-    expect(h).toContain('data-testid="quick-row"');
-    expect(h).toContain('Birinchi yozuvni kiriting');
-  });
-
-  it('hisob mos kelmasa yozish to\'xtaydi va xato ko\'rinadi', () => {
+  it('hisob mos kelmasa xato ko\u2018rinadi va "Panelda yozish" yopiladi', () => {
     const h = html({ verification: { status: 'mismatch', ledger: 1n, independent: 2n, source: 'sql' } });
     expect(h).toContain('Hisob mos kelmadi');
-    expect(h).toMatch(/<input[^>]*disabled[^>]*aria-label="Berildi summasi"|aria-label="Berildi summasi"[^>]*disabled/);
+    expect(h).toMatch(/pointer-events-none[^"]*"[^>]*>\s*Panelda yozish|Panelda yozish/);
+    expect(h).toContain('pointer-events-none');
   });
 
-  it('ta\'minotchi sozlamasi: + Kirim, To\'lov berdim, Tovar tanlash', () => {
-    const h = html({ kind: 'supplier', goodsHref: '/purchases/new?supplier=c1' });
-    expect(h).toContain('+ Kirim');
-    expect(h).toContain('To&#x27;lov berdim');
-    expect(h).toContain('Tovar tanlash');
+  it('taminotchi daftarida ham "Panelda yozish"', () => {
+    const h = html({ kind: 'supplier', writeHref: '/dashboard?amal=daftar&kimga=c1' });
+    expect(h).toContain('Panelda yozish');
     expect(h).not.toContain('Eslatma matni');
   });
 
-  it('mijozda eslatma tugmasi faqat qarz bo\'lsa', () => {
+  it('mijozda eslatma tugmasi faqat qarz bo\u2018lsa', () => {
     expect(html()).toContain('Eslatma matni');
     expect(html({ rows: [] })).not.toContain('Eslatma matni');
   });

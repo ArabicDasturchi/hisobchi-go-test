@@ -5,15 +5,15 @@
  * Hisob bu yerda YO'Q: qatorlar `ledgerRows` (core), tez yozuvning Jami/Ostatka'si `quickPreview` (core `settle`).
  * Tuzatish: yozuv o'chirilmaydi, "Bekor qilish" teskari yozuv yaratadi (onCancel) va qator kulrang bo'lib qoladi.
  */
-import { Ban, ChevronDown, ChevronRight, ClipboardCopy, MessageSquareText, Phone, Printer, ShieldAlert, ShieldCheck, StickyNote, Wallet } from 'lucide-react';
+import { Ban, ChevronDown, ChevronRight, ClipboardCopy, MessageSquareText, Phone, Printer, ShieldAlert, ShieldCheck, StickyNote } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { tashkentDate, ledgerBalance } from '@hisobchi/core';
 import { uz } from '@/i18n/uz';
 import type { SheetEntry, SheetRow, Verification } from '@/lib/data/partnerLedger';
 import type { PartnerKind } from '@/lib/data/partnerLedger';
-import { ALL_TIME, dateError, presetRange, quickPreview, rangeError, reminderText, arrowTarget, quickKeyAction, rowsInRange, SHEET_CONFIG, sheetText, type DateRange, type RangePreset } from '@/lib/ledgerView';
-import { formatMoneyInput, groupDigits, formatSom } from '@/lib/money';
+import { ALL_TIME, presetRange, rangeError, reminderText, arrowTarget, rowsInRange, SHEET_CONFIG, sheetText, type DateRange, type RangePreset } from '@/lib/ledgerView';
+import { groupDigits, formatSom } from '@/lib/money';
 import { ReasonModal } from '../forms/ReasonModal';
 import { Money } from '../shared';
 import { Alert, Avatar, Badge, Button, Card, EmptyState, Input, LinkButton, Segmented, cn } from '../ui/primitives';
@@ -42,12 +42,8 @@ export interface LedgerSheetProps {
   verification: Verification | 'checking';
   /** can() natijasi: yozish ruxsati */
   canWrite: boolean;
-  /** "+ Savdo" / "+ Kirim" tugmasi manzili (mijoz oldindan tanlangan) */
-  goodsHref: string;
-  /** "To'lov oldim" / "To'lov berdim" — modal ochadi */
-  onPay: () => void;
-  /** Tez yozuvni saqlash: ma'lumot qatlami bilan wrapper bajaradi, xatoda Error tashlaydi */
-  onQuickSave: (input: QuickSaveInput) => Promise<void>;
+  /** "Panelda yozish" manzili: `/dashboard?amal=daftar&kimga=<id>` (daftar faqat o'qiladi, yozuv panelda) */
+  writeHref: string;
   /** Yozuvni bekor qilish (teskari yozuv) */
   onCancel: (entry: SheetEntry, reason: string) => Promise<void>;
   /** Yozuv tafsiloti: tovar qatorlari (nom, miqdor, narx) */
@@ -164,12 +160,9 @@ export function LedgerSheet(p: LedgerSheetProps) {
 
         {/* Tugmalar: tepada va doim ko'rinadi */}
         <div className="no-print mt-4 flex flex-wrap items-center gap-2">
-          <LinkButton href={p.goodsHref} variant={writable ? 'primary' : 'outline'} className={cn(!writable && 'pointer-events-none opacity-50')}>
-            {cfg.addGoodsLabel}
+          <LinkButton href={p.writeHref} variant={writable ? 'primary' : 'outline'} className={cn('h-11', !writable && 'pointer-events-none opacity-50')}>
+            Panelda yozish
           </LinkButton>
-          <Button variant="outline" onClick={p.onPay} disabled={!writable} icon={<Wallet className="h-4 w-4" />}>
-            {cfg.addPaidLabel}
-          </Button>
           <span className="mx-1 hidden h-6 w-px bg-line sm:block" aria-hidden />
           <Button variant="ghost" size="sm" onClick={() => void copy(sheetText({ shopName: p.shopName, partnerName: p.partner.name, kind: p.kind, rows: allRows, balance }), 'Varaq matni nusxalandi — Telegram yoki WhatsApp’ga qo‘ying.')} icon={<ClipboardCopy className="h-4 w-4" />}>
             Varaqni yuborish
@@ -281,16 +274,9 @@ export function LedgerSheet(p: LedgerSheetProps) {
         )}
       </Card>
 
-      {/* Tez yozuv qatori: jadvalning eng pastida doim ochiq */}
-      <QuickRow
-        kind={p.kind}
-        balance={balance}
-        today={today}
-        disabled={!writable}
-        disabledReason={!p.partner.is_active ? 'Arxivdagi varaqqa yozib bo‘lmaydi' : blocked ? 'Hisob mos kelmadi — yozish to‘xtatildi' : !p.canWrite ? 'Yozish ruxsati yo‘q' : null}
-        goodsHref={p.goodsHref}
-        onSave={p.onQuickSave}
-      />
+      <p className="no-print mt-3 text-xs text-muted">
+        Yangi yozuv Boshqaruv panelida kiritiladi («Panelda yozish»). Hisob ikki yo‘l bilan tekshirilgan: mos. Yozuv o‘zgartirilmaydi: faqat «Bekor qilish» (teskari yozuv, sabab bilan).
+      </p>
 
       <ReasonModal
         open={cancelling !== null}
@@ -416,147 +402,3 @@ function RowDetail({ row, writable, onCancel, renderDetail }: { row: SheetRow; w
   );
 }
 
-// ---------------------------------------------------------------------------
-// Tez yozuv qatori
-// ---------------------------------------------------------------------------
-
-function QuickRow({
-  kind,
-  balance,
-  today,
-  disabled,
-  disabledReason,
-  goodsHref,
-  onSave,
-}: {
-  kind: PartnerKind;
-  balance: bigint;
-  today: string;
-  disabled: boolean;
-  disabledReason: string | null;
-  goodsHref: string;
-  onSave: (i: QuickSaveInput) => Promise<void>;
-}) {
-  const cfg = SHEET_CONFIG[kind];
-  const toast = useToast();
-  const [date, setDate] = useState(today);
-  const [goods, setGoods] = useState('');
-  const [paid, setPaid] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const goodsRef = useRef<HTMLInputElement>(null);
-  const paidRef = useRef<HTMLInputElement>(null);
-  const dateRef = useRef<HTMLInputElement>(null);
-  // Mijoz yozuvlari server vaqti bilan (bugun) yoziladi; ta'minotchi to'lovida sana tanlanadi
-  const dateEditable = kind === 'supplier';
-
-  const preview = useMemo(() => quickPreview(kind, balance, goods, paid), [kind, balance, goods, paid]);
-  const dErr = dateEditable ? dateError(date, today) : null;
-
-  useEffect(() => {
-    if (!busy && !disabled) setError(null);
-  }, [goods, paid, date, busy, disabled]);
-
-  const save = async () => {
-    if (busy || disabled || !preview.ok || dErr) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await onSave({ date: dateEditable ? date : today, goods: preview.goods, paid: preview.paid });
-      setGoods('');
-      setPaid('');
-      setDate(today);
-      toast.success('Yozuv saqlandi.');
-      (cfg.quickGoods ? goodsRef : paidRef).current?.focus();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Saqlanmadi.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Enter: oxirgi maydonda saqlaydi, oldingilarida keyingisiga o'tadi; Ctrl/⌘+Enter — istalgan joyda saqlaydi
-  const onKey = (next: React.RefObject<HTMLInputElement | null> | null) => (e: KeyboardEvent<HTMLInputElement>) => {
-    const action = quickKeyAction(e.key, { ctrl: e.ctrlKey, meta: e.metaKey }, next === null);
-    if (action === 'none') return;
-    e.preventDefault();
-    if (action === 'save') void save();
-    else next?.current?.focus();
-  };
-
-  return (
-    <Card className="no-print sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-10 mt-3 border-emerald-300/70 p-3 shadow-lg md:bottom-2 lg:static lg:shadow-sm dark:border-emerald-500/30" data-testid="quick-row">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Tez yozuv</p>
-        {disabledReason && <p className="text-xs text-amber-700 dark:text-amber-400">{disabledReason}</p>}
-      </div>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-[130px_1fr_1fr_auto]">
-        <Input ref={dateRef} data-nav="quick" aria-label="Sana" type="date" value={date} max={today} disabled={disabled || busy || !dateEditable} onChange={(e) => setDate(e.target.value)} onKeyDown={onKey(cfg.quickGoods ? goodsRef : paidRef)} error={dErr} />
-        {cfg.quickGoods ? (
-          <Input
-            ref={goodsRef}
-            data-nav="quick"
-            aria-label={`${cfg.goodsHeader} summasi`}
-            placeholder={`${cfg.goodsHeader} summasi`}
-            inputMode="numeric"
-            value={goods}
-            disabled={disabled || busy}
-            onChange={(e) => setGoods(formatMoneyInput(e.target.value))}
-            onKeyDown={onKey(paidRef)}
-            suffix="so'm"
-          />
-        ) : (
-          <LinkButton href={goodsHref} variant="outline" className={cn('h-9', disabled && 'pointer-events-none opacity-50')}>
-            Tovar tanlash
-          </LinkButton>
-        )}
-        <Input
-          ref={paidRef}
-          data-nav="quick"
-          aria-label={`${cfg.paidHeader} summasi`}
-          placeholder={`${cfg.paidHeader} summasi`}
-          inputMode="numeric"
-          value={paid}
-          disabled={disabled || busy}
-          onChange={(e) => setPaid(formatMoneyInput(e.target.value))}
-          onKeyDown={onKey(null)}
-          suffix="so'm"
-        />
-        <Button onClick={() => void save()} loading={busy} disabled={disabled || !preview.ok || !!dErr} className="col-span-2 lg:col-span-1">
-          Saqlash <kbd className="ml-1 hidden rounded border border-white/30 px-1 text-[10px] lg:inline">Enter</kbd>
-        </Button>
-      </div>
-      {cfg.quickGoods && (
-        <p className="mt-1.5 text-xs text-muted">
-          Tovarlarni nomma-nom yozish kerak bo‘lsa — <Link href={goodsHref} className="font-medium text-emerald-700 hover:underline dark:text-emerald-400">«Tovar tanlash» bilan savdo</Link>.
-        </p>
-      )}
-      {/* Saqlashdan oldin Jami va Ostatka — core hisoblagan */}
-      <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-subtle px-3 py-2 text-xs" aria-live="polite" data-testid="quick-preview">
-        {preview.ok ? (
-          <>
-            <PreviewCell label="Eski" value={preview.settlement.opening} />
-            <PreviewCell label="Jami" value={preview.settlement.total} />
-            <PreviewCell label="Ostatka" value={preview.settlement.balance} strong />
-          </>
-        ) : (
-          <p className={cn('col-span-3', preview.message ? 'font-medium text-rose-600 dark:text-rose-400' : 'text-muted')}>{preview.message ?? `Joriy ostatka: ${formatSom(balance)}. Summa yozing, natija shu yerda ko‘rinadi.`}</p>
-        )}
-      </div>
-      {error && (
-        <Alert tone="red" className="mt-2">
-          {error}
-        </Alert>
-      )}
-    </Card>
-  );
-}
-
-function PreviewCell({ label, value, strong }: { label: string; value: bigint; strong?: boolean }) {
-  return (
-    <div>
-      <p className="text-muted">{label}</p>
-      <p className={cn('tabular text-sm', strong ? 'font-bold text-fg' : 'font-medium text-fg')}>{groupDigits(value)}</p>
-    </div>
-  );
-}

@@ -1,30 +1,41 @@
 'use client';
 import { Sparkles } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { usePageQuery } from '@/components/layout/pageQuery';
 import { DraftCard } from '@/components/DraftCard';
 import { DataGate } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Modal } from '@/components/ui/Modal';
-import { Alert, Button, Card, EmptyState, ErrorState, PageHeader, Segmented, Skeleton, Textarea } from '@/components/ui/primitives';
+import { Alert, Button, Card, EmptyState, ErrorState, PageHeader, SearchInput, Segmented, Skeleton, Textarea } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { clientLabel, draftTitle, isCatalogDraft } from '@/lib/data/agentDrafts';
 import { acceptAgentDraft, listAgentDrafts, listOAuthClientNames, rejectAgentDraft } from '@/lib/data/api';
 import { listSupplierNames } from '@/lib/data/books';
 import type { AgentDraft, AgentDraftStatus } from '@/lib/data/types';
 import { errorMessage } from '@/lib/errors';
+import { looseKey } from '@/lib/translit';
 import { formatSom } from '@/lib/money';
 import { getSupabase } from '@/lib/supabase/client';
 
 type Hist = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ok'; list: AgentDraft[] };
 
 export default function DraftsPage() {
-  return <DataGate>{(data) => <Drafts data={data} />}</DataGate>;
+  return (
+    <DataGate>
+      {(data) => (
+        <Suspense>
+          <Drafts data={data} />
+        </Suspense>
+      )}
+    </DataGate>
+  );
 }
 
 function Drafts({ data }: { data: ShopData }) {
   const { shopId, customerById, reload } = useShop();
   const toast = useToast();
   const [filter, setFilter] = useState<AgentDraftStatus>('draft');
+  const [q, setQ] = usePageQuery();
   const [hist, setHist] = useState<Hist>({ status: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
@@ -102,7 +113,16 @@ function Drafts({ data }: { data: ShopData }) {
   }
 
   const pending = data.drafts;
-  const list: AgentDraft[] | null = filter === 'draft' ? pending : hist.status === 'ok' ? hist.list : null;
+  const rawList: AgentDraft[] | null = filter === 'draft' ? pending : hist.status === 'ok' ? hist.list : null;
+  // Qidiruv (PC: tepadagi maydon, telefon: sahifadagi): mijoz/ta'minotchi nomi va qoralama sarlavhasi, Kirill/Lotin farqsiz
+  const list = useMemo(() => {
+    const k = looseKey(q);
+    if (!rawList || !k) return rawList;
+    return rawList.filter((d) => {
+      const who = d.customer_id ? (customerById.get(d.customer_id)?.name ?? '') : d.detail.kind === 'purchase' ? (suppliers.get(d.detail.supplier_id) ?? '') : '';
+      return looseKey(`${who} ${draftTitle(d)}`).includes(k);
+    });
+  }, [rawList, q, customerById, suppliers]);
 
   return (
     <>
@@ -122,6 +142,8 @@ function Drafts({ data }: { data: ShopData }) {
           />
         }
       />
+
+      <SearchInput value={q} onChange={setQ} placeholder="Qoralama qidirish" className="mb-3 md:hidden" />
 
       {filter === 'draft' && pending === null && (
         <Card>

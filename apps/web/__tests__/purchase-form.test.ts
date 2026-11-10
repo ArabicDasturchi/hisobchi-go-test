@@ -100,7 +100,7 @@ describe('searchCatalog', () => {
   });
 });
 
-import { parseActualQty } from '@/components/forms/AdjustStockModal';
+import { parseActualQty } from '@/lib/stockView';
 import { toAppError } from '@/lib/errors';
 
 describe('parseActualQty (inventarizatsiya)', () => {
