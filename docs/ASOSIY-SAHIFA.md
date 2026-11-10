@@ -122,3 +122,6 @@ Sabab: MVP tamoyili, bitta to'liq ishlaydigan narsa.
 **Sinalgan:** demo rejimida brauzer pane'da (390 va ~1280 kenglik, qorong'i tema): panel, 16 ta natija, 3 tasini belgilab qo'shish, jami, tasdiq oynasi, gorizontal aylanish yo'q.
 **Sinalmagan:** haqiqiy Supabase'da saqlash/to'lov, haqiqiy telefon (ekran klaviaturasi, `visualViewport`), yorug tema skrinshoti, Vercel, ekran o'quvchi, Safari.
 **Keyin:** Kirim va «daftarga yozish» amallari, `+` menyusi (fayl), agent (ro'yxat yopishtirish, rasm), ovoz.
+
+## 14. Holat: PANEL-3 (10.11.2026, shox `feat/panel-3`)
+Kiritish oynasi endi **faqat Boshqaruv panelida** (`/dashboard`), pastga qotirilgan; Amal: Savdo, To'lov olish, Kirim, Ta'minotchiga to'lov, Daftarga yozish; `+` menyusi (Hisobotlar, Yangi mahsulot/mijoz/ta'minotchi, "Tez orada" bandlar). Boshqa bo'limlar oddiy sahifa. Eski 13-bo'lim (V1) shu bilan almashtirildi: oyna Bosh sahifaning tepasida emas, panelning pastida.
