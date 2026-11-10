@@ -26,7 +26,9 @@ import { validateRow } from '@/lib/rowEdit';
 import { getSupabase } from '@/lib/supabase/client';
 import { parseEnabledUnits, unitChoices } from '@/lib/units';
 
-const GRID = 'grid items-center gap-x-3 gap-y-1 md:grid-cols-[minmax(0,2fr)_7rem_10rem_5rem_auto]';
+const GRID = 'grid items-center gap-x-3 gap-y-0 grid-cols-[minmax(0,1fr)_auto_auto] md:gap-y-1 md:grid-cols-[minmax(0,2fr)_7rem_10rem_5rem_auto]';
+/** Telefonda: nom va birlik chapda ustma-ust, narx va tugma o'ngda; tahrirda bir ustun */
+const place = (editing: boolean, mobile: string) => (editing ? 'col-span-full' : `${mobile} md:col-auto md:row-auto md:row-span-1`);
 
 function ProductRow({ p, units }: { p: Product; units: readonly Unit[] }) {
   const { shopId, reload } = useShop();
@@ -60,14 +62,14 @@ function ProductRow({ p, units }: { p: Product; units: readonly Unit[] }) {
   }
 
   return (
-    <EditableRow row={row} as="li" className={cn('px-3 py-2.5', GRID, noPrice && p.is_active ? 'bg-amber-50 dark:bg-amber-500/10' : '')}>
-      <EditableCell field={row.fields[0]!} row={row} className="font-medium text-fg" display={<span className="block truncate text-[15px] font-semibold">{p.name}</span>} />
-      <EditableCell field={row.fields[1]!} row={row} className="text-sm text-muted" display={<span>{uz.units[p.unit] ?? p.unit}</span>} />
+    <EditableRow row={row} as="li" className={cn('px-3 py-2', GRID, noPrice && p.is_active ? 'bg-amber-50 dark:bg-amber-500/10' : '')}>
+      <EditableCell field={row.fields[0]!} row={row} className={cn('font-medium text-fg', place(row.editing, 'col-start-1 row-start-1'))} display={<span className="block truncate text-[15px] font-semibold">{p.name}</span>} />
+      <EditableCell field={row.fields[1]!} row={row} className={cn('text-sm text-muted', place(row.editing, 'col-start-1 row-start-2'))} display={<span>{uz.units[p.unit] ?? p.unit}</span>} />
       <EditableCell
         field={row.fields[2]!}
         row={row}
         right
-        className="md:justify-self-stretch"
+        className={cn('md:justify-self-stretch', place(row.editing, 'col-start-2 row-start-1 row-span-2'))}
         display={
           noPrice ? (
             <span className="inline-block rounded-lg border border-dashed border-amber-500 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-400">narx kiriting</span>
@@ -77,7 +79,7 @@ function ProductRow({ p, units }: { p: Product; units: readonly Unit[] }) {
         }
       />
       <span className="hidden md:block">{p.is_active ? <Badge tone="green">Faol</Badge> : <Badge>Arxiv</Badge>}</span>
-      <div className="flex flex-wrap items-center justify-end gap-2 md:col-auto">
+      <div className={cn('flex flex-wrap items-center justify-end gap-2', place(row.editing, 'col-start-3 row-start-1 row-span-2'))}>
         <RowActions
           row={row}
           label={p.name}

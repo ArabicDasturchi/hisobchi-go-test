@@ -27,9 +27,9 @@ export interface ActionInfo {
 }
 
 export const ACTION_INFO: Readonly<Record<PanelAction, ActionInfo>> = {
-  savdo: { key: 'savdo', label: 'Savdo', hint: 'mijozga tovar sotish', title: 'Savdo', who: 'customer', whoRequired: false, whoLabel: 'Kimga', placeholder: 'Tovar nomini yozing: masalan, atir yoki юрак', sendLabel: "Tovarni qo'shish" },
+  savdo: { key: 'savdo', label: 'Savdo', hint: 'mijozga tovar sotish', title: 'Savdo', who: 'customer', whoRequired: false, whoLabel: 'Kimga', placeholder: 'Tovar nomini yozing...', sendLabel: "Tovarni qo'shish" },
   tolov: { key: 'tolov', label: "To'lov olish", hint: 'mijozdan pul olish', title: "To'lov olish", who: 'customer', whoRequired: true, whoLabel: 'Kimdan', placeholder: "To'lov summasi, so'm", sendLabel: "To'lovni tasdiqlash" },
-  kirim: { key: 'kirim', label: 'Kirim', hint: "ta'minotchidan tovar kirimi", title: 'Kirim', who: 'supplier', whoRequired: true, whoLabel: 'Kimdan', placeholder: "Tovar nomini yozing: qator qo'shiladi", sendLabel: "Tovarni qo'shish" },
+  kirim: { key: 'kirim', label: 'Kirim', hint: "ta'minotchidan tovar kirimi", title: 'Kirim', who: 'supplier', whoRequired: true, whoLabel: 'Kimdan', placeholder: 'Tovar nomini yozing...', sendLabel: "Tovarni qo'shish" },
   'ta-tolov': { key: 'ta-tolov', label: "Ta'minotchiga to'lov", hint: 'qarzni qaytarish', title: "Ta'minotchiga to'lov", who: 'supplier', whoRequired: true, whoLabel: 'Kimga', placeholder: "To'lov summasi, so'm", sendLabel: "To'lovni tasdiqlash" },
   daftar: { key: 'daftar', label: 'Daftarga yozish', hint: "mijoz yoki ta'minotchi daftari", title: 'Daftarga yozish', who: 'either', whoRequired: true, whoLabel: 'Kimga', placeholder: 'Masalan: kirim 1 000 000', sendLabel: "Yozuvni ko'rish" },
 };
