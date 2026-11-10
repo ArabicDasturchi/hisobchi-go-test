@@ -7,5 +7,5 @@ import { redirect } from 'next/navigation';
 export default async function NewSaleRedirect({ searchParams }: { searchParams: Promise<{ customer?: string | string[] }> }) {
   const { customer } = await searchParams;
   const id = Array.isArray(customer) ? customer[0] : customer;
-  redirect(id ? `/dashboard?customer=${encodeURIComponent(id)}` : '/dashboard');
+  redirect(id ? `/dashboard?kimga=${encodeURIComponent(id)}` : '/dashboard');
 }

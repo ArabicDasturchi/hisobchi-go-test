@@ -21,7 +21,7 @@ const byAlpha = (a: Product, b: Product) => {
 /**
  * Mos kelgan HAMMA faol tovar (chegara {@link SEARCH_ALL_LIMIT}).
  * Tartib: nom boshidan → so'z boshidan → ichidan; har guruhda ko'p sotilgani (`popular` tartibi) yuqorida, keyin alifbo.
- * Kirill/Lotin, katta-kichik harf va apostrof farqi hisobga olinmaydi. Bo'sh so'rov: ko'p sotilganlar.
+ * Kirill/Lotin, katta-kichik harf va apostrof farqi hisobga olinmaydi. Bo'sh so'rov: ko'p sotilganlar, so'ng oxirgi qo'shilganlar (8 ta).
  */
 export function searchProductsAll(products: readonly Product[], query: string, popular: readonly Product[] = []): Product[] {
   const active = products.filter((p) => p.is_active);
@@ -34,8 +34,10 @@ export function searchProductsAll(products: readonly Product[], query: string, p
   };
   const q = looseKey(query);
   if (!q) {
+    // Bo'sh so'rov: avval ko'p sotilganlar, so'ng oxirgi qo'shilganlar (kamida 8 ta, katalog yetsa)
     const ranked = active.filter((p) => rank.has(p.id)).sort(order);
-    return (ranked.length > 0 ? ranked : [...active].sort(byAlpha)).slice(0, EMPTY_QUERY_LIMIT);
+    const newest = active.filter((p) => !rank.has(p.id)).sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : byAlpha(a, b)));
+    return [...ranked, ...newest].slice(0, EMPTY_QUERY_LIMIT);
   }
   const starts: Product[] = [];
   const wordStarts: Product[] = [];

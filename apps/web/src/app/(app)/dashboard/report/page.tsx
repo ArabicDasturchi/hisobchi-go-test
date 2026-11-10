@@ -2,6 +2,7 @@
 import { Ban, CircleDollarSign, Download, HandCoins, Printer, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { Overview } from '@/components/reports/Overview';
 import { TrendChart } from '@/components/charts/TrendChart';
 import { DataGate, MethodBadge, Money, StatCard, StatusBadge } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
@@ -133,6 +134,11 @@ function Reports({ data }: { data: ShopData }) {
           </>
         }
       />
+
+      <section aria-label="Umumiy ko'rinish" className="no-print mb-6">
+        <h2 className="mb-2 text-sm font-semibold text-muted">Umumiy ko&apos;rinish</h2>
+        <Overview data={data} />
+      </section>
 
       <div className="print-only mb-4 text-sm">
         <b>{membership.shop.name}</b> — hisobot: {formatDate(parseDayKey(from)?.toISOString() ?? new Date().toISOString())} – {formatDate(parseDayKey(to)?.toISOString() ?? new Date().toISOString())}
