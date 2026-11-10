@@ -149,7 +149,7 @@ export function StockTab({ books, loading, reload }: { books: BooksData | null; 
   const [q, setQ] = usePageQuery();
   const [filter, setFilter] = useState<StockFilter>('all');
   const canAdjust = can(membership.role, 'stock.adjust');
-  const stock = books?.stock ?? [];
+  const stock = useMemo(() => books?.stock ?? [], [books]);
   const counts = useMemo(() => stockCounts(stock), [stock]);
   const rows = useMemo(() => filterStock(stock, { query: q, filter }), [stock, q, filter]);
 

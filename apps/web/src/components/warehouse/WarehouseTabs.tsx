@@ -3,24 +3,21 @@
  * Ombor ichidagi uch ko'rinish: Qoldiq (jadval + tuzatish), Kirim (kirimlar ro'yxati), Chiqim (savdodan chiqqan tovar,
  * tuzatish/yo'qotish). Eski Kirim/Chiqim daftari mantig'i `lib/warehouseView.ts` ga ko'chirilgan; hisob core'da.
  */
-import { Download, PackagePlus, SlidersHorizontal, Warehouse } from 'lucide-react';
+import { Download, PackagePlus, Warehouse } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Money } from '../shared';
 import { useShop } from '../ShopDataProvider';
-import { Alert, Badge, Button, Card, EmptyState, ErrorState, Input, LinkButton, SearchInput, Segmented, Select, TableSkeleton } from '../ui/primitives';
-import type { BooksData, DayRange, StockItem } from '@/lib/data/books';
-import { stockView } from '@/lib/data/books';
+import { Badge, Button, Card, EmptyState, ErrorState, Input, LinkButton, SearchInput, Segmented, Select, TableSkeleton } from '../ui/primitives';
+import type { BooksData, DayRange } from '@/lib/data/books';
 import { loadOutflowMovements, type StockMovementRow } from '@/lib/data/movements';
 import { downloadCsv, toCsv } from '@/lib/csv';
 import { errorMessage } from '@/lib/errors';
 import { formatQty } from '@/lib/money';
-import { can } from '@/lib/permissions';
 import { getSupabase } from '@/lib/supabase/client';
 import { outflowItems, outflowTotals, presetRange, receiptDays, todayTashkent, type OutflowType, type Preset } from '@/lib/warehouseView';
 import { uz } from '@/i18n/uz';
 
-const norm = (s: string) => s.toLocaleLowerCase('uz').trim();
 const show = (d: string) => d.split('-').reverse().join('.');
 
 // ---------------------------------------------------------------------------

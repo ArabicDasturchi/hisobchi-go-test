@@ -2,22 +2,21 @@
 /** Mijoz daftari: LedgerSheet ni savdo/to'lov jurnali va mavjud RPC'lar bilan bog'laydi (yangi hisob yo'q). */
 import { Pencil, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { deleteCustomer, getSaleDetail, postSale, recordPayment, reverseSale, voidPayment } from '@/lib/data/api';
+import { useEffect, useMemo, useState } from 'react';
+import { deleteCustomer, getSaleDetail, reverseSale, voidPayment } from '@/lib/data/api';
 import { buildSheet, customerEntries, verifySheet, type SheetEntry } from '@/lib/data/partnerLedger';
 import type { Customer, SaleLine } from '@/lib/data/types';
 import { errorMessage } from '@/lib/errors';
-import { formatQty, lineTotal } from '@/lib/money';
+import { formatQty } from '@/lib/money';
 import { can } from '@/lib/permissions';
 import { getSupabase } from '@/lib/supabase/client';
 import { CustomerFormModal } from '../forms/CustomerFormModal';
-import { PaymentModal } from '../forms/PaymentModal';
 import { Money } from '../shared';
 import { useShop, type ShopData } from '../ShopDataProvider';
 import { Modal } from '../ui/Modal';
 import { Alert, Button } from '../ui/primitives';
 import { useToast } from '../ui/Toast';
-import { LedgerSheet, type QuickSaveInput } from './LedgerSheet';
+import { LedgerSheet } from './LedgerSheet';
 import { useSqlBalance } from './useSqlBalance';
 
 /** Tez yozuvdagi tovar summasi shu nom bilan bitta savdo qatori bo'ladi (tovarga bog'lanmaydi, omborga tegmaydi) */
@@ -60,7 +59,6 @@ export function CustomerLedger({ customer, data }: { customer: Customer; data: S
   const router = useRouter();
   const toast = useToast();
   const { shopId, reload, membership, lastLoadedAt } = useShop();
-  const [paying, setPaying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -72,35 +70,6 @@ export function CustomerLedger({ customer, data }: { customer: Customer; data: S
   const sql = useSqlBalance('customer', shopId, customer.id, String(lastLoadedAt?.getTime() ?? 0));
   const verification = useMemo(() => (sql === undefined ? ('checking' as const) : verifySheet(rows, entries, sql)), [rows, entries, sql]);
   const hasHistory = entries.length > 0;
-
-  // Takroriy bosish dublikat yaratmasin: bir xil summa uchun kalitlar saqlanadi, muvaffaqiyatdan keyin yangilanadi
-  const attempt = useRef<{ sig: string; saleId: string; saleOp: string; payId: string; payOp: string } | null>(null);
-
-  async function onQuickSave({ goods, paid }: QuickSaveInput) {
-    const sig = `${goods}:${paid}`;
-    if (!attempt.current || attempt.current.sig !== sig) attempt.current = { sig, saleId: newId(), saleOp: newId(), payId: newId(), payOp: newId() };
-    const a = attempt.current;
-    const sb = getSupabase();
-    try {
-      if (goods > 0n) {
-        // Jami core formulasi bilan; server qayta hisoblaydi (calc_mismatch bo'lsa saqlanmaydi)
-        const total = lineTotal({ qtyMilli: 1000n, unitPrice: goods });
-        await postSale(sb, { shopId, saleId: a.saleId, clientOpId: a.saleOp, customerId: customer.id, note: QUICK_SALE_LINE, lines: [{ product_name: QUICK_SALE_LINE, qty_milli: 1000n, unit: 'dona', unit_price: goods }], clientTotal: total });
-      }
-      if (paid > 0n) {
-        try {
-          await recordPayment(sb, { shopId, paymentId: a.payId, clientOpId: a.payOp, customerId: customer.id, amount: paid, method: 'naqd', note: null });
-        } catch (e) {
-          await reload();
-          throw new Error(goods > 0n ? `Savdo saqlandi, lekin to‘lov saqlanmadi: ${errorMessage(e)} Qayta urinish savdoni takrorlamaydi.` : errorMessage(e));
-        }
-      }
-      attempt.current = null;
-      await reload();
-    } catch (e) {
-      throw e instanceof Error ? e : new Error(errorMessage(e));
-    }
-  }
 
   async function onCancel(entry: SheetEntry, reason: string) {
     const sb = getSupabase();
@@ -132,9 +101,7 @@ export function CustomerLedger({ customer, data }: { customer: Customer; data: S
         rows={rows}
         verification={verification}
         canWrite={canWrite}
-        goodsHref={`/sales/new?customer=${customer.id}`}
-        onPay={() => setPaying(true)}
-        onQuickSave={onQuickSave}
+        writeHref={`/dashboard?amal=daftar&kimga=${customer.id}`}
         onCancel={onCancel}
         renderDetail={(e) => (e.ref === 'sale' && !e.cancelled ? <SaleLines id={e.id} /> : null)}
         headerActions={
@@ -151,7 +118,6 @@ export function CustomerLedger({ customer, data }: { customer: Customer; data: S
         }
       />
       <CustomerFormModal open={editing} onClose={() => setEditing(false)} customer={customer} />
-      <PaymentModal open={paying} onClose={() => setPaying(false)} customerId={customer.id} />
       <Modal
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}

@@ -1,14 +1,17 @@
 'use client';
-import { ChevronRight, PackagePlus, Phone, Plus, Truck } from 'lucide-react';
-import Link from 'next/link';
+import { PackagePlus, Plus, Truck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { PartnerList } from '@/components/partners/PartnerList';
+import { usePageQuery } from '@/components/layout/pageQuery';
+import { useToast } from '@/components/ui/Toast';
+import { updateSupplier } from '@/lib/data/purchases';
+import { getSupabase } from '@/lib/supabase/client';
 import { SupplierFormModal } from '@/components/forms/SupplierFormModal';
-import { Money, ResponsiveTable } from '@/components/shared';
+import { Money } from '@/components/shared';
 import { useShop } from '@/components/ShopDataProvider';
 import { useBooks } from '@/components/useBooks';
-import { Alert, Avatar, Button, Card, EmptyState, ErrorState, LinkButton, PageHeader, SearchInput, Segmented, Select, TableSkeleton } from '@/components/ui/primitives';
-import { formatDate } from '@/lib/dates';
+import { Alert, Button, Card, EmptyState, ErrorState, LinkButton, PageHeader, SearchInput, Segmented, Select, TableSkeleton } from '@/components/ui/primitives';
 import { filterPartners, type ListFilter, type ListSort } from '@/lib/ledgerView';
 import { can } from '@/lib/permissions';
 import { safeSupplierBook } from '@/lib/supplierBook';
@@ -18,12 +21,14 @@ import { uz } from '@/i18n/uz';
 export default function SuppliersPage() {
   const router = useRouter();
   const { data, error, loading, reload } = useBooks();
-  const { membership } = useShop();
+  const { membership, shopId } = useShop();
+  const toast = useToast();
   const [adding, setAdding] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = usePageQuery();
   const [filter, setFilter] = useState<ListFilter>('all');
   const [sort, setSort] = useState<ListSort>('debt');
   const canManage = can(membership.role, 'partner.manage');
+  const notesById = useMemo(() => new Map((data?.suppliers ?? []).map((x) => [x.id, x.notes ?? ''])), [data]);
 
   const book = useMemo(() => (data ? safeSupplierBook(data) : null), [data]);
   const rows = useMemo(() => (book ? filterPartners(book.rows, { query, filter, sort }) : []), [book, query, filter, sort]);
@@ -46,7 +51,7 @@ export default function SuppliersPage() {
         description="Har ta'minotchi — bitta daftar varag‘i: kirim, to‘lov va qarzingiz shu yerda."
         actions={
           <>
-            <LinkButton href="/purchases/new" variant="outline" icon={<PackagePlus className="h-4 w-4" />}>
+            <LinkButton href="/dashboard?amal=kirim" variant="outline" icon={<PackagePlus className="h-4 w-4" />}>
               Kirim yozish
             </LinkButton>
             {canManage && (
@@ -116,58 +121,19 @@ export default function SuppliersPage() {
         ) : rows.length === 0 ? (
           <EmptyState title="Hech narsa topilmadi" description={filter === 'debtors' && !query ? "Hozir qarzingiz bor ta'minotchi yo'q." : "Qidiruv yoki filterni o'zgartirib ko'ring."} />
         ) : (
-          <ResponsiveTable
-            head={
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Ta&apos;minotchi</th>
-                <th className="px-4 py-2.5 font-medium">Telefon</th>
-                <th className="px-4 py-2.5 font-medium">Oxirgi harakat</th>
-                <th className="px-4 py-2.5 text-right font-medium">Qarzim</th>
-                <th className="w-10 px-4 py-2.5" />
-              </tr>
-            }
-            mobile={rows.map((r) => (
-              <Link key={r.id} href={`/suppliers/${r.id}`} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2">
-                <Avatar name={r.name} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-fg">{r.name}</p>
-                  <p className="truncate text-xs text-muted">{r.phone ?? (r.lastActivity ? formatDate(r.lastActivity) : '—')}</p>
-                </div>
-                <div className="text-right">
-                  <Money value={r.balance > 0n ? r.balance : 0n} className={r.balance > 0n ? 'text-sm font-semibold text-rose-600 dark:text-rose-400' : 'text-sm text-muted'} />
-                  <p className="text-[11px] text-muted">{r.balance > 0n ? 'qarzim' : r.balance < 0n ? 'ortiqcha to‘lov' : 'qarz yo‘q'}</p>
-                </div>
-              </Link>
-            ))}
-          >
-            {rows.map((r) => (
-              <tr key={r.id} onClick={() => router.push(`/suppliers/${r.id}`)} className="cursor-pointer transition-colors hover:bg-surface-2">
-                <td className="px-4 py-2.5">
-                  <Link href={`/suppliers/${r.id}`} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                    <Avatar name={r.name} />
-                    <span className="truncate font-medium text-fg">{r.name}</span>
-                  </Link>
-                </td>
-                <td className="px-4 py-2.5 text-muted">
-                  {r.phone ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <Phone className="h-3.5 w-3.5" />
-                      {r.phone}
-                    </span>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td className="px-4 py-2.5 text-muted">{r.lastActivity ? formatDate(r.lastActivity) : '—'}</td>
-                <td className="px-4 py-2.5 text-right">
-                  <Money value={r.balance} className={r.balance > 0n ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-muted'} />
-                </td>
-                <td className="px-4 py-2.5 text-muted">
-                  <ChevronRight className="h-4 w-4" />
-                </td>
-              </tr>
-            ))}
-          </ResponsiveTable>
+          <PartnerList
+            rows={rows}
+            notes={notesById}
+            base="/suppliers"
+            canManage={canManage}
+            balanceHeader="Qarzim"
+            onSave={async (id, v) => {
+              const sup = data?.suppliers.find((x) => x.id === id);
+              await updateSupplier(getSupabase(), shopId, id, { name: v.name, phone: sup?.phone ?? null, notes: v.notes });
+              await reload();
+              toast.success("Ta'minotchi yangilandi.");
+            }}
+          />
         )}
       </Card>
       <SupplierFormModal open={adding} onClose={() => setAdding(false)} supplier={null} onSaved={(s) => { void reload(); router.push(`/suppliers/${s.id}`); }} />
