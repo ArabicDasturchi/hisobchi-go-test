@@ -65,11 +65,11 @@ export function SuggestionPanel({ id, query, items, lines, selected, newName, on
       id={id}
       data-testid="suggestions"
       onKeyDown={onKeyDown}
-      className="absolute inset-x-0 bottom-full z-30 mb-2 flex max-h-[min(26rem,55dvh)] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-xl"
+      className="mb-2 flex max-h-[min(22rem,42dvh)] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-xl"
     >
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <p className="min-w-0 truncate text-sm font-semibold text-fg" aria-live="polite">
-          {query.trim() ? `"${query.trim()}" bo'yicha ${items.length} ta tovar` : `Ko'p sotilgan: ${items.length} ta tovar`}
+          {query.trim() ? `"${query.trim()}" bo'yicha ${items.length} ta tovar` : `Ko'p sotilgan va oxirgi qo'shilgan: ${items.length} ta`}
         </p>
         <button
           type="button"

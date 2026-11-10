@@ -1,14 +1,16 @@
 'use client';
-import { ChevronDown, ChevronRight, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plus, Settings, Store, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, Store, X } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { uz } from '@/i18n/uz';
 import { useAuth } from '../AuthProvider';
 import { Logo, LogoMark } from '../Logo';
 import { useShop } from '../ShopDataProvider';
 import { Avatar, cn } from '../ui/primitives';
-import { BOTTOM_ITEMS, isItemActive, NAV_GROUPS, parentSection, pageTitle, SETTINGS_ITEM, type NavItem } from './nav';
+import { MenuItem, MenuSheet } from '../panel/MenuSheet';
+import { HeaderSearch } from './HeaderSearch';
+import { BOTTOM_ITEMS, hasComposer, isItemActive, MORE_ITEM, MORE_LINKS, NAV_GROUPS, parentSection, pageTitle, SETTINGS_ITEM, type NavItem } from './nav';
 import { SyncIndicator } from './SyncIndicator';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -91,23 +93,6 @@ function ShopChip({ compact }: { compact?: boolean }) {
         <p className="text-[11px] text-muted">{uz.roles[membership.role]}</p>
       </div>
     </div>
-  );
-}
-
-function NewSaleLink({ compact }: { compact?: boolean }) {
-  return (
-    <Link
-      href="/sales/new"
-      title={compact ? uz.nav.newSale : undefined}
-      aria-label={compact ? uz.nav.newSale : undefined}
-      className={cn(
-        'flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400',
-        compact ? 'h-9 w-9' : 'h-9 px-3',
-      )}
-    >
-      <Plus className="h-4 w-4" />
-      {!compact && uz.nav.newSale}
-    </Link>
   );
 }
 
@@ -207,9 +192,6 @@ function Drawer({ open, onClose }: { open: boolean; onClose: () => void }) {
           </button>
         </div>
         <ShopChip />
-        <div className="mt-3">
-          <NewSaleLink />
-        </div>
         <div className="mt-4 flex-1 overflow-y-auto">
           <NavSections onNavigate={onClose} />
           <div className="mt-3 border-t border-line pt-3">
@@ -233,36 +215,62 @@ function Drawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
-function BottomNav({ onMenu }: { onMenu: () => void }) {
+function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { pendingDrafts } = useShop();
-  const link = (item: NavItem) => {
-    const active = isItemActive(pathname, item);
-    return (
-      <Link
-        key={item.href}
-        href={item.href}
-        aria-current={active ? 'page' : undefined}
-        className={cn('flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-medium', active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted')}
-      >
-        <item.icon className="h-5 w-5" />
-        {item.label}
-      </Link>
-    );
-  };
+  const [more, setMore] = useState(false);
+  const inner = (it: NavItem, extra?: ReactNode) => (
+    <>
+      <span className="relative">
+        <it.icon className="h-5 w-5" aria-hidden />
+        {extra}
+      </span>
+      {it.short ?? it.label}
+    </>
+  );
+  const cls = (active: boolean) => cn('flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium', active ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted');
+  const moreActive = isItemActive(pathname, MORE_ITEM);
+  const badge =
+    pendingDrafts > 0 ? (
+      <span className="absolute -right-3 -top-1 rounded-full bg-amber-500 px-1 text-[9px] font-semibold leading-4 text-white" aria-label={`${pendingDrafts} ta tasdiqlanmagan qoralama`}>
+        {pendingDrafts}
+      </span>
+    ) : null;
   return (
-    <nav className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Pastki menyu">
-      <div className="mx-auto flex max-w-lg items-stretch">
-        {BOTTOM_ITEMS.map(link)}
-        <button type="button" onClick={onMenu} className="flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-medium text-muted">
-          <span className="relative">
-            <Menu className="h-5 w-5" />
-            {pendingDrafts > 0 && <span className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-amber-500" aria-label={`${pendingDrafts} ta tasdiqlanmagan qoralama`} />}
-          </span>
-          {uz.nav.menu}
-        </button>
+    <>
+      <nav className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Pastki menyu">
+        <div className="mx-auto flex max-w-lg items-stretch">
+          {BOTTOM_ITEMS.map((it) => {
+            const active = isItemActive(pathname, it);
+            return (
+              <Link key={it.href} href={it.href} aria-current={active ? 'page' : undefined} className={cls(active)}>
+                {inner(it)}
+              </Link>
+            );
+          })}
+          <button type="button" onClick={() => setMore(true)} aria-haspopup="dialog" aria-expanded={more} className={cls(moreActive)}>
+            {inner(MORE_ITEM, badge)}
+          </button>
+        </div>
+      </nav>
+      <div className="md:hidden">
+        <MenuSheet open={more} onClose={() => setMore(false)} title="Yana">
+          {MORE_LINKS.map((it) => (
+            <MenuItem
+              key={it.href}
+              label={it.label}
+              badge={it.href === '/drafts' && pendingDrafts > 0 ? String(pendingDrafts) : undefined}
+              selected={isItemActive(pathname, it)}
+              onClick={() => {
+                setMore(false);
+                router.push(it.href);
+              }}
+            />
+          ))}
+        </MenuSheet>
       </div>
-    </nav>
+    </>
   );
 }
 
@@ -292,6 +300,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const closeDrawer = useCallback(() => setDrawer(false), []);
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const panel = hasComposer(pathname);
   const [lastPath, setLastPath] = useState(pathname);
   // Sahifa almashganda drawer yopiladi
   if (lastPath !== pathname) {
@@ -338,9 +347,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         </div>
         <ShopChip compact={collapsed} />
-        <div className="mt-3">
-          <NewSaleLink compact={collapsed} />
-        </div>
         <div className="mt-4 flex-1 overflow-y-auto">
           <NavSections compact={collapsed} />
         </div>
@@ -366,7 +372,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             <LogoMark className="h-8 w-8" />
           </Link>
         </div>
-        <NewSaleLink compact />
         <div className="mt-3 flex-1 overflow-y-auto">
           <NavSections compact />
         </div>
@@ -378,15 +383,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className={cn('transition-[padding] duration-150 md:pl-16', collapsed ? 'lg:pl-16' : 'lg:pl-[232px]')}>
         <header className="no-print sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur">
           <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-2 px-3 sm:px-4 lg:px-6">
-            <button type="button" onClick={() => setDrawer(true)} className="rounded-lg p-1.5 text-muted hover:bg-subtle hover:text-fg md:hidden" aria-label="Menyuni ochish">
-              <Menu className="h-5 w-5" />
-            </button>
+            {panel && (
+              <button type="button" onClick={() => setDrawer(true)} className="-ml-1 flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-subtle hover:text-fg md:hidden" aria-label="Menyuni ochish">
+                <Menu className="h-5 w-5" />
+              </button>
+            )}
             <div className="md:hidden">
               <LogoMark className="h-7 w-7" />
             </div>
             <div className="min-w-0 flex-1">
               <Breadcrumb />
             </div>
+            <HeaderSearch />
             <div className="flex items-center gap-1">
               <div className="hidden sm:block">
                 <SyncIndicator />
@@ -399,13 +407,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </header>
-        <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1440px] px-3 pb-24 pt-4 outline-none sm:px-4 md:pb-8 lg:px-6">
+        <main id="main" tabIndex={-1} className={cn('outline-none', panel ? 'w-full' : 'mx-auto w-full max-w-[1440px] px-3 pb-24 pt-4 sm:px-4 md:pb-8 lg:px-6')}>
           {children}
         </main>
       </div>
 
-      <BottomNav onMenu={() => setDrawer(true)} />
-      <Drawer open={drawer} onClose={closeDrawer} />
+      {!panel && <BottomNav />}
+      {panel && <Drawer open={drawer} onClose={closeDrawer} />}
     </div>
   );
 }

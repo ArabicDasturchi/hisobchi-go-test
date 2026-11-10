@@ -5,7 +5,7 @@
 export const uz = {
   app: { name: 'Hisobchi Go', tagline: 'Savdo va qarz hisobi — oddiy va aniq' },
   nav: {
-    dashboard: 'Bosh sahifa',
+    dashboard: 'Boshqaruv paneli',
     sales: 'Savdolar',
     drafts: 'Qoralamalar',
     newSale: 'Yangi savdo',
@@ -14,6 +14,8 @@ export const uz = {
     warehouse: 'Ombor',
     suppliers: "Ta'minotchilar",
     report: 'Hisobot',
+    reports: 'Hisobotlar',
+    more: 'Yana',
     purchasesBook: 'Kirim daftari',
     salesBook: 'Chiqim daftari',
     ledgers: 'Daftarlar',

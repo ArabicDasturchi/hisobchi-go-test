@@ -77,9 +77,12 @@ describe('searchProductsAll', () => {
     const popular = topProducts(CATALOG, sales, lines, 50);
     expect(names(searchProductsAll(CATALOG, 'joy', popular))).toEqual(['Joynamoz katta', 'Joynamoz Eron', 'Joynamoz bolalar', "Joynamoz cho'ntak", 'Joynamoz Turk']);
   });
-  it("bo'sh so'rov: ko'p sotilganlar, bo'lmasa alifbo bo'yicha birinchi 8 ta", () => {
-    expect(searchProductsAll(CATALOG, '')).toHaveLength(8);
-    expect(searchProductsAll(CATALOG, '', [ROMOL, TASBEH]).map((p) => p.id)).toEqual(['r1', 't1']);
+  it("bo'sh so'rov: avval ko'p sotilganlar, keyin oxirgi qo'shilganlar, jami 8 ta", () => {
+    const many = Array.from({ length: 12 }, (_, i) => P(`n${i}`, `Tovar ${i}`, 1000, { created_at: `2026-11-${String(i + 1).padStart(2, '0')}` }));
+    const out = searchProductsAll(many, '', [many[3]!, many[1]!]);
+    expect(out).toHaveLength(8);
+    expect(out.slice(0, 3).map((p) => p.id)).toEqual(['n3', 'n1', 'n11']); // ranked, so'ng eng yangisi
+    expect(out[3]!.id).toBe('n10');
   });
   it('mos kelmasa bo‘sh', () => expect(searchProductsAll(CATALOG, 'zzz')).toEqual([]));
 });
