@@ -6,7 +6,7 @@
  */
 import { RotateCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useDeferredValue, useId, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CustomerFormModal } from '@/components/forms/CustomerFormModal';
 import { SupplierFormModal } from '@/components/forms/SupplierFormModal';
 import { ConfirmSaleModal } from '@/components/sale/ConfirmSaleModal';
@@ -29,6 +29,7 @@ import { balanceOf } from '@/lib/data/ledger';
 import type { PaymentMethod } from '@/lib/data/types';
 import { shortNumber } from '@/lib/dates';
 import { previewLedgerNote } from '@/lib/ledgerNote';
+import { parseResale, RESALE_KEY, resaleLines } from '@/lib/resale';
 import { lineStatus, summarizeLines } from '@/lib/lineStatus';
 import { formatQty, formatSom } from '@/lib/money';
 import { ACTION_INFO, panelHref, parsePanelParams, whoForAction, type PanelAction } from '@/lib/panelState';
@@ -83,7 +84,16 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('naqd');
-  const [saleLines, setSaleLines] = useState<DraftLine[]>([]);
+  // "Qayta yozish": bekor qilingan savdo qatorlari oldindan to'ldiriladi (hech narsa saqlanmagan, odatdagi tasdiq kerak)
+  const [resale, setResale] = useState(() => {
+    if (params.get('qayta') !== '1' || typeof window === 'undefined') return null;
+    try {
+      return parseResale(sessionStorage.getItem(RESALE_KEY));
+    } catch {
+      return null;
+    }
+  });
+  const [saleLines, setSaleLines] = useState<DraftLine[]>(() => (resale ? resaleLines(resale) : []));
   const [buyLines, setBuyLines] = useState<PurchaseDraftLine[]>([]);
   const [buyPaid, setBuyPaid] = useState('');
   const [pickedMode, setMode] = useState<PayMode>(DEFAULT_PAY_MODE);
@@ -102,6 +112,18 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const items = useMemo(() => searchProductsAll(products, deferredQuery, popular), [products, deferredQuery, popular]);
   const newName = query.trim() && !items.some((p) => sameName(p.name, query)) ? query.trim() : null;
   const searching = action === 'savdo' || action === 'kirim';
+
+  useEffect(() => {
+    // Bir martalik uzatma: o'qilgach tozalanadi va manzildan `qayta` olib tashlanadi (yangilashda qayta to'ldirilmasin)
+    if (params.get('qayta') !== '1') return;
+    try {
+      sessionStorage.removeItem(RESALE_KEY);
+    } catch {
+      // saqlash mavjud emas
+    }
+    router.replace(panelHref({ action, who }), { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat birinchi ochilishda
+  }, []);
 
   // ---- Hooklar ----
   const mode = effectiveMode(pickedMode, who || null);
@@ -193,6 +215,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   }
 
   function newSale() {
+    setResale(null);
     setSaleLines([]);
     setMode(DEFAULT_PAY_MODE);
     setPartial('');
@@ -269,6 +292,11 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
                 <h2 className="text-2xl font-semibold tracking-tight text-fg">Savdo</h2>
                 <p className="text-sm text-muted">{customerName ? `${customerName} · yangi savdo` : 'Mijozsiz (naqd) · yangi savdo'}</p>
               </div>
+              {resale && saleLines.length > 0 && (
+                <Alert tone="blue" title={`Savdo ${resale.number} bekor qilingan`} data-testid="resale-note">
+                  Shu qatorlar bilan yangi savdo tayyor: tekshiring (narx, soni) va «Tasdiqlash» ni bosing. Tasdiqlamaguncha hech narsa saqlanmaydi.
+                </Alert>
+              )}
               {saleLines.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-line px-4 py-8 text-center" data-testid="sale-empty">
                   <p className="font-semibold text-fg">Savdoni boshlang</p>
