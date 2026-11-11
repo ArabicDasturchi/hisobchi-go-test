@@ -157,15 +157,17 @@ function Sales({ data }: { data: ShopData }) {
     const toT = to ? new Date(dayRangeToIso(to, to)!.toIso).getTime() : null;
     return data.sales.filter((s) => {
       if (status !== 'all' && s.status !== status) return false;
-      if (customer === '__none' ? s.customer_id !== null : customer && s.customer_id !== customer) return false;
+      // Bir martalik (tizim) mijoz savdosi ham «Mijozsiz (naqd)» (W10: veb mijozsiz savdoni shunday yozadi)
+      const own = s.customer_id && s.customer_id !== data.walkin?.id ? s.customer_id : null;
+      if (customer === '__none' ? own !== null : customer && s.customer_id !== customer) return false;
       const t = new Date(s.created_at).getTime();
       if (fromT !== null && t < fromT) return false;
       if (toT !== null && t >= toT) return false;
       if (!q) return true;
-      const name = s.customer_id ? (customerById.get(s.customer_id)?.name ?? '') : uz.common.noCustomer;
+      const name = own ? (customerById.get(own)?.name ?? '') : uz.common.noCustomer;
       return looseKey(shortNumber(s.id)).includes(q) || looseKey(name).includes(q);
     });
-  }, [data.sales, query, status, customer, from, to, customerById]);
+  }, [data.sales, data.walkin, query, status, customer, from, to, customerById]);
 
   const shown = rows.slice(0, limit);
   const filtered = Boolean(query || status !== 'all' || customer || from || to);
@@ -228,7 +230,7 @@ function Sales({ data }: { data: ShopData }) {
             </div>
             <ul className="divide-y divide-line" aria-label="Savdolar">
               {shown.map((s) => (
-                <SaleRow key={s.id} s={s} customerName={s.customer_id ? (customerById.get(s.customer_id)?.name ?? null) : null} />
+                <SaleRow key={s.id} s={s} customerName={s.customer_id && s.customer_id !== data.walkin?.id ? (customerById.get(s.customer_id)?.name ?? null) : null} />
               ))}
             </ul>
             {rows.length > shown.length && (
