@@ -46,9 +46,12 @@ export function lacksSalePrice(products: readonly Product[], productName: string
   return p !== undefined && p.last_price === null;
 }
 
-/** Tovar tanlanganda: nom, birlik va sotish narxi avtomatik to'ladi (narxi yo'q tovarda narx o'zgarmaydi) */
+/**
+ * Tovar tanlanganda: nom, birlik va sotish narxi avtomatik to'ladi (narxi yo'q tovarda narx o'zgarmaydi).
+ * `productId` ham yoziladi: server aynan shu tovarga bog'laydi, bir xil nomli boshqasiga emas (W4).
+ */
 export function applyProduct(line: DraftLine, p: Product): DraftLine {
-  return { ...line, productName: p.name, unit: p.unit, price: p.last_price !== null ? formatMoneyInput(p.last_price.toString()) : line.price };
+  return { ...line, productId: p.id, productName: p.name, unit: p.unit, price: p.last_price !== null ? formatMoneyInput(p.last_price.toString()) : line.price };
 }
 
 /** qty_milli → kiritish maydoni matni: 5000n → "5", 1500n → "1,5" */

@@ -62,9 +62,13 @@ export function toggleSelection(selected: readonly string[], id: string): string
   return selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
 }
 
-/** Ro'yxatda tovar nechanchi qatorda turibdi (nom bo'yicha); yo'q bo'lsa -1 */
+/**
+ * Ro'yxatda tovar nechanchi qatorda turibdi; yo'q bo'lsa -1.
+ * Qatorda tanlangan tovar (`productId`) bo'lsa faqat id bo'yicha: bir xil nomli boshqa tovar shu qatorga qo'shilmaydi (W4).
+ * Tanlovsiz (erkin matn yoki kirim qatori) qator — nom bo'yicha, avvalgidek.
+ */
 export function lineIndexOf(lines: readonly DraftLine[], p: Product): number {
-  return lines.findIndex((l) => sameName(l.productName, p.name));
+  return lines.findIndex((l) => (l.productId ? l.productId === p.id : sameName(l.productName, p.name)));
 }
 
 /** Panelda "Ro'yxatda: 10 ta" uchun: tovarning qatordagi soni (matn) yoki null */
@@ -93,7 +97,7 @@ export function applySelection(lines: readonly DraftLine[], selected: readonly P
     const filled = (l: DraftLine): DraftLine => ({ ...applyProduct(l, p), qty: '1' });
     const blankAt = out.findIndex(isBlank);
     if (blankAt >= 0) out = out.map((l, i) => (i === blankAt ? filled(l) : l));
-    else out.push(filled({ key: makeKey(), productName: '', qty: '', unit: 'dona', price: '' }));
+    else out.push(filled({ key: makeKey(), productId: null, productName: '', qty: '', unit: 'dona', price: '' }));
   }
   return out;
 }

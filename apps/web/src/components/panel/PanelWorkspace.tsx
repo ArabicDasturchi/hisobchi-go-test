@@ -33,6 +33,7 @@ import { parseResale, RESALE_KEY, resaleLines } from '@/lib/resale';
 import { lineStatus, summarizeLines } from '@/lib/lineStatus';
 import { formatQty, formatSom } from '@/lib/money';
 import { ACTION_INFO, panelHref, parsePanelParams, whoForAction, type PanelAction } from '@/lib/panelState';
+import { patchSaleLine } from '@/lib/productIdentity';
 import { addNewPurchaseLine, addNewSaleLine, applyPurchaseSelection, purchaseAsDraft } from '@/lib/panelLines';
 import { topProducts } from '@/lib/productPicker';
 import { applySelection, sameName, searchProductsAll, toggleSelection } from '@/lib/productSearch';
@@ -323,7 +324,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
                       status={lineStatus(l, products)}
                       warnings={lineWarnings(l, insights.perLine.get(l.key))}
                       disabled={frozenSale}
-                      onChange={(patch) => setSaleLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, ...patch } : x)))}
+                      onChange={(patch) => setSaleLines((ls) => ls.map((x) => (x.key === l.key ? patchSaleLine(x, patch) : x)))}
                       onRemove={() => setSaleLines((ls) => ls.filter((x) => x.key !== l.key))}
                     />
                   ))}

@@ -351,6 +351,8 @@ export interface PostSaleLine {
   qty_milli: bigint;
   unit: Unit;
   unit_price: bigint;
+  /** Katalogdan tanlangan tovar (W4); bo'lmasa server nom + birlik bo'yicha bog'laydi */
+  product_id?: string | null;
 }
 
 export interface PostSaleArgs {
@@ -380,6 +382,8 @@ export async function postSale(sb: SB, a: PostSaleArgs): Promise<string> {
       unit: l.unit,
       unit_price: l.unit_price.toString(),
       raw_text: null,
+      // Faqat to'g'ri uuid yuboriladi (server regex bilan tekshiradi; birlik mos kelmasa nom bo'yicha bog'laydi)
+      ...(l.product_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(l.product_id) ? { product_id: l.product_id } : {}),
     })),
     p_client_total: a.clientTotal.toString(),
   });
