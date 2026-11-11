@@ -37,6 +37,14 @@ When I ask for something, the answer is the finished product, not a plan to buil
 5. **Seans tugashi mumkin bo'lsa:** `docs/HOLAT-3.md` (yoki shu vazifaning holat fayli) ga nima tayyor, nima qoldi, keyingi aniq qadamni yoz va commit/push qil. Keyingi seans `git status`, `git log` va shu fayldan davom etadi.
 6. **Yakuniy hisobotda** faqat haqiqatni yoz: tayyor bosqichlar, boshlanmagan bosqichlar va sababi. Chala ishni tugagan dema.
 
+## TIL-QOIDASI (MUHIM)
+Foydalanuvchiga (Abdullohga) barcha javoblar, hisobotlar va tushuntirishlar FAQAT O'ZBEK TILIDA berilishi SHART. Kod, kod-izohlar, o'zgaruvchi-nomlari va texnik atamalar bundan mustasno, ular original tilida qoladi.
+
+## Tekshiruv: tanqidchi va ECC
+- ECC plagini yoqilgan (`.claude/settings.json`). Reja uchun `/ecc:plan`, kod ko'rigi uchun `/ecc:code-review`, xavfsizlik uchun `/ecc:security-scan`. Slash-buyruq yuklanmasa, buyruq mazmunini o'qib qo'lda bajar.
+- **Har bir vazifa, "tayyor" deyishdan OLDIN, `tanqidchi` subagenti orqali tekshiriladi.** FAIL bo'lsa: tuzat, qayta tekshir, PASS bo'lguncha. PASS bo'lmasdan PR "tayyor" deb belgilanmaydi.
+- ECC/tanqidchi qoidalari yuqoridagi "Eng muhim qoidalar", "MVP tamoyili" va tasdiq bosqichlarini bekor qilmaydi.
+
 ## Hujjatlar
 
 - [docs/TZ-MVP.md](docs/TZ-MVP.md) — MVP vazifasi (v2: ovozli savdo, suratdan kirim)
