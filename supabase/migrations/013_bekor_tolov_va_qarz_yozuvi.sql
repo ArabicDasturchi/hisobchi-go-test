@@ -54,6 +54,12 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'document_not_found' USING ERRCODE = 'P0002';
   END IF;
+  -- Qulfdan keyin qayta: o'sha client_op_id bilan parallel chaqiruv (ikki marta bosish, timeout'dan keyin qayta
+  -- yuborish) birinchisi tugashini kutgan bo'lsa, xato emas, o'sha natija qaytadi
+  SELECT id INTO v_rev FROM document_reversals WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
+  IF v_rev IS NOT NULL THEN
+    RETURN v_rev;
+  END IF;
 
   IF cardinality(v_ids) > 0 THEN
     IF cardinality(v_ids) > 20 OR (SELECT count(DISTINCT x) FROM unnest(v_ids) x) <> cardinality(v_ids) THEN
