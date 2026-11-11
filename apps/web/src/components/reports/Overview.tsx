@@ -64,7 +64,7 @@ export function Overview({ data }: { data: ShopData }) {
             <StatCard
               label="Karta va o‘tkazma"
               value={<Money value={today.paymentsInByMethod.karta + today.paymentsInByMethod.otkazma} />}
-              hint={methodBreakdown(today.paymentsInByMethod, ['karta', 'otkazma']) || 'Kassaga kirmaydi'}
+              hint={`Mijozlardan; kassaga kirmaydi${methodBreakdown(today.paymentsInByMethod, ['karta', 'otkazma']) ? ` · ${methodBreakdown(today.paymentsInByMethod, ['karta', 'otkazma'])}` : ''}`}
               icon={CreditCard}
               accent="blue"
             />
