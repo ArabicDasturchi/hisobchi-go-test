@@ -32,7 +32,13 @@ export class RpcMissingError extends AppError {
 export function isRpcMissing(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; message?: string };
-  return e.code === 'PGRST202' || e.code === '42883' || /could not find the function/i.test(e.message ?? '');
+  const msg = e.message ?? '';
+  // PGRST202: PostgREST sxemada bunday RPC yo'q. 42883 faqat "function ... does not exist" bo'lsa: mavjud funksiya
+  // ichidagi "operator does not exist" (ham 42883) RPC yo'qligi EMAS
+  if (e.code === 'PGRST202') return true;
+  if (e.code === '42883') return /\bfunction\b.*\bdoes not exist\b/i.test(msg) && !/\boperator\b/i.test(msg);
+  // Kod bo'lmasa faqat PostgREST'ning aniq matni (masalan, eski klient javobi)
+  return !e.code && /could not find the function/i.test(msg);
 }
 
 interface ErrorShape {

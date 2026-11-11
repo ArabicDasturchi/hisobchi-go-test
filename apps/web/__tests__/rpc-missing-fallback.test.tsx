@@ -27,6 +27,10 @@ describe('isRpcMissing', () => {
   it('faqat "funksiya topilmadi" holatlari', () => {
     expect(isRpcMissing(PGRST202)).toBe(true);
     expect(isRpcMissing({ code: '42883', message: 'function x does not exist' })).toBe(true);
+    // mavjud funksiya ichidagi turi mos kelmagan operator — RPC yo'qligi emas
+    expect(isRpcMissing({ code: '42883', message: 'operator does not exist: uuid = text' })).toBe(false);
+    expect(isRpcMissing({ code: 'PGRST203', message: 'Could not choose the best candidate function' })).toBe(false);
+    expect(isRpcMissing({ code: '08006', message: 'Failed to fetch' })).toBe(false);
     expect(isRpcMissing({ code: '42501', message: 'permission denied' })).toBe(false);
     expect(isRpcMissing({ code: '23505', message: 'opening_balance_exists' })).toBe(false);
     expect(isRpcMissing(null)).toBe(false);
