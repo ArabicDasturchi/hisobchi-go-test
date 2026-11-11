@@ -14,16 +14,16 @@ Sana: 11.11.2026. Holat: **reja, implementatsiya boshlanmagan**. Asos: [MCP-AGEN
 |---|---|---|
 | MCP server `apps/mcp` | 13 tool: 7 o'qish, 2 katalogga qo'shish, 4 qoralama/so'rov | Testlar 76/76; haqiqiy Claude/ChatGPT bilan **sinalmagan** |
 | OAuth 2.1 (Supabase) | `client_id` claim, `MCP_ALLOWED_CLIENT_IDS` | Bo'sh bo'lsa istalgan klient (S8) |
-| Tasdiq UI | web «Qoralamalar» (tasdiqlash, rad etish, qidiruv) | Ishlaydi (demo); qatorlarni tahrirlab bo'lmaydi |
+| Tasdiq UI | web «Qoralamalar» (tasdiqlash, rad etish, qidiruv) | Demo'da faqat ko'rinadi (tasdiqlash `demo_read_only`); haqiqiy tasdiq **sinalmagan**; qatorlarni tahrirlab bo'lmaydi |
 | Ilova ichidagi LLM | yo'q | Edge Function yo'q |
 | Ovoz / rasm | yo'q | — |
 
 ## 2. Xavfsiz ishlatiladigan RPC'lar (AI uchun)
 
-- **O'qish:** `agent_list_customers`, `agent_customer_balance`, `agent_list_sales`, `agent_get_sale`, `agent_daily_summary`, `agent_list_products`, `agent_list_suppliers`, `customer_outstanding`, `supplier_outstanding`, `partner_statement`.
+- **O'qish:** `agent_list_customers`, `agent_customer_balance`, `agent_list_sales`, `agent_get_sale`, `agent_day_rows` (`daily_summary` tool), `agent_list_products`, `agent_list_suppliers`, `customer_outstanding`, `supplier_outstanding`, `partner_statement`.
 - **Qoralama:** `agent_draft_sale`, `agent_draft_payment`, `agent_draft_purchase`, `agent_propose_*`.
 - **Katalogga qo'shish:** `agent_add_customer`, `agent_add_products` (asoschi qarori).
-- **HECH QACHON AI'ga berilmaydi:** `post_sale`, `reverse_sale*`, `record_payment`, `void_payment`, `post_purchase`, `reverse_purchase`, `record_supplier_payment`, `post_supplier_debt`, `post_supplier_opening_balance`, `adjust_stock`, `accept_agent_draft`, `reject_agent_draft`, `admin_*`.
+- **HECH QACHON AI'ga berilmaydi:** `post_sale`, `reverse_sale*`, `record_payment`, `void_payment`, `post_purchase`, `reverse_purchase`, `record_supplier_payment`, `void_supplier_payment`, `post_supplier_debt`, `post_supplier_opening_balance`, `adjust_stock`, `ensure_walkin_customer`, `create_shop`, `accept_agent_draft`, `reject_agent_draft`, `admin_*`.
 
 ## 3. Bosqichlar
 

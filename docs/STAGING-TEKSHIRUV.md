@@ -58,7 +58,9 @@ Natijalar shu fayldagi jadvalga yoki `docs/HOLAT-STAGING.md` ga yoziladi: ✅ / 
 2. #43 (SQL 013) → CI production'ga qo'llaydi (asoschi so'zi bilan) → PostgREST schema cache yangilanadi.
 3. #45 (W6), #46 (W4), #47 (W5; #46 bilan `PanelWorkspace.tsx` importlarida oddiy to'qnashuv), #50 (W3+W10).
 4. #44 (W1) va #49 (W2): **faqat #43 production'da bo'lgandan keyin**. Ungacha ular aniq xato beradi, jim fallback yo'q.
-5. `docs/QARORLAR.md`: bir nechta PR jadval oxiriga qator qo'shgan, merge'da qatorlarni saqlab birlashtirish kerak.
+   #44 ni #50 dan keyin `main` ga moslash kerak: `sales/[id]/page.tsx` da to'qnashuv (ikkalasini saqlash: `customer.kind !== 'one_time'` sharti va `RefundChoice`).
+5. Boshqa ma'lum to'qnashuvlar (`git merge-tree`, juft-juft): #45 × #50 `dashboard/report/page.tsx` (W6 kassa kartalari va W10 walk-in guruhlash, ikkalasi saqlanadi); #46 × #47 `PanelWorkspace.tsx` importlari. Ketma-ket merge'dan keyin boshqa to'qnashuv chiqishi mumkin.
+6. `docs/QARORLAR.md`: bir nechta PR jadval oxiriga qator qo'shgan, merge'da qatorlarni saqlab birlashtirish kerak.
 
 ## 5. Qolgan xavflar (staging'da kuzatish)
 
