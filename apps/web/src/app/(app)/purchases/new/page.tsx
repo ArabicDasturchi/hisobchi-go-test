@@ -16,10 +16,11 @@ import { postPurchase } from '@/lib/data/purchases';
 import { PAYMENT_METHODS, type PaymentMethod, type Product } from '@/lib/data/types';
 import { toAppError } from '@/lib/errors';
 import { formatMoneyInput, formatQty, formatSom, lineTotal, parseMoneyInput, parseQtyInput } from '@/lib/money';
-import { buildPurchasePlan, isBlankPurchaseLine, purchaseEffects, resolveProduct, type PurchaseDraftLine, type PurchaseLineErrors, type PurchasePlan } from '@/lib/purchaseForm';
+import { buildPurchasePlan, purchaseEffects, resolveProduct, type PurchaseDraftLine, type PurchaseLineErrors, type PurchasePlan } from '@/lib/purchaseForm';
 import { getSupabase } from '@/lib/supabase/client';
 
-const newLine = (): PurchaseDraftLine => ({ key: crypto.randomUUID(), productId: null, productName: '', qty: '', unitCost: '' });
+// Bu sahifa faqat katalog tovarini qabul qiladi (yangi tovar yaratmaydi): birlik doim tanlangan tovarniki
+const newLine = (): PurchaseDraftLine => ({ key: crypto.randomUUID(), productId: null, productName: '', unit: null, qty: '', unitCost: '' });
 const newKeys = () => ({ purchaseId: crypto.randomUUID(), op: crypto.randomUUID() });
 
 interface Done {
@@ -78,7 +79,7 @@ function NewPurchase({ data }: { data: ShopData }) {
 
   function pick(key: string, p: Product) {
     const cost = lastCost.get(p.id);
-    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, productId: p.id, productName: p.name, unitCost: l.unitCost.trim() || cost == null ? l.unitCost : formatMoneyInput(cost.toString()) } : l)));
+    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, productId: p.id, productName: p.name, unit: p.unit, unitCost: l.unitCost.trim() || cost == null ? l.unitCost : formatMoneyInput(cost.toString()) } : l)));
   }
 
   async function onSubmit(e: FormEvent) {
@@ -244,7 +245,7 @@ function NewPurchase({ data }: { data: ShopData }) {
                     <ProductSearch
                       value={l.productName}
                       products={data.products}
-                      onText={(t) => update(l.key, { productName: t, productId: null })}
+                      onText={(t) => update(l.key, { productName: t, productId: null, unit: null })}
                       onPick={(pr) => pick(l.key, pr)}
                       error={errs.product}
                       disabled={frozen}
@@ -268,7 +269,7 @@ function NewPurchase({ data }: { data: ShopData }) {
                       wrapClassName="col-span-6 sm:col-span-4"
                     />
                     <Input
-                      aria-label="Tan narx"
+                      aria-label={p ? `Tan narx (1 ${uz.units[p.unit]})` : 'Tan narx'}
                       inputMode="numeric"
                       value={l.unitCost}
                       onChange={(e) => update(l.key, { unitCost: formatMoneyInput(e.target.value) })}

@@ -14,7 +14,7 @@ import { recordSupplierPayment } from '@/lib/data/supplierPayments';
 import type { PaymentMethod, Product } from '@/lib/data/types';
 import { toAppError } from '@/lib/errors';
 import { lineTotal, parseMoneyInput } from '@/lib/money';
-import { buildPurchasePlan, resolveProduct, type PurchaseDraftLine, type PurchaseLineErrors } from '@/lib/purchaseForm';
+import { bindNewProducts, buildPurchasePlan, type PurchaseDraftLine, type PurchaseLineErrors } from '@/lib/purchaseForm';
 import { previewLedgerNote } from '@/lib/ledgerNote';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -82,7 +82,10 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
   const st = useAttemptState();
   const [lineErrors, setLineErrors] = useState<Map<string, PurchaseLineErrors>>(new Map());
   const [paidError, setPaidError] = useState<string | null>(null);
-  /** Shu kirim uchun yaratilgan yangi tovarlar: qayta urinishda takroriy yaratilmaydi */
+  /**
+   * Shu kirim uchun yaratilgan yangi tovarlar (kalit: nom + birlik, `newProductKey`): qayta urinishda takror
+   * yaratilmaydi. Muvaffaqiyatli kirimdan keyin tozalanadi.
+   */
   const created = useRef(new Map<string, Product>());
 
   async function submit(): Promise<PurchaseDone | null> {
@@ -93,16 +96,10 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
     setPaidError(null);
     try {
       const sb = getSupabase();
-      // Yangi tovar (katalogda yo'q nom): faqat tasdiqlanganda yaratiladi, sotuv narxi bo'sh (keyin kiritiladi)
-      let products: Product[] = [...input.products, ...created.current.values()];
-      for (const l of input.lines) {
-        const name = l.productName.trim();
-        if (!name || resolveProduct(products, l)) continue;
-        const p = await createProduct(sb, shopId, { name, unit: 'dona', last_price: null, is_active: true });
-        created.current.set(p.id, p);
-        products = [...products, p];
-      }
-      const res = buildPurchasePlan({ lines: input.lines, products, balanceBefore: input.balanceBefore, paid: input.paid, method: input.method });
+      // 1) Avval TO'LIQ tekshiruv: yangi (katalogda yo'q) nomlar ham "kutilayotgan yangi tovar" sifatida (nom, birlik,
+      // miqdor, tan narx, to'lov). Xato bo'lsa hech narsa yaratilmaydi va yozilmaydi.
+      const products: Product[] = [...input.products, ...created.current.values()];
+      const res = buildPurchasePlan({ lines: input.lines, products, balanceBefore: input.balanceBefore, paid: input.paid, method: input.method, allowNew: true });
       if (!res.ok) {
         setLineErrors(res.lineErrors);
         setPaidError(res.paidError ?? null);
@@ -111,7 +108,20 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
       }
       setLineErrors(new Map());
       const plan = res.plan;
-      await postPurchase(sb, { shopId, purchaseId: keys.purchaseId, clientOpId: keys.op, supplierId: input.supplierId, docDate: null, lines: plan.lines, clientTotal: plan.subtotal, paid: plan.paid, method: plan.method });
+      // 2) Reja OK: yangi tovarlar tanlangan birlik bilan yaratiladi (sotuv narxi bo'sh, keyin kiritiladi).
+      // Oldingi urinishda yaratilgani qayta yaratilmaydi.
+      const ids = new Map<string, string>();
+      for (const np of plan.newProducts) {
+        let p = created.current.get(np.key);
+        if (!p) {
+          p = await createProduct(sb, shopId, { name: np.name, unit: np.unit, last_price: null, is_active: true });
+          created.current.set(np.key, p);
+        }
+        ids.set(np.key, p.id);
+      }
+      // 3) Kirim (server `post_purchase` jamini qayta hisoblaydi). Eslatma: 2 va 3 bitta tranzaksiya emas, hisobotga qarang
+      const lines = bindNewProducts(plan.lines, ids);
+      await postPurchase(sb, { shopId, purchaseId: keys.purchaseId, clientOpId: keys.op, supplierId: input.supplierId, docDate: null, lines, clientTotal: plan.subtotal, paid: plan.paid, method: plan.method });
       await Promise.all([reload(), input.reloadBooks()]);
       setKeys({ purchaseId: id(), op: id() });
       created.current.clear();
@@ -126,7 +136,16 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
       st.setBusy(false);
     }
   }
-  return { busy: st.busy, locked: st.locked, error: st.error, lineErrors, paidError, clearError: () => st.setError(null), submit };
+  /** Qator o'zgarganda uning eski xatosi (masalan birlik mos emas) olib tashlanadi */
+  function clearLineError(key: string) {
+    setLineErrors((m) => {
+      if (!m.has(key)) return m;
+      const n = new Map(m);
+      n.delete(key);
+      return n;
+    });
+  }
+  return { busy: st.busy, locked: st.locked, error: st.error, lineErrors, paidError, clearError: () => st.setError(null), clearLineError, submit };
 }
 
 // ---------------------------------------------------------------------------
