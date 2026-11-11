@@ -16,7 +16,7 @@ import { postPurchase } from '@/lib/data/purchases';
 import { PAYMENT_METHODS, type PaymentMethod, type Product } from '@/lib/data/types';
 import { toAppError } from '@/lib/errors';
 import { formatMoneyInput, formatQty, formatSom, lineTotal, parseMoneyInput, parseQtyInput } from '@/lib/money';
-import { buildPurchasePlan, isBlankPurchaseLine, purchaseEffects, resolveProduct, type PurchaseDraftLine, type PurchaseLineErrors, type PurchasePlan } from '@/lib/purchaseForm';
+import { buildPurchasePlan, purchaseEffects, resolveProduct, type PurchaseDraftLine, type PurchaseLineErrors, type PurchasePlan } from '@/lib/purchaseForm';
 import { getSupabase } from '@/lib/supabase/client';
 
 const newLine = (): PurchaseDraftLine => ({ key: crypto.randomUUID(), productId: null, productName: '', qty: '', unitCost: '' });
