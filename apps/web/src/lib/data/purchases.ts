@@ -86,7 +86,7 @@ export interface SupplierDebtArgs {
 /**
  * Ta'minotchiga tovarsiz qarz yozuvi (013 post_supplier_debt, W2): `purchase_documents.kind = 'debt'`, qatorsiz,
  * ombor harakati yo'q, bir ta'minotchiga bir nechta. Ochilish qoldig'idan farqli: ikkinchi yozuv rad etilmaydi.
- * Qayta yuborish takroriy yozuv yaratmaydi. 013 qo'llanmagan bo'lsa aniq xato (jim fallback yo'q).
+ * Qayta yuborish takroriy yozuv yaratmaydi. 013 qo'llanmagan bo'lsa `RpcMissingError`: chaqiruvchi (`useLedgerNoteSubmit`) avvalgi yo'lga — ochilish qoldig'iga qaytadi.
  */
 export async function postSupplierDebt(sb: SB, a: SupplierDebtArgs): Promise<string> {
   const res = await sb.rpc('post_supplier_debt', {

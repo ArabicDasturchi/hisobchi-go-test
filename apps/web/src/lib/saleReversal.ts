@@ -11,10 +11,21 @@
  * Bir martalik (`one_time`) mijoz to'lovini server o'zi bekor qiladi, bu yerda qaytarilmaydi.
  */
 import { shortNumber } from './dates';
+import { RpcMissingError } from './errors';
 import type { Payment, SaleDoc } from './data/types';
 
 /** Veb savdo oqimi (`useSaleSubmit`, savdo + alohida to'lov) to'lovga shu izohni yozadi */
 export const legacySalePaymentNote = (saleId: string) => `Savdo ${shortNumber(saleId)} uchun`;
+
+/**
+ * Bekor qilish xatosidan keyin «to'lovni ham bekor qilish» tanlovi qanday bo'ladi (sof, testlanadi).
+ * Server 013 ni bilmasa (`RpcMissingError`) hech narsa yozilmagan: tanlov qulfdan chiqariladi va olib tashlanadi,
+ * savdogar savdoni to'lovsiz bekor qilishni yana tasdiqlaydi (jim emas: xabar ko'rsatiladi). Boshqa xatoda tanlov
+ * qulflangan qoladi (o'sha client_op_id bilan boshqa tanlov yuborilmasin).
+ */
+export function refundAfterError(e: unknown): { attempted: boolean; refund: boolean } | null {
+  return e instanceof RpcMissingError ? { attempted: false, refund: false } : null;
+}
 
 export function salePayments(
   sale: Pick<SaleDoc, 'id' | 'customer_id' | 'subtotal'> & { client_op_id?: string | null },

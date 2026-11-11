@@ -440,7 +440,7 @@ export async function reverseSale(sb: SB, shopId: string, documentId: string, cl
     if (res.error && isRpcMissing(res.error)) {
       throw new RpcMissingError(
         'reverse_sale_with_payments',
-        "Savdo bilan to'lovni birga bekor qilish serverda hali yoqilmagan. «To'lovni ham bekor qilish» belgisini olib tashlab savdoni bekor qiling, so'ng to'lovni mijoz daftaridan alohida bekor qiling.",
+        "Savdo bilan to'lovni birga bekor qilish serverda hali yoqilmagan, hech narsa o'zgarmadi. «To'lovni ham bekor qilish» belgisi olib tashlandi: savdoni bekor qilish uchun yana tasdiqlang, to'lovni keyin mijoz daftaridan alohida bekor qiling.",
       );
     }
     check(res);

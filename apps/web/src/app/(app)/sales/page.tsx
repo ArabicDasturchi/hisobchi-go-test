@@ -22,7 +22,7 @@ import { dayRangeToIso, formatDateTime, shortNumber } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
 import { panelHref } from '@/lib/panelState';
 import { RESALE_KEY, toResaleDraft } from '@/lib/resale';
-import { salePayments } from '@/lib/saleReversal';
+import { refundAfterError, salePayments } from '@/lib/saleReversal';
 import { looseKey } from '@/lib/translit';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -64,6 +64,11 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
       setOpen(false);
       toast.success(`Savdo ${shortNumber(s.id)} bekor qilindi (teskari yozuv)${refund && linked.ids.length > 0 ? ", to'lovi ham bekor qilindi" : ''}. «Qayta yozish» tugmasi bilan shu qatorlar panelda ochiladi.`);
     } catch (e) {
+      const next = refundAfterError(e);
+      if (next) {
+        setAttempted(next.attempted);
+        setRefund(next.refund);
+      }
       setError(errorMessage(e));
     } finally {
       setBusy(false);

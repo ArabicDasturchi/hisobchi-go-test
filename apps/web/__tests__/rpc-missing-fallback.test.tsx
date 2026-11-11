@@ -49,8 +49,19 @@ describe('api: 013 yo‘q server', async () => {
   });
   it('reverseSale (to‘lov bilan): aniq ko‘rsatma, avtomatik reverse_sale chaqirilmaydi', async () => {
     const { sb, calls } = fakeSb({ ...PGRST202, message: 'Could not find the function public.reverse_sale_with_payments' });
-    await expect(reverseSale(sb, 's', 'doc', 'op', 'narx xato', ['p1'])).rejects.toThrow(/belgisini olib tashlab/);
+    await expect(reverseSale(sb, 's', 'doc', 'op', 'narx xato', ['p1'])).rejects.toThrow(/belgisi olib tashlandi/);
     expect(calls.map((c) => c.fn)).toEqual(['reverse_sale_with_payments']);
+  });
+});
+
+describe('refundAfterError: 013 yo‘q bo‘lsa tanlov ochiladi va olib tashlanadi', async () => {
+  const { refundAfterError } = await import('@/lib/saleReversal');
+  it('RpcMissingError: qulf ochiladi, belgi olinadi (savdogar yana tasdiqlaydi)', () => {
+    expect(refundAfterError(new RpcMissingError('reverse_sale_with_payments'))).toEqual({ attempted: false, refund: false });
+  });
+  it('boshqa xato (tarmoq, server rad etdi): tanlov qulflangan qoladi', () => {
+    expect(refundAfterError(new Error('Failed to fetch'))).toBeNull();
+    expect(refundAfterError({ code: '42501', message: 'forbidden' })).toBeNull();
   });
 });
 

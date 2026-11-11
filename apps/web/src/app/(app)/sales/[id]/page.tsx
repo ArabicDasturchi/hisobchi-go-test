@@ -15,7 +15,7 @@ import type { SaleDetail } from '@/lib/data/types';
 import { formatDateTime, shortNumber } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
 import { formatQty } from '@/lib/money';
-import { salePayments } from '@/lib/saleReversal';
+import { refundAfterError, salePayments } from '@/lib/saleReversal';
 import { getSupabase } from '@/lib/supabase/client';
 
 type State = { status: 'loading' } | { status: 'error'; message: string } | { status: 'missing' } | { status: 'ok'; detail: SaleDetail };
@@ -202,7 +202,17 @@ export default function SaleDetailPage() {
           setAttempted(true);
           // client_op_id modal ochilganda bir marta yaratilgan — qayta bosish takroriy bekor qilish yaratmaydi.
           // To'lovlar tanlansa savdo bilan bitta tranzaksiyada bekor qilinadi (W1)
-          await reverseSale(getSupabase(), shopId, doc.id, reversing.opId, reason, refunding ? linked.ids : []);
+          try {
+            await reverseSale(getSupabase(), shopId, doc.id, reversing.opId, reason, refunding ? linked.ids : []);
+          } catch (e) {
+            // 013 yo'q server: hech narsa yozilmagan — tanlov ochiladi va olib tashlanadi, xabar modalda ko'rinadi
+            const next = refundAfterError(e);
+            if (next) {
+              setAttempted(next.attempted);
+              setRefund(next.refund);
+            }
+            throw e;
+          }
           await Promise.all([load(), reload()]);
           toast.success(refunding ? "Savdo va uning to'lovi bekor qilindi." : 'Savdo bekor qilindi.');
           setReversing(null);
