@@ -74,6 +74,38 @@ export async function postSupplierOpeningBalance(sb: SB, a: OpeningBalanceArgs):
   return id;
 }
 
+export interface SupplierDebtArgs {
+  shopId: string;
+  documentId: string;
+  clientOpId: string;
+  supplierId: string;
+  /** Tovarsiz qarz summasi, butun so'm */
+  amount: bigint;
+}
+
+/**
+ * Ta'minotchiga tovarsiz qarz yozuvi (013 post_supplier_debt, W2): `purchase_documents.kind = 'debt'`, qatorsiz,
+ * ombor harakati yo'q, bir ta'minotchiga bir nechta. Ochilish qoldig'idan farqli: ikkinchi yozuv rad etilmaydi.
+ * Qayta yuborish takroriy yozuv yaratmaydi. 013 qo'llanmagan bo'lsa aniq xato (jim fallback yo'q).
+ */
+export async function postSupplierDebt(sb: SB, a: SupplierDebtArgs): Promise<string> {
+  const id = check(
+    await sb.rpc('post_supplier_debt', {
+      p_shop_id: a.shopId,
+      p_document_id: a.documentId,
+      p_client_op_id: a.clientOpId,
+      p_supplier_id: a.supplierId,
+      p_amount: a.amount.toString(),
+    }),
+  ) as string | null;
+  if (!id) throw new AppError('unknown', "Server qarz yozuvi identifikatorini qaytarmadi.");
+  const doc = check(await sb.from('purchase_documents').select('subtotal::text, status, kind').eq('shop_id', a.shopId).eq('id', id).maybeSingle()) as { subtotal: string; status: string; kind: string } | null;
+  if (!doc || doc.status !== 'posted' || doc.kind !== 'debt' || toBig(doc.subtotal) !== a.amount) {
+    throw new AppError('conflict', "Server boshqa qarz yozuvini qaytardi. Ta'minotchi daftarini tekshiring.");
+  }
+  return id;
+}
+
 export interface PostPurchaseArgs {
   shopId: string;
   purchaseId: string;

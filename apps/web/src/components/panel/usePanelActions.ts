@@ -9,7 +9,7 @@ import { useRef, useState } from 'react';
 import { QUICK_SALE_LINE } from '@/components/ledger/CustomerLedger';
 import { useShop } from '@/components/ShopDataProvider';
 import { createProduct, postSale, recordPayment } from '@/lib/data/api';
-import { postPurchase, postSupplierOpeningBalance } from '@/lib/data/purchases';
+import { postPurchase, postSupplierDebt } from '@/lib/data/purchases';
 import { recordSupplierPayment } from '@/lib/data/supplierPayments';
 import type { PaymentMethod, Product } from '@/lib/data/types';
 import { toAppError } from '@/lib/errors';
@@ -160,8 +160,9 @@ export function useLedgerNoteSubmit(input: { kind: 'customer' | 'supplier'; part
           const total = lineTotal({ qtyMilli: 1000n, unitPrice: goods });
           await postSale(sb, { shopId, saleId: a.saleId, clientOpId: a.saleOp, customerId: input.partnerId, note: QUICK_SALE_LINE, lines: [{ product_name: QUICK_SALE_LINE, qty_milli: 1000n, unit: 'dona', unit_price: goods }], clientTotal: total });
         } else {
-          // Tovarsiz kirim = qarz yozuvi ("ochilish qoldig'i"): ombor o'zgarmaydi, tovar uchun «Kirim» amali
-          await postSupplierOpeningBalance(sb, { shopId, documentId: a.docId, clientOpId: a.docOp, supplierId: input.partnerId, amount: goods });
+          // Tovarsiz qarz yozuvi (W2, 013): ombor o'zgarmaydi, bir nechta bo'lishi mumkin; tovar uchun «Kirim» amali.
+          // Avval ochilish qoldig'i RPC'si ishlatilardi: u bir ta'minotchiga bitta yozuvga ruxsat beradi, 2-yozuv yiqilardi
+          await postSupplierDebt(sb, { shopId, documentId: a.docId, clientOpId: a.docOp, supplierId: input.partnerId, amount: goods });
         }
       }
       if (paid > 0n) {
