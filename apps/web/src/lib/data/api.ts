@@ -361,14 +361,29 @@ export interface PostSaleArgs {
   note: string | null;
   lines: PostSaleLine[];
   clientTotal: bigint;
+  /**
+   * Savdo bilan birga to'lanadigan summa (W3): savdo va to'lov BITTA tranzaksiyada (`post_sale` p_paid, 006).
+   * 0 yoki berilmasa to'lov yozilmaydi. Server to'lov kalitini `sale-pay:<client_op_id>` qiladi (idempotent).
+   */
+  paid?: bigint;
+  method?: PaymentMethod | null;
+}
+
+/** post_sale ning to'lov argumentlari: faqat to'lov bo'lsa yuboriladi (eski chaqiruv imzosi o'zgarmaydi) */
+function salePaymentArgs(a: PostSaleArgs): Record<string, string> {
+  if (!a.paid || a.paid <= 0n) return {};
+  if (!a.method) throw new AppError('validation', "To'lov usulini tanlang.");
+  return { p_paid: a.paid.toString(), p_payment_method: a.method };
 }
 
 /**
  * post_sale RPC. Server summani qayta hisoblaydi (calc_mismatch bo'lsa hech narsa saqlanmaydi),
- * client_op_id bo'yicha idempotent. Muvaffaqiyatdan keyin hujjat qayta o'qilib tekshiriladi.
+ * client_op_id bo'yicha idempotent. Muvaffaqiyatdan keyin hujjat (va to'lov bo'lsa to'lov ham) qayta o'qilib tekshiriladi.
  */
 export async function postSale(sb: SB, a: PostSaleArgs): Promise<string> {
+  const pay = salePaymentArgs(a);
   const res = await sb.rpc('post_sale', {
+    ...pay,
     p_shop_id: a.shopId,
     p_sale_id: a.saleId,
     p_client_op_id: a.clientOpId,
@@ -392,6 +407,17 @@ export async function postSale(sb: SB, a: PostSaleArgs): Promise<string> {
     // Shu client_op_id bilan avval boshqa tarkibdagi savdo saqlangan — foydalanuvchi bilishi kerak
     throw new AppError('conflict', "Server allaqachon boshqa summadagi savdoni qaytardi. Savdolar ro'yxatini tekshiring.");
   }
+  if (pay.p_paid) {
+    const p = check(await sb.from('payments').select('amount::text').eq('shop_id', a.shopId).eq('client_op_id', `sale-pay:${a.clientOpId}`).maybeSingle()) as { amount: string } | null;
+    if (!p || toBig(p.amount) !== a.paid) throw new AppError('unknown', "Savdo saqlandi, lekin to'lov serverda kutilgan summada topilmadi. Mijoz daftarini tekshiring.");
+  }
+  return id;
+}
+
+/** Bir martalik (mijozsiz, naqd) savdo uchun tizim mijozi (006 ensure_walkin_customer). Idempotent: do'konda bitta */
+export async function ensureWalkinCustomer(sb: SB, shopId: string): Promise<string> {
+  const id = check(await sb.rpc('ensure_walkin_customer', { p_shop_id: shopId })) as string | null;
+  if (!id) throw new AppError('unknown', 'Server bir martalik mijozni qaytarmadi.');
   return id;
 }
 

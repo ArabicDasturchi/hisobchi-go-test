@@ -4,7 +4,6 @@
  * Amal (Savdo, To'lov olish, Kirim, Ta'minotchiga to'lov, Daftarga yozish) va Kimga URL'da: `/dashboard?amal=..&kimga=..`.
  * Hisob faqat mavjud yo'ldan (`buildSalePlan`, `settle`, server RPC). AI yo'q. Tasdiqlamaguncha hech narsa saqlanmaydi.
  */
-import { RotateCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CustomerFormModal } from '@/components/forms/CustomerFormModal';
@@ -20,14 +19,13 @@ import { usePaymentSubmit } from '@/components/sale/usePaymentSubmit';
 import { useSaleSubmit } from '@/components/sale/useSaleSubmit';
 import { Money } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
-import { Alert, Button, LinkButton } from '@/components/ui/primitives';
+import { Alert } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { useBooks } from '@/components/useBooks';
 import { supplierTotals } from '@/lib/data/books';
 import { selectableCustomers } from '@/lib/data/customers';
 import { balanceOf } from '@/lib/data/ledger';
 import type { PaymentMethod } from '@/lib/data/types';
-import { shortNumber } from '@/lib/dates';
 import { previewLedgerNote } from '@/lib/ledgerNote';
 import { parseResale, RESALE_KEY, resaleLines } from '@/lib/resale';
 import { lineStatus, summarizeLines } from '@/lib/lineStatus';
@@ -266,25 +264,6 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
       {/* Asosiy maydon: faqat shu suriladi */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="panel-main">
         <div className="mx-auto w-full max-w-[780px] space-y-3 px-3 pb-3 pt-4 sm:px-4">
-          {sale.phase.kind === 'payment_failed' && (
-            <Alert tone="amber" title="Savdo saqlandi, lekin to'lov yozilmadi">
-              <p>{sale.phase.message}</p>
-              <p className="mt-1">
-                Savdo {shortNumber(sale.phase.saleId)} saqlandi. <Money value={sale.phase.plan.paidNow} className="font-semibold" /> to&apos;lovni qayta yuboring yoki keyinroq mijoz sahifasidan kiriting.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button className="h-11" onClick={() => void sale.retryPayment()} icon={<RotateCw className="h-3.5 w-3.5" />}>
-                  To&apos;lovni qayta yuborish
-                </Button>
-                <LinkButton href={`/sales/${sale.phase.saleId}`} variant="outline" className="h-11">
-                  Savdoni ochish
-                </LinkButton>
-                <Button variant="ghost" className="h-11" onClick={newSale}>
-                  Yangi savdo boshlash
-                </Button>
-              </div>
-            </Alert>
-          )}
 
           {action === 'savdo' && (
             <section aria-label="Savdo" className="space-y-3" data-testid="sale-view">
@@ -332,7 +311,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
               {sale.phase.kind === 'editing' && sale.formError && !modalOpen && <Alert tone="red">{sale.formError}</Alert>}
               {saleLines.length > 0 && (
                 <div className="sticky bottom-0 bg-bg pt-1">
-                  <SaleSummaryBar summary={summary} retry={lockedRetry} busy={sale.busy} frozen={sale.phase.kind === 'payment_failed'} onConfirm={() => setConfirmOpen(true)} />
+                  <SaleSummaryBar summary={summary} retry={lockedRetry} busy={sale.busy} onConfirm={() => setConfirmOpen(true)} />
                 </div>
               )}
             </section>
