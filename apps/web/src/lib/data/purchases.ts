@@ -1,6 +1,6 @@
 /**
  * Ta'minotchi, kirim va ombor tuzatishi — yozish qatlami (veb). Barcha moliyaviy yozuvlar faqat RPC orqali
- * (007: post_purchase; 009: post_supplier_opening_balance; 006: adjust_stock). Jadvallarga to'g'ridan-to'g'ri
+ * (007: post_purchase; 009: post_supplier_opening_balance; 013: post_supplier_debt; 006: adjust_stock). Jadvallarga to'g'ridan-to'g'ri
  * yozilmaydi (faqat `suppliers` kartochkasi: nom, telefon, izoh, arxiv holati — RLS ruxsat beradi).
  * RPC muvaffaqiyatidan keyin natija serverdan qayta o'qib tekshiriladi (savdo bilan bir xil uslub).
  */
@@ -70,6 +70,38 @@ export async function postSupplierOpeningBalance(sb: SB, a: OpeningBalanceArgs):
   const doc = check(await sb.from('purchase_documents').select('subtotal::text, status').eq('shop_id', a.shopId).eq('id', id).maybeSingle()) as { subtotal: string; status: string } | null;
   if (!doc || doc.status !== 'posted' || toBig(doc.subtotal) !== a.amount) {
     throw new AppError('conflict', "Server boshqa summadagi boshlang'ich qarzni qaytardi. Ta'minotchi qarzini tekshiring.");
+  }
+  return id;
+}
+
+export interface SupplierDebtArgs {
+  shopId: string;
+  documentId: string;
+  clientOpId: string;
+  supplierId: string;
+  /** Tovarsiz qarz summasi, butun so'm */
+  amount: bigint;
+}
+
+/**
+ * Ta'minotchiga tovarsiz qarz yozuvi (013 post_supplier_debt, W2): `purchase_documents.kind = 'debt'`, qatorsiz,
+ * ombor harakati yo'q, bir ta'minotchiga bir nechta. Ochilish qoldig'idan farqli: ikkinchi yozuv rad etilmaydi.
+ * Qayta yuborish takroriy yozuv yaratmaydi. 013 qo'llanmagan bo'lsa aniq xato (jim fallback yo'q).
+ */
+export async function postSupplierDebt(sb: SB, a: SupplierDebtArgs): Promise<string> {
+  const id = check(
+    await sb.rpc('post_supplier_debt', {
+      p_shop_id: a.shopId,
+      p_document_id: a.documentId,
+      p_client_op_id: a.clientOpId,
+      p_supplier_id: a.supplierId,
+      p_amount: a.amount.toString(),
+    }),
+  ) as string | null;
+  if (!id) throw new AppError('unknown', "Server qarz yozuvi identifikatorini qaytarmadi.");
+  const doc = check(await sb.from('purchase_documents').select('subtotal::text, status, kind').eq('shop_id', a.shopId).eq('id', id).maybeSingle()) as { subtotal: string; status: string; kind: string } | null;
+  if (!doc || doc.status !== 'posted' || doc.kind !== 'debt' || toBig(doc.subtotal) !== a.amount) {
+    throw new AppError('conflict', "Server boshqa qarz yozuvini qaytardi. Ta'minotchi daftarini tekshiring.");
   }
   return id;
 }
