@@ -84,8 +84,11 @@ SQL tekshiruvlar faqat **staging**'da, faqat `SELECT`. `:shop` — A do'kon id's
   - Kutilgan: Ombor → Qoldiq: «Un» 10 kg; ta'minotchi qarzi 40 000.
   - SQL: `select unit from products where shop_id=:shop and name='Un';` = `kg`.
   - SQL: `select supplier_outstanding(:shop, '<rahim id>');` = 40000.
+  - Kutilgan: Hisobotlar → «Kassa (naqd)» −50 000 (ta'minotchiga naqd chiqim; manfiy ko'rinishi to'g'ri).
 
 ### Blok C — Savdo, kassa (W3, W6, W10, W4)
+
+**S5–S11 bir kunda (Toshkent vaqti) bajarilsin**: Hisobotlar «Bugun» kartalari shunga tayanadi. To'lov usuli tanlovi savdodan savdoga saqlanib qoladi: har savdoda usulni aniq tanlang.
 
 Boshlashdan oldin: Mijozlar → «Ali» va «Vali» yaratish. «Un» narxini 12 000 qilish. **Ali qarzi S6–S11 davomida faqat shu ssenariylardan o'zgaradi** (qisman savdo Vali'da).
 
@@ -113,7 +116,7 @@ Boshlashdan oldin: Mijozlar → «Ali» va «Vali» yaratish. «Un» narxini 12 
   - SQL: `select count(*) from payment_voids v join payments p on p.id=v.payment_id where p.client_op_id like 'sale-pay:%';` ≥ 1.
 - [ ] **S10. Qayta yozish (W1)**
   1. S9 savdosi → «Qayta yozish» → narx 11 000 → «To'landi» Karta → Saqlash.
-  - Kutilgan: «Karta» = 22 000 (bir marta sanaladi); Ali qarzi 0.
+  - Kutilgan: «Karta» = 22 000 (bir marta sanaladi); Ali qarzi 0; Ombor «Un» 2 kg.
 - [ ] **S11. To'lovni qoldirib bekor qilish (W1)** (S10 dan keyin Ali qarzi 0)
   1. Yangi savdo Ali, «Un» 1 (12 000) «To'landi» naqd → bekor qilish → belgini **olib tashlash**.
   - Kutilgan: «kredit» ogohlantirishi; Ali qarzi −12 000 (kredit); to'lov faol.
