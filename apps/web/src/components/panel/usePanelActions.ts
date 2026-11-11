@@ -1,7 +1,7 @@
 'use client';
 /**
  * Panelning ta'minotchi/daftar amallari uchun saqlash hooklari. Hammasi mavjud, sinalgan yo'llar ustida:
- * `postPurchase`, `recordSupplierPayment`, `postSale` + `recordPayment`, `postSupplierOpeningBalance`.
+ * `postPurchase`, `recordSupplierPayment`, `postSale` + `recordPayment`, `postSupplierDebt` (013, ta'minotchiga tovarsiz qarz).
  * Bir martalik kalitlar: tarmoq xatosidan keyin qulflanadi, qayta urinish o'sha kalit bilan (takroriy yozuv yo'q).
  * Tasdiqlamaguncha hech narsa saqlanmaydi: hooklar faqat `submit()` chaqirilganda yozadi.
  */

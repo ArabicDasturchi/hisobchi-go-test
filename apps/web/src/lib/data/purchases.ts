@@ -1,6 +1,6 @@
 /**
  * Ta'minotchi, kirim va ombor tuzatishi — yozish qatlami (veb). Barcha moliyaviy yozuvlar faqat RPC orqali
- * (007: post_purchase; 009: post_supplier_opening_balance; 006: adjust_stock). Jadvallarga to'g'ridan-to'g'ri
+ * (007: post_purchase; 009: post_supplier_opening_balance; 013: post_supplier_debt; 006: adjust_stock). Jadvallarga to'g'ridan-to'g'ri
  * yozilmaydi (faqat `suppliers` kartochkasi: nom, telefon, izoh, arxiv holati — RLS ruxsat beradi).
  * RPC muvaffaqiyatidan keyin natija serverdan qayta o'qib tekshiriladi (savdo bilan bir xil uslub).
  */
