@@ -1,7 +1,8 @@
 # Staging tekshiruvi: W1–W10 tuzatishlarini haqiqiy Supabase'da sinash
 
 Sana: 11.11.2026. Holat: **reja, bajarilmagan**. Production'ga tegilmaydi. Asos: [MIGRATSIYA-CI.md](MIGRATSIYA-CI.md) 10-bo'lim (`migrate-staging.yml` tayyor, staging loyihasi va sirlar hali yo'q), [WEB-AUDIT.md](WEB-AUDIT.md), [BACKEND-AUDIT.md](BACKEND-AUDIT.md).
-nBajarish uchun bosqichma-bosqich checklist (SQL tekshiruvlari, natijalar jadvali, birlashgan kod natijalari): [STAGING-CHECKLIST.md](STAGING-CHECKLIST.md). Keyingi bosqich: [KEYINGI-BOSQICH.md](KEYINGI-BOSQICH.md).
+
+Bajarish uchun bosqichma-bosqich checklist (SQL tekshiruvlari, natijalar jadvali, birlashgan kod natijalari): [STAGING-CHECKLIST.md](STAGING-CHECKLIST.md). Keyingi bosqich: [KEYINGI-BOSQICH.md](KEYINGI-BOSQICH.md).
 
 ## 0. Nega kerak
 
