@@ -71,8 +71,9 @@ export function PurchaseView(p: PurchaseViewProps) {
             const unitLabel = unit ? uz.units[unit] : 'birlik';
             return (
               <li key={l.key} data-status={yellow ? 'yellow' : 'ok'} className={cn('rounded-2xl border p-3.5', yellow ? 'border-amber-400 bg-amber-50 dark:border-amber-500/60 dark:bg-amber-500/10' : 'border-line bg-surface')}>
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
+                {/* Telefonda: nom birinchi qatorda to'liq, maydonlar ikkinchi qatorda cho'ziladi (375px da toshmaydi) */}
+                <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                  <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                     <p className="truncate text-[15px] font-semibold text-fg">
                       {l.productName.trim() || '—'}
                       {isNew && <span className="ml-2 rounded-md bg-sky-100 px-1.5 py-0.5 align-middle text-[11px] font-medium text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">Yangi tovar</span>}
@@ -90,7 +91,7 @@ export function PurchaseView(p: PurchaseViewProps) {
                       value={l.unit ?? ''}
                       disabled={p.locked}
                       onChange={(e) => p.onLine(l.key, { unit: (e.target.value || null) as Unit | null })}
-                      className={cn(field, 'w-24 text-center', needUnit || errs.unit ? 'border-amber-500 border-dashed' : 'border-line')}
+                      className={cn(field, 'min-w-0 flex-1 text-center sm:w-24 sm:flex-none', needUnit || errs.unit ? 'border-amber-500 border-dashed' : 'border-line')}
                     >
                       <option value="">Birlik</option>
                       {unitChoices(p.units, l.unit).map((u) => (
@@ -104,8 +105,8 @@ export function PurchaseView(p: PurchaseViewProps) {
                       {unit ? uz.units[unit] : '—'}
                     </span>
                   )}
-                  <input aria-label={`Miqdor: ${l.productName}`} inputMode="decimal" value={l.qty} disabled={p.locked} onChange={(e) => p.onLine(l.key, { qty: e.target.value })} placeholder="Soni" className={cn(field, 'w-20 text-center', errs.qty ? 'border-amber-500' : 'border-line')} />
-                  <input aria-label={`Tan narx (1 ${unitLabel}): ${l.productName}`} inputMode="numeric" value={l.unitCost} disabled={p.locked} onChange={(e) => p.onLine(l.key, { unitCost: formatMoneyInput(e.target.value) })} placeholder="Tan narx" className={cn(field, 'w-28', errs.cost || !l.unitCost.trim() ? 'border-amber-500 border-dashed' : 'border-line')} />
+                  <input aria-label={`Miqdor: ${l.productName}`} inputMode="decimal" value={l.qty} disabled={p.locked} onChange={(e) => p.onLine(l.key, { qty: e.target.value })} placeholder="Soni" className={cn(field, 'min-w-0 flex-1 text-center sm:w-20 sm:flex-none', errs.qty ? 'border-amber-500' : 'border-line')} />
+                  <input aria-label={`Tan narx (1 ${unitLabel}): ${l.productName}`} inputMode="numeric" value={l.unitCost} disabled={p.locked} onChange={(e) => p.onLine(l.key, { unitCost: formatMoneyInput(e.target.value) })} placeholder="Tan narx" className={cn(field, 'min-w-0 flex-[1.4] sm:w-28 sm:flex-none', errs.cost || !l.unitCost.trim() ? 'border-amber-500 border-dashed' : 'border-line')} />
                   <span className="hidden w-24 text-right text-base font-semibold tabular-nums text-fg sm:block">{total !== null ? <Money value={total} /> : '—'}</span>
                   <button type="button" disabled={p.locked} onClick={() => p.onRemove(l.key)} aria-label={`${uz.composer.removeLine}: ${l.productName}`} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-subtle hover:text-fg disabled:opacity-50">
                     <X className="h-5 w-5" aria-hidden />
