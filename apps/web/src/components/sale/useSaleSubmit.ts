@@ -44,11 +44,17 @@ export interface SaleSubmitInput {
 /**
  * Serverga yuboriladigan savdo: kimga va qancha to'lov (sof, testlanadi).
  * Doimiy mijoz: rejadagi `paidNow` (0 bo'lsa to'lovsiz). Mijozsiz: bir martalik mijoz, to'liq to'langan (server talab qiladi).
+ * Mijozsiz 0 so'mlik savdo (narx 0, masalan sovg'a): pul yo'q, to'lov yozuvi kerak emas; server bir martalik mijozga 0 so'mni
+ * rad etadi (`walkin_requires_full_payment`), shuning uchun avvalgidek mijozsiz (customer_id NULL) yoziladi.
  */
 export function saleTarget(plan: SalePlan, customerId: string | null, walkinId: string | null): { customerId: string | null; paid: bigint } {
   if (customerId) return { customerId, paid: plan.paidNow };
-  return { customerId: walkinId, paid: walkinId ? plan.total : 0n };
+  if (plan.total <= 0n || !walkinId) return { customerId: null, paid: 0n };
+  return { customerId: walkinId, paid: plan.total };
 }
+
+/** Mijozsiz savdoga bir martalik mijoz kerakmi (faqat pul bo'lsa) */
+export const needsWalkin = (plan: SalePlan, customerId: string | null) => !customerId && plan.total > 0n;
 
 export function useSaleSubmit(input: SaleSubmitInput) {
   const { shopId, reload, balances, membership, customerById, data } = useShop();
@@ -104,7 +110,7 @@ export function useSaleSubmit(input: SaleSubmitInput) {
     let saleId: string;
     try {
       const sb = getSupabase();
-      if (!customerId && !walkinRef.current) walkinRef.current = data?.walkin?.id ?? (await ensureWalkinCustomer(sb, shopId));
+      if (needsWalkin(plan, customerId) && !walkinRef.current) walkinRef.current = data?.walkin?.id ?? (await ensureWalkinCustomer(sb, shopId));
       const target = saleTarget(plan, customerId, walkinRef.current);
       saleId = await postSale(sb, {
         shopId,

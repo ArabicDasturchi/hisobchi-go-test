@@ -85,6 +85,9 @@ describe('saleTarget', async () => {
   it('mijozsiz: bir martalik mijoz, to‘liq to‘langan (server walkin_requires_full_payment)', () => {
     expect(saleTarget({ ...plan, paidNow: 0n, debt: 0n }, null, 'w')).toEqual({ customerId: 'w', paid: 100_000n });
   });
+  it('mijozsiz 0 so‘mlik savdo: avvalgidek mijozsiz, to‘lovsiz (server walk-in 0 ni rad etadi)', () => {
+    expect(saleTarget({ lines: [], total: 0n, paidNow: 0n, debt: 0n }, null, 'w')).toEqual({ customerId: null, paid: 0n });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -154,6 +157,34 @@ describe('useSaleSubmit', async () => {
     await run({ lines: [line()], customerId: '', mode: 'paid', partial: '', method: 'naqd' });
     expect(api.ensureWalkinCustomer).not.toHaveBeenCalled();
     expect(api.postSale.mock.calls[0]![1]).toMatchObject({ customerId: 'w-known', paid: 100_000n });
+  });
+  it('mijozsiz 0 so‘mlik savdo: bir martalik mijoz olinmaydi, customer_id NULL, to‘lovsiz', async () => {
+    const r = await run({ lines: [line({ price: '0' })], customerId: '', mode: 'paid', partial: '', method: 'naqd' });
+    expect(api.ensureWalkinCustomer).not.toHaveBeenCalled();
+    expect(api.postSale.mock.calls[0]![1]).toMatchObject({ customerId: null, clientTotal: 0n, paid: 0n });
+    expect(r.current.phase.kind).toBe('done');
+  });
+  it('mijozsiz, tarmoq xatosidan keyin qayta urinish: bir martalik mijoz bir marta olinadi, kalit va mijoz o‘sha', async () => {
+    api.postSale.mockRejectedValueOnce(new Error('Failed to fetch'));
+    const { result } = renderHook(() => useSaleSubmit({ lines: [line()], customerId: '', mode: 'paid', partial: '', method: 'naqd' }));
+    await act(async () => {
+      await result.current.submit();
+    });
+    expect(result.current.locked).toBe(true);
+    await act(async () => {
+      await result.current.submit();
+    });
+    expect(api.ensureWalkinCustomer).toHaveBeenCalledTimes(1);
+    const [a, b] = api.postSale.mock.calls.map((c) => c[1] as unknown as { clientOpId: string; customerId: string });
+    expect(b!.clientOpId).toBe(a!.clientOpId);
+    expect(b!.customerId).toBe('walkin-1');
+    expect(a!.customerId).toBe('walkin-1');
+  });
+  it('server walkin_requires_full_payment qaytarsa: tushunarli xabar, forma qulflanmaydi', async () => {
+    api.postSale.mockRejectedValueOnce({ message: 'walkin_requires_full_payment: total=0', code: '22000' });
+    const r = await run({ lines: [line()], customerId: '', mode: 'paid', partial: '', method: 'naqd' });
+    expect(r.current.locked).toBe(false);
+    expect(r.current.formError).toMatch(/to'liq to'langan/);
   });
   it('tarmoq xatosi: forma qulflanadi, qayta urinish o‘sha kalit bilan (takroriy savdo yo‘q)', async () => {
     api.postSale.mockRejectedValueOnce(new Error('Failed to fetch'));
