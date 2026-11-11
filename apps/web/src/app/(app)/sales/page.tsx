@@ -14,6 +14,7 @@ import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Alert, Button, Card, cn, EmptyState, Input, LinkButton, PageHeader, SearchInput, Segmented, Select, TableSkeleton } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { uz } from '@/i18n/uz';
+import { RefundChoice } from '@/components/sale/RefundChoice';
 import { getSaleDetail, reverseSale } from '@/lib/data/api';
 import { sumPosted } from '@/lib/data/ledger';
 import type { SaleDoc } from '@/lib/data/types';
@@ -21,6 +22,7 @@ import { dayRangeToIso, formatDateTime, shortNumber } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
 import { panelHref } from '@/lib/panelState';
 import { RESALE_KEY, toResaleDraft } from '@/lib/resale';
+import { salePayments } from '@/lib/saleReversal';
 import { looseKey } from '@/lib/translit';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -32,7 +34,7 @@ const GRID = 'grid items-center gap-x-3 gap-y-1 grid-cols-[minmax(0,1fr)_auto] m
 function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null }) {
   const router = useRouter();
   const toast = useToast();
-  const { shopId, reload } = useShop();
+  const { shopId, reload, data } = useShop();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<string>(CANCEL_REASONS[0]);
   const [custom, setCustom] = useState('');
@@ -40,8 +42,12 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
   const [error, setError] = useState<string | null>(null);
   // Bir martalik kalit: tarmoq xatosidan keyin qayta urinish takroriy teskari yozuv yaratmaydi
   const [opId] = useState(() => crypto.randomUUID());
+  const [refund, setRefund] = useState(true);
+  // Birinchi urinishdan keyin tanlov qulflanadi: o'sha client_op_id bilan qayta urinish boshqa tanlov yubormasin
+  const [attempted, setAttempted] = useState(false);
   const finalReason = reason === 'Boshqa' ? custom.trim() : reason;
   const reversed = s.status === 'reversed';
+  const linked = useMemo(() => salePayments(s, data?.payments ?? [], { walkin: !!data?.walkin && data.walkin.id === s.customer_id }), [s, data]);
 
   async function cancel() {
     if (busy) return;
@@ -50,12 +56,13 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
       return;
     }
     setBusy(true);
+    setAttempted(true);
     setError(null);
     try {
-      await reverseSale(getSupabase(), shopId, s.id, opId, finalReason);
+      await reverseSale(getSupabase(), shopId, s.id, opId, finalReason, refund ? linked.ids : []);
       await reload();
       setOpen(false);
-      toast.success(`Savdo ${shortNumber(s.id)} bekor qilindi (teskari yozuv). «Qayta yozish» tugmasi bilan shu qatorlar panelda ochiladi.`);
+      toast.success(`Savdo ${shortNumber(s.id)} bekor qilindi (teskari yozuv)${refund && linked.ids.length > 0 ? ", to'lovi ham bekor qilindi" : ''}. «Qayta yozish» tugmasi bilan shu qatorlar panelda ochiladi.`);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -112,6 +119,7 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
       </div>
       {open && !reversed && (
         <div className="col-span-full space-y-2 rounded-xl border-2 border-emerald-500/60 p-3" data-testid="cancel-panel">
+          <RefundChoice total={linked.total} checked={refund} onChange={setRefund} disabled={busy || attempted} />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <Select label="Sabab (majburiy)" value={reason} onChange={(e) => setReason(e.target.value)} disabled={busy} className="h-11" wrapClassName="sm:w-72">
               {CANCEL_REASONS.map((r) => (

@@ -63,6 +63,9 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   [/could not find the function|pgrst202|42883/, 'unknown', "Serverda bu amal hali yoqilmagan (migratsiya qo'llanmagan). Administratorga ayting."],
   [/calc_mismatch/, 'validation', 'Server hisobi summa bilan mos kelmadi — savdo saqlanmadi.'],
   [/already_reversed/, 'conflict', 'Bu savdo allaqachon bekor qilingan.'],
+  // --- Savdoni to'lovi bilan bekor qilish (013) ---
+  [/payment_exceeds_sale/, 'validation', "Bekor qilinayotgan to'lovlar savdo summasidan katta. Sahifani yangilab qayta urinib ko'ring."],
+  [/payment_not_linked|invalid_payment_list/, 'conflict', "To'lov bu savdoga tegishli emas yoki allaqachon bekor qilingan. Sahifani yangilab qayta urinib ko'ring."],
   [/customer_not_in_shop/, 'forbidden', "Mijoz bu do'konga tegishli emas."],
   [/document_not_found/, 'not_found', 'Savdo topilmadi.'],
   [/payment_not_found/, 'not_found', "To'lov topilmadi."],
