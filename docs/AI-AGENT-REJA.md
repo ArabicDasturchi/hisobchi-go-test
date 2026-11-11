@@ -23,7 +23,7 @@ Sana: 11.11.2026. Holat: **reja, implementatsiya boshlanmagan**. Asos: [MCP-AGEN
 - **O'qish:** `agent_list_customers`, `agent_customer_balance`, `agent_list_sales`, `agent_get_sale`, `agent_day_rows` (`daily_summary` tool), `agent_list_products`, `agent_list_suppliers`, `customer_outstanding`, `supplier_outstanding`, `partner_statement`.
 - **Qoralama:** `agent_draft_sale`, `agent_draft_payment`, `agent_draft_purchase`, `agent_propose_*`.
 - **Katalogga qo'shish:** `agent_add_customer`, `agent_add_products` (asoschi qarori).
-- **HECH QACHON AI'ga berilmaydi:** `post_sale`, `reverse_sale*`, `record_payment`, `void_payment`, `post_purchase`, `reverse_purchase`, `record_supplier_payment`, `void_supplier_payment`, `post_supplier_debt`, `post_supplier_opening_balance`, `adjust_stock`, `ensure_walkin_customer`, `create_shop`, `accept_agent_draft`, `reject_agent_draft`, `admin_*`.
+- **HECH QACHON AI'ga berilmaydi:** `post_sale`, `reverse_sale*`, `record_payment`, `void_payment`, `post_purchase`, `reverse_purchase`, `record_supplier_payment`, `void_supplier_payment`, `post_supplier_debt` (013, #43), `post_supplier_opening_balance`, `adjust_stock`, `ensure_walkin_customer`, `create_shop`, `accept_agent_draft`, `reject_agent_draft`, `admin_*`.
 
 ## 3. Bosqichlar
 
