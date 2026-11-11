@@ -82,5 +82,5 @@ Ochiq web PR'lari bitta branchga ketma-ket birlashtirildi (merge commitlar). Ikk
 
 ## 6. Commit va PR
 
-- Commitlar: `git log --oneline --first-parent origin/main..fix/web-mvp-errors`.
-- PR: ochilgandan keyin tavsifida.
+- Commitlar: `git log --oneline --first-parent origin/main..fix/web-mvp-errors`. Kod holati: `2b07ae4`; hisobot commiti `6ac59ba`.
+- PR: https://github.com/abdullohismoilov777-debug/hisobchi-go/pull/52 (`fix/web-mvp-errors` → `main`, ochiq, merge qilinmagan).
