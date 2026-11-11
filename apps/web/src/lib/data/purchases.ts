@@ -5,7 +5,7 @@
  * RPC muvaffaqiyatidan keyin natija serverdan qayta o'qib tekshiriladi (savdo bilan bir xil uslub).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { AppError, toAppError } from '../errors';
+import { AppError, isRpcMissing, RpcMissingError, toAppError } from '../errors';
 import { toBig } from '../money';
 import type { PostPurchaseLine } from '../purchaseForm';
 import type { PaymentMethod } from './types';
@@ -89,15 +89,16 @@ export interface SupplierDebtArgs {
  * Qayta yuborish takroriy yozuv yaratmaydi. 013 qo'llanmagan bo'lsa aniq xato (jim fallback yo'q).
  */
 export async function postSupplierDebt(sb: SB, a: SupplierDebtArgs): Promise<string> {
-  const id = check(
-    await sb.rpc('post_supplier_debt', {
-      p_shop_id: a.shopId,
-      p_document_id: a.documentId,
-      p_client_op_id: a.clientOpId,
-      p_supplier_id: a.supplierId,
-      p_amount: a.amount.toString(),
-    }),
-  ) as string | null;
+  const res = await sb.rpc('post_supplier_debt', {
+    p_shop_id: a.shopId,
+    p_document_id: a.documentId,
+    p_client_op_id: a.clientOpId,
+    p_supplier_id: a.supplierId,
+    p_amount: a.amount.toString(),
+  });
+  // 013 hali qo'llanmagan server: hech narsa yozilmagan, chaqiruvchi avvalgi yo'lni tanlaydi
+  if (res.error && isRpcMissing(res.error)) throw new RpcMissingError('post_supplier_debt');
+  const id = check(res) as string | null;
   if (!id) throw new AppError('unknown', "Server qarz yozuvi identifikatorini qaytarmadi.");
   const doc = check(await sb.from('purchase_documents').select('subtotal::text, status, kind').eq('shop_id', a.shopId).eq('id', id).maybeSingle()) as { subtotal: string; status: string; kind: string } | null;
   if (!doc || doc.status !== 'posted' || doc.kind !== 'debt' || toBig(doc.subtotal) !== a.amount) {

@@ -9,7 +9,7 @@
  * - RPC muvaffaqiyatidan keyin natija serverdan qayta o'qib tekshiriladi.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { AppError, isDraftAlreadyDecided, toAppError } from '../errors';
+import { AppError, isDraftAlreadyDecided, isRpcMissing, RpcMissingError, toAppError } from '../errors';
 import { toBig } from '../money';
 import { AGENT_DRAFT_COLS, toAgentDraft, type AgentDraftRow } from './agentDrafts';
 import type {
@@ -433,7 +433,18 @@ export async function ensureWalkinCustomer(sb: SB, shopId: string): Promise<stri
  */
 export async function reverseSale(sb: SB, shopId: string, documentId: string, clientOpId: string, reason: string, voidPaymentIds: readonly string[] = []): Promise<void> {
   const base = { p_shop_id: shopId, p_document_id: documentId, p_client_op_id: clientOpId, p_reason: reason.trim() };
-  if (voidPaymentIds.length > 0) check(await sb.rpc('reverse_sale_with_payments', { ...base, p_void_payment_ids: [...voidPaymentIds] }));
+  if (voidPaymentIds.length > 0) {
+    const res = await sb.rpc('reverse_sale_with_payments', { ...base, p_void_payment_ids: [...voidPaymentIds] });
+    // 013 hali qo'llanmagan server: hech narsa o'zgarmagan. Jim fallback yo'q (to'lov qolib, kassa noto'g'ri bo'lardi):
+    // savdogar o'zi tanlaydi
+    if (res.error && isRpcMissing(res.error)) {
+      throw new RpcMissingError(
+        'reverse_sale_with_payments',
+        "Savdo bilan to'lovni birga bekor qilish serverda hali yoqilmagan. «To'lovni ham bekor qilish» belgisini olib tashlab savdoni bekor qiling, so'ng to'lovni mijoz daftaridan alohida bekor qiling.",
+      );
+    }
+    check(res);
+  }
   else check(await sb.rpc('reverse_sale', base));
   const doc = check(await sb.from('documents').select('status').eq('shop_id', shopId).eq('id', documentId).maybeSingle()) as { status: string } | null;
   if (doc?.status !== 'reversed') throw new AppError('unknown', 'Server bekor qilishni tasdiqlamadi.');

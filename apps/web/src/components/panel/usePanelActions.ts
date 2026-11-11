@@ -9,10 +9,10 @@ import { useRef, useState } from 'react';
 import { QUICK_SALE_LINE } from '@/components/ledger/CustomerLedger';
 import { useShop } from '@/components/ShopDataProvider';
 import { createProduct, postSale, recordPayment } from '@/lib/data/api';
-import { postPurchase, postSupplierDebt } from '@/lib/data/purchases';
+import { postPurchase, postSupplierDebt, postSupplierOpeningBalance } from '@/lib/data/purchases';
 import { recordSupplierPayment } from '@/lib/data/supplierPayments';
 import type { PaymentMethod, Product } from '@/lib/data/types';
-import { toAppError } from '@/lib/errors';
+import { RpcMissingError, toAppError } from '@/lib/errors';
 import { lineTotal, parseMoneyInput } from '@/lib/money';
 import { bindNewProducts, buildPurchasePlan, type PurchaseDraftLine, type PurchaseLineErrors } from '@/lib/purchaseForm';
 import { previewLedgerNote } from '@/lib/ledgerNote';
@@ -181,7 +181,15 @@ export function useLedgerNoteSubmit(input: { kind: 'customer' | 'supplier'; part
         } else {
           // Tovarsiz qarz yozuvi (W2, 013): ombor o'zgarmaydi, bir nechta bo'lishi mumkin; tovar uchun «Kirim» amali.
           // Avval ochilish qoldig'i RPC'si ishlatilardi: u bir ta'minotchiga bitta yozuvga ruxsat beradi, 2-yozuv yiqilardi
-          await postSupplierDebt(sb, { shopId, documentId: a.docId, clientOpId: a.docOp, supplierId: input.partnerId, amount: goods });
+          const args = { shopId, documentId: a.docId, clientOpId: a.docOp, supplierId: input.partnerId, amount: goods };
+          try {
+            await postSupplierDebt(sb, args);
+          } catch (e) {
+            // 013 qo'llanmagan server: avvalgi yo'l (ochilish qoldig'i) — `main` dagi xatti-harakat saqlanadi, regressiya yo'q.
+            // Ikkinchi yozuv bu holatda avvalgidek `opening_balance_exists` bilan rad etiladi
+            if (!(e instanceof RpcMissingError)) throw e;
+            await postSupplierOpeningBalance(sb, args);
+          }
         }
       }
       if (paid > 0n) {

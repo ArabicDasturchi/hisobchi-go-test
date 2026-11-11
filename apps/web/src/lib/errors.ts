@@ -14,6 +14,27 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * Serverda RPC hali yo'q (migratsiya qo'llanmagan: PostgREST PGRST202 yoki Postgres 42883). Chaqiruvchi shu holatda
+ * avvalgi xavfsiz yo'lga qaytishi yoki aniq ko'rsatma berishi mumkin. Hech narsa yozilmagan bo'ladi.
+ */
+export class RpcMissingError extends AppError {
+  constructor(
+    public readonly rpc: string,
+    message: string = "Serverda bu amal hali yoqilmagan (migratsiya qo'llanmagan). Administratorga ayting.",
+  ) {
+    super('unknown', message);
+    this.name = 'RpcMissingError';
+  }
+}
+
+/** Xom Supabase/PostgREST xatosi "funksiya topilmadi" mi (faqat aniq kodlar va xabar) */
+export function isRpcMissing(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; message?: string };
+  return e.code === 'PGRST202' || e.code === '42883' || /could not find the function/i.test(e.message ?? '');
+}
+
 interface ErrorShape {
   message?: string;
   code?: string;
