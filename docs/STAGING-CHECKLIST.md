@@ -11,7 +11,7 @@ Production'ga tegilmaydi. Merge, production migratsiya, deploy va pullik xarid f
 |---|---|---|---|---|
 | P1 | Supabase loyiha `hisobchi-go-staging` (bepul reja, production bilan bir region) | ❌ mavjud emas | Asoschi | Haqiqiy Auth, RLS, PostgREST |
 | P2 | GitHub → Environments → `staging` + secrets `STAGING_SUPABASE_ACCESS_TOKEN`, `STAGING_SUPABASE_DB_PASSWORD`, `STAGING_SUPABASE_PROJECT_REF` | ❌ mavjud emas (#43 dagi «Staging'ga qo'llash» shu sabab hamma qadamni `skipped` qildi) | Asoschi | `migrate-staging.yml` migratsiyalarni qo'llaydi |
-| P3 | Staging Auth: Redirect URLs (`http://localhost:3000/**`), Leaked password protection yoqilgan, email tasdiqlash yoqilgan | ❌ | Asoschi | S1, S2 |
+| P3 | Staging Auth: Redirect URLs (`http://localhost:3000/**`), Leaked password protection yoqilgan, email tasdiqlash yoqilgan. **Email:** Supabase'ning standart SMTP'si (bilishimcha, staging'da qayta tekshirilsin) faqat loyiha jamoasi a'zolariga va soatiga oz sonli xat yuboradi: test qutilari jamoa a'zosi bo'lsin yoki staging'da custom SMTP sozlansin | ❌ | Asoschi | S1, S2, S14 |
 | P4 | Staging **public** URL va anon kalit (bular sir emas, brauzerga boradi) | ❌ | Asoschi beradi | Lokal web staging'ga ulanadi |
 | P5 | Ikki test email qutisi (A do'kon, B do'kon) | ❌ | Humoyun | S1, S14 |
 | P6 | Vercel: `ArabicDasturchi` jamoaga a'zo (preview'lar hozir bloklangan) | ❌ | Asoschi | Ixtiyoriy: preview orqali sinash. Usiz lokal ishlaymiz |
@@ -35,7 +35,7 @@ Sinov **birlashgan** kodda o'tadi (hamma PR birga), alohida PR'larda emas: savdo
 
 ## 2. Tayyorgarlik qadamlari (P1–P5 tayyor bo'lgach)
 
-- [ ] **T1.** GitHub Actions → «Migratsiya (staging)» → Run workflow. Ruxsat bilan Claude API orqali ham ishga tushira oladi. Kutilgan: 001–012 qo'llandi, «up to date».
+- [ ] **T1.** GitHub Actions → «Migratsiya (staging)» → Run workflow (asoschi yoki Humoyun; ruxsat bilan Claude Code GitHub REST API orqali ham ishga tushira oladi, `gh` o'rnatilmagan). Kutilgan: 001–012 qo'llandi, «up to date».
 - [ ] **T2.** #43 branchi uchun staging workflow qayta ishga tushirilsin. Kutilgan: 013 qo'llandi. Supabase SQL Editor'da:
   ```sql
   select proname from pg_proc where proname in ('reverse_sale_with_payments','post_supplier_debt');  -- 2 qator
@@ -77,8 +77,8 @@ SQL tekshiruvlar faqat **staging**'da, faqat `SELECT`. `:shop` — A do'kon id's
 - [ ] **S4. Xato kirimda tovar yaratilmaydi (W5, #47)**
   1. Ta'minotchilar → «Rahim aka» yaratish.
   2. Panel → Amal «Kirim», Kimdan «Rahim aka» → «Un» (yangi) → birlik **kg**, soni 10, tan narx 9 000.
-  3. «Berilgan summa» = 200 000 (jamidan ko'p) → Tasdiqlash.
-  - Kutilgan: xato chiqadi; `select count(*) from products where shop_id=:shop and name='Un';` = **0**.
+  3. «Berilgan summa» = 200 000 (jamidan ko'p).
+  - Kutilgan: qizil «Berilgan summa jamidan ko'p» xabari, «Tasdiqlash» tugmasi **o'chiq** (bosib bo'lmaydi); `select count(*) from products where shop_id=:shop and name='Un';` = **0**.
 - [ ] **S5. To'g'ri kirim (W5)**
   1. S4 ni davom ettirish: summa 50 000 naqd → Tasdiqlash.
   - Kutilgan: Ombor → Qoldiq: «Un» 10 kg; ta'minotchi qarzi 40 000.
@@ -87,7 +87,7 @@ SQL tekshiruvlar faqat **staging**'da, faqat `SELECT`. `:shop` — A do'kon id's
 
 ### Blok C — Savdo, kassa (W3, W6, W10, W4)
 
-Boshlashdan oldin: Mijozlar → «Ali» yaratish. «Un» narxini 12 000 qilish.
+Boshlashdan oldin: Mijozlar → «Ali» va «Vali» yaratish. «Un» narxini 12 000 qilish. **Ali qarzi S6–S11 davomida faqat shu ssenariylardan o'zgaradi** (qisman savdo Vali'da).
 
 - [ ] **S6. Doimiy mijoz, to'liq, karta (W3, W6, W4)**
   1. Panel → Savdo, Kimga «Ali», «Un» katalogdan → soni 2 → Tasdiqlash → «To'landi», usul **Karta** → Saqlash.
@@ -98,11 +98,11 @@ Boshlashdan oldin: Mijozlar → «Ali» yaratish. «Un» narxini 12 000 qilish.
   1. Savdo, Kimga «Mijozsiz (naqd)», «Un» 1 → «To'landi», Naqd → Saqlash.
   - Kutilgan: Savdolar ro'yxatida «Mijozsiz (naqd)»; Kassa (naqd) +12 000.
   - SQL: `select c.kind, p.method, p.amount from payments p join customers c on c.id=p.customer_id where p.client_op_id like 'sale-pay:%' order by p.created_at desc limit 1;` = `one_time | naqd | 12000`.
-- [ ] **S7b. Mijozsiz 0 so'm** — narx 0 bilan mijozsiz savdo.
+- [ ] **S7b. Mijozsiz 0 so'm** — erkin matnli yangi qator «Sovg'a paket», soni 1, narx 0, mijozsiz, «To'landi».
   - Kutilgan: saqlanadi, xato yo'q; `documents.customer_id IS NULL`, to'lov yo'q.
 - [ ] **S8. Qisman (W3)**
-  1. Ali, «Un» 5 (60 000) → «Qisman» 30 000 naqd → Saqlash.
-  - Kutilgan: Ali qarzi 30 000; Kassa (naqd) +30 000; bitta `post_sale`.
+  1. **Vali**, «Un» 5 (60 000) → «Qisman» 30 000 naqd → Saqlash.
+  - Kutilgan: Vali qarzi 30 000; Kassa (naqd) +30 000; bitta `post_sale`. Ali qarzi o'zgarmaydi (0).
 
 ### Blok D — Bekor qilish (W1)
 
@@ -114,8 +114,8 @@ Boshlashdan oldin: Mijozlar → «Ali» yaratish. «Un» narxini 12 000 qilish.
 - [ ] **S10. Qayta yozish (W1)**
   1. S9 savdosi → «Qayta yozish» → narx 11 000 → «To'landi» Karta → Saqlash.
   - Kutilgan: «Karta» = 22 000 (bir marta sanaladi); Ali qarzi 0.
-- [ ] **S11. To'lovni qoldirib bekor qilish (W1)**
-  1. Yangi savdo Ali, 12 000 «To'landi» naqd → bekor qilish → belgini **olib tashlash**.
+- [ ] **S11. To'lovni qoldirib bekor qilish (W1)** (S10 dan keyin Ali qarzi 0)
+  1. Yangi savdo Ali, «Un» 1 (12 000) «To'landi» naqd → bekor qilish → belgini **olib tashlash**.
   - Kutilgan: «kredit» ogohlantirishi; Ali qarzi −12 000 (kredit); to'lov faol.
   - Eslatma: kreditni qaytarish oqimi yo'q (W11, MVP'dan keyin).
 
@@ -184,10 +184,10 @@ Tartib birlashgan kodda tekshirilgan (1-bo'lim). Bog'liqliklar:
 | 2 | #48 lint skripti | #42 | #42 siz `main` da lint qizil |
 | 3 | #43 SQL 013 | — | merge = production migratsiya (`migrate.yml`): **alohida ruxsat**; keyin schema reload |
 | 4 | #45 W6 kassa | — | **asoschi 05.11 qarorini o'zgartirishni tasdiqlashi shart** (kutilmoqda) |
-| 5 | #46 W4 | — | QARORLAR qatori to'qnashadi |
+| 5 | #46 W4 | — | `QARORLAR.md` to'qnashadi (qatorlar birlashtiriladi) |
 | 6 | #47 W5 | — | #46 bilan `PanelWorkspace.tsx` importlari to'qnashadi (ikkalasi saqlanadi) |
-| 7 | #50 W3+W10 | — | #45 bilan `dashboard/report/page.tsx` to'qnashadi (`anon` + `paymentsByMethod` ikkalasi) |
-| 8 | #44 W1 | **#43 production'da** | #50 bilan `sales/[id]/page.tsx` to'qnashadi (`kind !== 'one_time'` + `RefundChoice`) |
+| 7 | #50 W3+W10 | — | #45 bilan `dashboard/report/page.tsx` (`anon` + `paymentsByMethod` ikkalasi) va `QARORLAR.md` to'qnashadi |
+| 8 | #44 W1 | **#43 production'da** | #50 bilan `sales/[id]/page.tsx` (`kind !== 'one_time'` + `RefundChoice`) va `QARORLAR.md` to'qnashadi |
 | 9 | #49 W2 | **#43 production'da** | to'qnashuv yo'q |
 | 10 | #51 hujjatlar | — | |
 
