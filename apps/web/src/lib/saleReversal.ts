@@ -6,13 +6,14 @@
  * Yechim: bekor qilish oynasi shu savdoning to'lovlarini ko'rsatadi va ular savdo bilan BITTA tranzaksiyada
  * bekor qilinadi (`reverse_sale_with_payments`, 013). Bog'lanish faqat aniq belgilar bo'yicha (taxmin yo'q):
  *  1. `post_sale(p_paid)` to'lovi: `payments.client_op_id = 'sale-pay:' || documents.client_op_id`;
- *  2. eski veb oqimi (savdo + alohida `record_payment`): izoh aynan `Savdo #XXXXXXXX uchun`, mijoz bir xil.
+ *  2. veb savdo oqimi `useSaleSubmit` (savdo + alohida `record_payment`, W3 gacha amalda): izoh aynan
+ *     `Savdo #XXXXXXXX uchun`, mijoz bir xil.
  * Bir martalik (`one_time`) mijoz to'lovini server o'zi bekor qiladi, bu yerda qaytarilmaydi.
  */
 import { shortNumber } from './dates';
 import type { Payment, SaleDoc } from './data/types';
 
-/** Eski veb savdo oqimi to'lovga shu izohni yozgan (`useSaleSubmit`) */
+/** Veb savdo oqimi (`useSaleSubmit`, savdo + alohida to'lov) to'lovga shu izohni yozadi */
 export const legacySalePaymentNote = (saleId: string) => `Savdo ${shortNumber(saleId)} uchun`;
 
 export function salePayments(

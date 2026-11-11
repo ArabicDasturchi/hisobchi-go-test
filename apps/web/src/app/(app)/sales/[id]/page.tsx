@@ -27,6 +27,8 @@ export default function SaleDetailPage() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [reversing, setReversing] = useState<{ opId: string } | null>(null);
   const [refund, setRefund] = useState(true);
+  // Birinchi urinishdan keyin tanlov qulflanadi (o'sha client_op_id bilan boshqa tanlov yuborilmasin)
+  const [attempted, setAttempted] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -100,7 +102,7 @@ export default function SaleDetailPage() {
             Chop etish
           </Button>
           {doc.status === 'posted' && (
-            <Button variant="danger" onClick={() => setReversing({ opId: crypto.randomUUID() })} icon={<Ban className="h-4 w-4" />}>
+            <Button variant="danger" onClick={() => { setAttempted(false); setReversing({ opId: crypto.randomUUID() }); }} icon={<Ban className="h-4 w-4" />}>
               Bekor qilish
             </Button>
           )}
@@ -191,12 +193,13 @@ export default function SaleDetailPage() {
             <b>{shortNumber(doc.id)}</b> savdosi (<Money value={doc.subtotal} className="font-semibold" />) bekor qilinadi.
             {customer ? ` Summa «${customer.name}» qarzidan chiqariladi.` : ''} Bu amalni qaytarib bo&apos;lmaydi.
             <div className="mt-2">
-              <RefundChoice total={linked.total} checked={refund} onChange={setRefund} />
+              <RefundChoice total={linked.total} checked={refund} onChange={setRefund} disabled={attempted} />
             </div>
           </>
         }
         onConfirm={async (reason) => {
           if (!reversing) return;
+          setAttempted(true);
           // client_op_id modal ochilganda bir marta yaratilgan — qayta bosish takroriy bekor qilish yaratmaydi.
           // To'lovlar tanlansa savdo bilan bitta tranzaksiyada bekor qilinadi (W1)
           await reverseSale(getSupabase(), shopId, doc.id, reversing.opId, reason, refunding ? linked.ids : []);

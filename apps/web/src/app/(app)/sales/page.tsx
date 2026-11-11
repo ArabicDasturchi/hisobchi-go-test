@@ -43,6 +43,8 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
   // Bir martalik kalit: tarmoq xatosidan keyin qayta urinish takroriy teskari yozuv yaratmaydi
   const [opId] = useState(() => crypto.randomUUID());
   const [refund, setRefund] = useState(true);
+  // Birinchi urinishdan keyin tanlov qulflanadi: o'sha client_op_id bilan qayta urinish boshqa tanlov yubormasin
+  const [attempted, setAttempted] = useState(false);
   const finalReason = reason === 'Boshqa' ? custom.trim() : reason;
   const reversed = s.status === 'reversed';
   const linked = useMemo(() => salePayments(s, data?.payments ?? [], { walkin: !!data?.walkin && data.walkin.id === s.customer_id }), [s, data]);
@@ -54,6 +56,7 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
       return;
     }
     setBusy(true);
+    setAttempted(true);
     setError(null);
     try {
       await reverseSale(getSupabase(), shopId, s.id, opId, finalReason, refund ? linked.ids : []);
@@ -116,6 +119,7 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
       </div>
       {open && !reversed && (
         <div className="col-span-full space-y-2 rounded-xl border-2 border-emerald-500/60 p-3" data-testid="cancel-panel">
+          <RefundChoice total={linked.total} checked={refund} onChange={setRefund} disabled={busy || attempted} />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <Select label="Sabab (majburiy)" value={reason} onChange={(e) => setReason(e.target.value)} disabled={busy} className="h-11" wrapClassName="sm:w-72">
               {CANCEL_REASONS.map((r) => (
@@ -132,7 +136,6 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
               Yopish
             </Button>
           </div>
-          <RefundChoice total={linked.total} checked={refund} onChange={setRefund} disabled={busy} />
           <p className="text-xs text-muted">Teskari yozuv qo&apos;shiladi, savdo o&apos;chirilmaydi. So&apos;ng «Qayta yozish»: shu qatorlar bilan yangi savdo panelda ochiladi.</p>
         </div>
       )}
