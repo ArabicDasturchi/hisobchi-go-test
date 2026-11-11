@@ -59,8 +59,8 @@ export { checkSalePayment } from './payment-rules.js';
 export { TotalsMismatchError, assertTotalsMatch } from './cross-check.js';
 
 // Bosh sahifa agregatlari: kunlik savdo/foyda/kassa, qarz xulosasi, tugayotgan tovarlar (PANEL-1)
-export type { DaySale, DaySaleLine, DayPayment, DaySupplierPayment, DayTotalsInput, DayTotals, DebtEntry, DebtSummary, StockItemInput, LowStockLevel, LowStockItem } from './dashboard.js';
-export { dayTotals, debtSummary, lowStock, saleLineTotal, DEFAULT_LOW_STOCK_MILLI } from './dashboard.js';
+export type { DaySale, DaySaleLine, DayPayment, DayPaymentMethod, MethodTotals, DaySupplierPayment, DayTotalsInput, DayTotals, DebtEntry, DebtSummary, StockItemInput, LowStockLevel, LowStockItem } from './dashboard.js';
+export { dayTotals, sumPaymentsByMethod, debtSummary, lowStock, saleLineTotal, DEFAULT_LOW_STOCK_MILLI } from './dashboard.js';
 // Savdo paytidagi ogohlantirishlar va ko'p sotilgan tovarlar (PANEL-1, S2-S3)
 export type { StockCheck, TopSellingLine, TopSelling } from './sale-checks.js';
 export { LOW_STOCK_MILLI, stockCheck, soldBelowCost, topSellingProducts } from './sale-checks.js';

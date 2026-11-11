@@ -6,8 +6,10 @@
  * Qoidalar:
  *  - Faqat tasdiqlangan (posted) savdolar hisobga kiradi; bekor qilingan savdo, bekor qilingan to'lov kirmaydi.
  *  - Foyda faqat tan narxi ma'lum qatorlardan; noma'lumlari sanaladi (`unknownCostLines`), taxmin qilinmaydi.
- *  - Kassa = mijozsiz (naqd) savdolar + qabul qilingan to'lovlar − ta'minotchiga berilgan NAQD to'lovlar.
+ *  - Kassa (naqd) = mijozsiz savdolar + mijozdan NAQD olingan to'lovlar − ta'minotchiga NAQD berilgan to'lovlar.
+ *    Karta va o'tkazma kassaga kirmaydi va kassadan ayrilmaydi: ular usul bo'yicha alohida yig'iladi (W6).
  *    Mijozsiz savdo to'liq to'langan: to'lov yozuvi yaratilmaydi, shuning uchun alohida qo'shiladi (ikki marta sanalmaydi).
+ *    Mijozsiz savdo naqd deb olinadi: bunday savdoda usul saqlanmaydi (eski web savdolari, to'lov yozuvi yo'q).
  */
 import { calculateLineTotal } from './calculation.js';
 import { saleProfit } from './profit.js';
@@ -34,9 +36,20 @@ export interface DaySaleLine {
   unitCost: bigint | null;
 }
 
+/** To'lov usullari (bazada CHECK: 'naqd' | 'karta' | 'otkazma') */
+export type DayPaymentMethod = 'naqd' | 'karta' | 'otkazma';
+
+/** Usul bo'yicha yig'indilar */
+export type MethodTotals = Record<DayPaymentMethod, bigint>;
+
 export interface DayPayment {
   createdAt: string;
   amount: bigint;
+  /**
+   * 'naqd' | 'karta' | 'otkazma'. Majburiy: yagona iste'molchi (web `toDayPayments`) usulni har doim beradi.
+   * Usulsiz to'lov kassaga yozilib qolmasin: kassaga faqat aniq 'naqd' kiradi.
+   */
+  method: string;
   voided: boolean;
 }
 
@@ -46,6 +59,23 @@ export interface DaySupplierPayment {
   /** 'naqd' | 'karta' | 'otkazma' */
   method: string;
   voided: boolean;
+}
+
+const zeroMethods = (): MethodTotals => ({ naqd: 0n, karta: 0n, otkazma: 0n });
+
+/**
+ * Faol (bekor qilinmagan) to'lovlarni usul bo'yicha yig'adi.
+ * Noma'lum usul (bazadagi CHECK tufayli bo'lmasligi kerak) hech bir guruhga, xususan kassaga kirmaydi:
+ * `total` da esa bor, shuning uchun farq ko'rinadi (yashirilmaydi).
+ */
+export function sumPaymentsByMethod(payments: readonly Pick<DayPayment, 'amount' | 'method' | 'voided'>[]): MethodTotals & { total: bigint } {
+  const r = { ...zeroMethods(), total: 0n };
+  for (const p of payments) {
+    if (p.voided) continue;
+    r.total += p.amount;
+    if (p.method === 'naqd' || p.method === 'karta' || p.method === 'otkazma') r[p.method] += p.amount;
+  }
+  return r;
 }
 
 export interface DayTotalsInput {
@@ -67,11 +97,20 @@ export interface DayTotals {
   unknownCostLines: number;
   /** Qatorlari yuklanmagani uchun foydasi hisoblanmagan savdolar soni */
   salesWithoutLines: number;
-  /** Kassa: naqd savdo + qabul qilingan to'lovlar − naqd chiqim */
+  /** Kassa (faqat naqd): mijozsiz savdo + mijozdan naqd to'lovlar − ta'minotchiga naqd chiqim */
   cash: bigint;
+  /** Mijozsiz savdolar (naqd deb olinadi) */
   cashSales: bigint;
+  /** Mijozlardan qabul qilingan to'lovlar jami, hamma usullar (naqd + karta + o'tkazma) */
   paymentsIn: bigint;
+  /** Mijozlardan qabul qilingan to'lovlar usul bo'yicha */
+  paymentsInByMethod: MethodTotals;
+  /** Ta'minotchiga berilgan NAQD to'lovlar (kassadan chiqim) */
   cashOut: bigint;
+  /** Ta'minotchiga berilgan to'lovlar jami, hamma usullar */
+  paymentsOut: bigint;
+  /** Ta'minotchiga berilgan to'lovlar usul bo'yicha */
+  paymentsOutByMethod: MethodTotals;
 }
 
 export function dayTotals(input: DayTotalsInput): DayTotals {
@@ -90,10 +129,10 @@ export function dayTotals(input: DayTotalsInput): DayTotals {
   const withLines = new Set(lines.map((l) => l.documentId));
   const sp = saleProfit(lines.map((l) => ({ qtyMilli: l.qtyMilli, unitPrice: l.unitPrice, unitCost: l.unitCost })));
 
-  let paymentsIn = 0n;
-  for (const p of input.payments) if (!p.voided && tashkentDate(p.createdAt) === date) paymentsIn += p.amount;
-  let cashOut = 0n;
-  for (const p of input.supplierPayments ?? []) if (!p.voided && p.method === 'naqd' && tashkentDate(p.createdAt) === date) cashOut += p.amount;
+  const onDay = <T extends { createdAt: string }>(xs: readonly T[]) => xs.filter((p) => tashkentDate(p.createdAt) === date);
+  const { total: paymentsIn, ...paymentsInByMethod } = sumPaymentsByMethod(onDay(input.payments));
+  const { total: paymentsOut, ...paymentsOutByMethod } = sumPaymentsByMethod(onDay(input.supplierPayments ?? []));
+  const cashOut = paymentsOutByMethod.naqd;
 
   return {
     sales: salesSum,
@@ -101,10 +140,13 @@ export function dayTotals(input: DayTotalsInput): DayTotals {
     profit: sp.profit,
     unknownCostLines: sp.unknownCostLines.length,
     salesWithoutLines: sales.filter((s) => !withLines.has(s.id)).length,
-    cash: cashSales + paymentsIn - cashOut,
+    cash: cashSales + paymentsInByMethod.naqd - cashOut,
     cashSales,
     paymentsIn,
+    paymentsInByMethod,
     cashOut,
+    paymentsOut,
+    paymentsOutByMethod,
   };
 }
 

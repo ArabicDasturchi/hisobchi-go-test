@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { debtSummary, dayTotals, lowStock, saleLineTotal, type DaySale, type DaySaleLine } from '../src/index.js';
+import { debtSummary, dayTotals, lowStock, saleLineTotal, sumPaymentsByMethod, type DayPayment, type DaySale, type DaySaleLine, type DaySupplierPayment } from '../src/index.js';
 
 // Toshkent = UTC+5. 10:00 UTC → 15:00 Toshkent shu kun. 20:00 UTC → ertasi 01:00 Toshkent.
 const TODAY = '2026-11-05';
 const at = (utcHour: number, day = '2026-11-05') => `${day}T${String(utcHour).padStart(2, '0')}:00:00Z`;
 
 const sale = (id: string, createdAt: string, total: number, customerId: string | null = null, posted = true): DaySale => ({ id, createdAt, posted, total: BigInt(total), customerId });
+const pay = (amount: number, method: string, voided = false, createdAt = at(11)): DayPayment => ({ createdAt, amount: BigInt(amount), method, voided });
+const spay = (amount: number, method: string, voided = false, createdAt = at(12)): DaySupplierPayment => ({ createdAt, amount: BigInt(amount), method, voided });
 const line = (documentId: string, qty: number, price: number, cost: number | null): DaySaleLine => ({ documentId, qtyMilli: BigInt(qty) * 1000n, unitPrice: BigInt(price), unitCost: cost === null ? null : BigInt(cost) });
 
 describe('dayTotals', () => {
@@ -61,9 +63,9 @@ describe('dayTotals', () => {
       sales: [sale('s1', at(10), 385_000, null), sale('s2', at(10), 300_000, 'c1')],
       lines: [],
       payments: [
-        { createdAt: at(11), amount: 100_000n, voided: false },
-        { createdAt: at(11), amount: 999_000n, voided: true },
-        { createdAt: at(11, '2026-11-04'), amount: 7_000n, voided: false },
+        { createdAt: at(11), amount: 100_000n, method: 'naqd', voided: false },
+        { createdAt: at(11), amount: 999_000n, method: 'naqd', voided: true },
+        { createdAt: at(11, '2026-11-04'), amount: 7_000n, method: 'naqd', voided: false },
       ],
       supplierPayments: [
         { createdAt: at(12), amount: 50_000n, method: 'naqd', voided: false },
@@ -76,6 +78,72 @@ describe('dayTotals', () => {
     expect(t.paymentsIn).toBe(100_000n);
     expect(t.cashOut).toBe(50_000n);
     expect(t.cash).toBe(385_000n + 100_000n - 50_000n);
+  });
+
+  // W6: kassa faqat naqd. Karta va o'tkazma alohida yig'iladi, kassaga kirmaydi.
+  describe("kassa usul bo'yicha (W6)", () => {
+    it("mijoz karta bilan to'lasa kassa o'zgarmaydi, karta tushumida ko'rinadi", () => {
+      const t = dayTotals({ sales: [], lines: [], payments: [pay(500_000, 'karta')], date: TODAY });
+      expect(t.cash).toBe(0n);
+      expect(t.paymentsInByMethod).toEqual({ naqd: 0n, karta: 500_000n, otkazma: 0n });
+      expect(t.paymentsIn).toBe(500_000n);
+    });
+
+    it("o'tkazma to'lovi kassaga kirmaydi", () => {
+      const t = dayTotals({ sales: [], lines: [], payments: [pay(300_000, 'otkazma')], date: TODAY });
+      expect(t.cash).toBe(0n);
+      expect(t.paymentsInByMethod.otkazma).toBe(300_000n);
+    });
+
+    it("naqd to'lov kassaga kiradi", () => {
+      const t = dayTotals({ sales: [], lines: [], payments: [pay(200_000, 'naqd')], date: TODAY });
+      expect(t.cash).toBe(200_000n);
+      expect(t.paymentsInByMethod.naqd).toBe(200_000n);
+    });
+
+    it("bekor qilingan to'lov (har qanday usul) hech qayerga kirmaydi", () => {
+      const t = dayTotals({ sales: [], lines: [], payments: [pay(100_000, 'naqd', true), pay(400_000, 'karta', true), pay(50_000, 'otkazma', true)], date: TODAY });
+      expect(t.cash).toBe(0n);
+      expect(t.paymentsIn).toBe(0n);
+      expect(t.paymentsInByMethod).toEqual({ naqd: 0n, karta: 0n, otkazma: 0n });
+    });
+
+    it("ta'minotchiga karta/o'tkazma bilan to'lov kassadan ayrilmaydi, usul bo'yicha chiqimda ko'rinadi", () => {
+      const t = dayTotals({ sales: [sale('s1', at(10), 100_000)], lines: [], payments: [], supplierPayments: [spay(70_000, 'karta'), spay(20_000, 'otkazma')], date: TODAY });
+      expect(t.cash).toBe(100_000n);
+      expect(t.cashOut).toBe(0n);
+      expect(t.paymentsOut).toBe(90_000n);
+      expect(t.paymentsOutByMethod).toEqual({ naqd: 0n, karta: 70_000n, otkazma: 20_000n });
+    });
+
+    it("aralash kun: kassa = mijozsiz savdo + naqd to'lov − naqd chiqim", () => {
+      const t = dayTotals({
+        sales: [sale('s1', at(10), 385_000, null), sale('s2', at(10), 300_000, 'c1'), sale('s3', at(10), 40_000, null, false)],
+        lines: [],
+        payments: [
+          pay(100_000, 'naqd'),
+          pay(500_000, 'karta'),
+          pay(250_000, 'otkazma'),
+          pay(60_000, 'naqd', true),
+          pay(9_000, 'naqd', false, at(11, '2026-11-04')),
+        ],
+        supplierPayments: [spay(50_000, 'naqd'), spay(70_000, 'karta'), spay(30_000, 'otkazma'), spay(80_000, 'naqd', true)],
+        date: TODAY,
+      });
+      expect(t.cashSales).toBe(385_000n);
+      expect(t.paymentsInByMethod).toEqual({ naqd: 100_000n, karta: 500_000n, otkazma: 250_000n });
+      expect(t.paymentsIn).toBe(850_000n);
+      expect(t.paymentsOutByMethod).toEqual({ naqd: 50_000n, karta: 70_000n, otkazma: 30_000n });
+      expect(t.cashOut).toBe(50_000n);
+      expect(t.paymentsOut).toBe(150_000n);
+      // 385 000 + 100 000 − 50 000; karta 500 000 va o'tkazma 250 000 kassaga kirmaydi
+      expect(t.cash).toBe(435_000n);
+    });
+
+    it("noma'lum usul kassaga kirmaydi, lekin jami ichida qoladi (yashirilmaydi)", () => {
+      const r = sumPaymentsByMethod([pay(10_000, 'naqd'), pay(5_000, 'bitcoin'), pay(7_000, 'karta', true)]);
+      expect(r).toEqual({ naqd: 10_000n, karta: 0n, otkazma: 0n, total: 15_000n });
+    });
   });
 
   it("qatorlari yo'q savdolar sanaladi (foyda noma'lum bo'lib qolmasin)", () => {
