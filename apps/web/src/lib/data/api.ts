@@ -236,7 +236,7 @@ export async function updateProduct(sb: SB, shopId: string, id: string, input: P
 // Savdolar
 // ---------------------------------------------------------------------------
 
-const DOC_COLS = 'id, customer_id, status, subtotal::text, created_at, posted_at, created_by';
+const DOC_COLS = 'id, customer_id, status, subtotal::text, created_at, posted_at, created_by, client_op_id';
 
 interface DocRow extends Omit<SaleDoc, 'subtotal'> {
   subtotal: string;
@@ -395,10 +395,22 @@ export async function postSale(sb: SB, a: PostSaleArgs): Promise<string> {
   return id;
 }
 
-export async function reverseSale(sb: SB, shopId: string, documentId: string, clientOpId: string, reason: string): Promise<void> {
-  check(await sb.rpc('reverse_sale', { p_shop_id: shopId, p_document_id: documentId, p_client_op_id: clientOpId, p_reason: reason.trim() }));
+/**
+ * Savdoni bekor qilish (teskari yozuv). `voidPaymentIds` berilsa (shu savdo bilan kelgan to'lovlar, `salePayments`),
+ * savdo va to'lovlar BITTA tranzaksiyada bekor qilinadi: `reverse_sale_with_payments` (013). Ikki alohida RPC
+ * ishlatilmaydi (orada uzilish yarim holat qoldirardi). 013 qo'llanmagan bo'lsa tushunarli xato, jim fallback yo'q.
+ * client_op_id bo'yicha idempotent. Natija serverdan qayta o'qib tekshiriladi.
+ */
+export async function reverseSale(sb: SB, shopId: string, documentId: string, clientOpId: string, reason: string, voidPaymentIds: readonly string[] = []): Promise<void> {
+  const base = { p_shop_id: shopId, p_document_id: documentId, p_client_op_id: clientOpId, p_reason: reason.trim() };
+  if (voidPaymentIds.length > 0) check(await sb.rpc('reverse_sale_with_payments', { ...base, p_void_payment_ids: [...voidPaymentIds] }));
+  else check(await sb.rpc('reverse_sale', base));
   const doc = check(await sb.from('documents').select('status').eq('shop_id', shopId).eq('id', documentId).maybeSingle()) as { status: string } | null;
   if (doc?.status !== 'reversed') throw new AppError('unknown', 'Server bekor qilishni tasdiqlamadi.');
+  if (voidPaymentIds.length > 0) {
+    const voids = (check(await sb.from('payment_voids').select('payment_id').eq('shop_id', shopId).in('payment_id', [...voidPaymentIds])) ?? []) as { payment_id: string }[];
+    if (voids.length !== voidPaymentIds.length) throw new AppError('unknown', "Server to'lov bekor qilinishini tasdiqlamadi. Mijoz daftarini tekshiring.");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +421,7 @@ interface PaymentRow extends Omit<Payment, 'amount' | 'void'> {
   amount: string;
 }
 
-const PAYMENT_COLS = 'id, customer_id, amount::text, method, note, created_by, created_at';
+const PAYMENT_COLS = 'id, customer_id, amount::text, method, note, created_by, created_at, client_op_id';
 
 export async function listPayments(sb: SB, shopId: string): Promise<Payment[]> {
   const [rows, voids] = await Promise.all([
