@@ -97,7 +97,7 @@ export async function postSupplierDebt(sb: SB, a: SupplierDebtArgs): Promise<str
     p_amount: a.amount.toString(),
   });
   // 013 hali qo'llanmagan server: hech narsa yozilmagan, chaqiruvchi avvalgi yo'lni tanlaydi
-  if (res.error && isRpcMissing(res.error)) throw new RpcMissingError('post_supplier_debt');
+  if (res.error && isRpcMissing(res.error, 'post_supplier_debt')) throw new RpcMissingError('post_supplier_debt');
   const id = check(res) as string | null;
   if (!id) throw new AppError('unknown', "Server qarz yozuvi identifikatorini qaytarmadi.");
   const doc = check(await sb.from('purchase_documents').select('subtotal::text, status, kind').eq('shop_id', a.shopId).eq('id', id).maybeSingle()) as { subtotal: string; status: string; kind: string } | null;

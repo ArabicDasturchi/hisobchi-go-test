@@ -35,6 +35,13 @@ describe('isRpcMissing', () => {
     expect(isRpcMissing({ code: '23505', message: 'opening_balance_exists' })).toBe(false);
     expect(isRpcMissing(null)).toBe(false);
   });
+  it('RPC nomi berilsa: xabarda aynan shu RPC bo‘lishi shart', () => {
+    expect(isRpcMissing(PGRST202, 'post_supplier_debt')).toBe(true);
+    expect(isRpcMissing({ code: '42883', message: 'function post_supplier_debt(uuid, uuid, text, uuid, bigint) does not exist' }, 'post_supplier_debt')).toBe(true);
+    // mavjud RPC ichida boshqa yo'q funksiya chaqirilgan — bu RPC yo'qligi emas
+    expect(isRpcMissing({ code: '42883', message: 'function foo(integer) does not exist' }, 'post_supplier_debt')).toBe(false);
+    expect(isRpcMissing({ ...PGRST202, message: 'Could not find the function public.boshqa_rpc' }, 'post_supplier_debt')).toBe(false);
+  });
 });
 
 describe('api: 013 yo‘q server', async () => {

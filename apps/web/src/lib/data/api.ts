@@ -437,7 +437,7 @@ export async function reverseSale(sb: SB, shopId: string, documentId: string, cl
     const res = await sb.rpc('reverse_sale_with_payments', { ...base, p_void_payment_ids: [...voidPaymentIds] });
     // 013 hali qo'llanmagan server: hech narsa o'zgarmagan. Jim fallback yo'q (to'lov qolib, kassa noto'g'ri bo'lardi):
     // savdogar o'zi tanlaydi
-    if (res.error && isRpcMissing(res.error)) {
+    if (res.error && isRpcMissing(res.error, 'reverse_sale_with_payments')) {
       throw new RpcMissingError(
         'reverse_sale_with_payments',
         "Savdo bilan to'lovni birga bekor qilish serverda hali yoqilmagan, hech narsa o'zgarmadi. «To'lovni ham bekor qilish» belgisi olib tashlandi: savdoni bekor qilish uchun yana tasdiqlang, to'lovni keyin mijoz daftaridan alohida bekor qiling.",

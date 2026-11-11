@@ -28,11 +28,15 @@ export class RpcMissingError extends AppError {
   }
 }
 
-/** Xom Supabase/PostgREST xatosi "funksiya topilmadi" mi (faqat aniq kodlar va xabar) */
-export function isRpcMissing(err: unknown): boolean {
+/**
+ * Xom Supabase/PostgREST xatosi "funksiya topilmadi" mi (faqat aniq kodlar va xabar). `rpc` berilsa, xabarda aynan shu
+ * RPC nomi bo'lishi shart: mavjud RPC ichida boshqa yo'q funksiya chaqirilgani (ham 42883) RPC yo'qligi EMAS.
+ */
+export function isRpcMissing(err: unknown, rpc?: string): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; message?: string };
   const msg = e.message ?? '';
+  if (rpc && !msg.includes(rpc)) return false;
   // PGRST202: PostgREST sxemada bunday RPC yo'q. 42883 faqat "function ... does not exist" bo'lsa: mavjud funksiya
   // ichidagi "operator does not exist" (ham 42883) RPC yo'qligi EMAS
   if (e.code === 'PGRST202') return true;
