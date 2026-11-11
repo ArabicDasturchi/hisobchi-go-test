@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Product } from '@/lib/data/types';
-import { buildPurchasePlan, purchaseEffects, resolveProduct, type PurchaseDraftLine } from '@/lib/purchaseForm';
+import type { Product, Unit } from '@/lib/data/types';
+import { addNewPurchaseLine, applyPurchaseSelection, defaultNewUnit, purchaseAsDraft } from '@/lib/panelLines';
+import { bindNewProducts, buildPurchasePlan, lineUnit, newProductKey, pendingProductId, purchaseEffects, resolveProduct, type PurchaseDraftLine } from '@/lib/purchaseForm';
 
-const P = (id: string, name: string, active = true): Product => ({ id, name, unit: 'dona', last_price: null, is_active: active, source: 'app', created_at: '', updated_at: '' });
+const P = (id: string, name: string, active = true, unit: Unit = 'dona'): Product => ({ id, name, unit, last_price: null, is_active: active, source: 'app', created_at: '', updated_at: '' });
 const CAT = [P('chirmoq', 'Chirmoq'), P('yurak', 'Yurak'), P('eski', 'Eski', false)];
-const L = (key: string, name: string, qty: string, unitCost: string, productId: string | null = null): PurchaseDraftLine => ({ key, productId, productName: name, qty, unitCost });
+const L = (key: string, name: string, qty: string, unitCost: string, productId: string | null = null, unit: Unit | null = null): PurchaseDraftLine => ({ key, productId, productName: name, unit, qty, unitCost });
 
 describe('buildPurchasePlan: namuna 100×9 000 + 50×11 000 = 1 450 000', () => {
   const lines = [L('a', 'Chirmoq', '100', '9 000'), L('b', 'Yurak', '50', '11 000')];
@@ -126,5 +127,88 @@ describe('server xatolari (009 va kirim) o‘zbekcha xabarga o‘giriladi', () =
     const e = toAppError({ message: raw });
     expect(e.kind).toBe(kind);
     expect(e.message).not.toMatch(/opening_balance|supplier_not|invalid_method|product_not_found/);
+  });
+});
+
+describe('W5: kirimda birlik va yangi tovar (allowNew)', () => {
+  const UN = P('un', 'Un', true, 'kg');
+  const cat = [UN, P('chirmoq', 'Chirmoq')];
+
+  it("yangi nom to'liq tekshiriladi va kutilayotgan tovar sifatida rejaga tushadi (hech narsa yaratilmagan)", () => {
+    const r = buildPurchasePlan({ lines: [L('a', 'Shakar', '10', '12 000', null, 'kg'), L('b', 'Un', '5', '8 000', 'un', 'kg')], products: cat, balanceBefore: 0n, paid: '', method: 'naqd', allowNew: true });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.newProducts).toEqual([{ key: newProductKey('Shakar', 'kg'), name: 'Shakar', unit: 'kg' }]);
+    expect(r.plan.lines[0]!.product_id).toBe(pendingProductId(newProductKey('Shakar', 'kg')));
+    expect(r.plan.subtotal).toBe(160_000n);
+  });
+
+  it('allowNew siz katalogda yo‘q nom avvalgidek rad etiladi (eski /purchases/new sahifasi)', () => {
+    const r = buildPurchasePlan({ lines: [L('a', 'Shakar', '10', '12 000', null, 'kg')], products: cat, balanceBefore: 0n, paid: '', method: 'naqd' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.lineErrors.get('a')?.product).toMatch(/Katalogdan tanlang/);
+  });
+
+  it('yangi nomda birlik tanlanmagan bo‘lsa qator xatosi', () => {
+    const r = buildPurchasePlan({ lines: [L('a', 'Shakar', '10', '12 000', null, null)], products: cat, balanceBefore: 0n, paid: '', method: 'naqd', allowNew: true });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.lineErrors.get('a')?.unit).toMatch(/birlikni tanlang/);
+  });
+
+  it('yangi nomda ham to‘lov tekshiruvi ishlaydi (jamidan ko‘p to‘lov rad)', () => {
+    const r = buildPurchasePlan({ lines: [L('a', 'Shakar', '10', '12 000', null, 'kg')], products: cat, balanceBefore: 0n, paid: '120 001', method: 'naqd', allowNew: true });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.paidError).toBeTruthy();
+  });
+
+  it('katalogdagi nom boshqa birlikda yozilsa xato: «Un» katalogda kg birlikda bor', () => {
+    const r = buildPurchasePlan({ lines: [L('a', ' un ', '10', '8 000', null, 'dona')], products: cat, balanceBefore: 0n, paid: '', method: 'naqd', allowNew: true });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.lineErrors.get('a')?.unit).toBe('«Un» katalogda kg birlikda bor');
+  });
+
+  it('katalogdagi nom bir xil birlikda yozilsa mavjud tovar ishlatiladi, yangi tovar yo‘q', () => {
+    const r = buildPurchasePlan({ lines: [L('a', 'UN', '10', '8 000', null, 'kg')], products: cat, balanceBefore: 0n, paid: '', method: 'naqd', allowNew: true });
+    expect(r.ok && r.plan.lines[0]!.product_id).toBe('un');
+    expect(r.ok && r.plan.newProducts).toEqual([]);
+  });
+
+  it('katalogdan tanlangan qatorda birlik tovarniki (qatordagi qiymat e‘tiborga olinmaydi)', () => {
+    const r = buildPurchasePlan({ lines: [L('a', 'Un', '10', '8 000', 'un', 'dona')], products: cat, balanceBefore: 0n, paid: '', method: 'naqd', allowNew: true });
+    expect(r.ok).toBe(true);
+    expect(lineUnit(cat, L('a', 'Un', '1', '1', 'un', 'dona'))).toBe('kg');
+    expect(lineUnit(cat, L('a', 'Shakar', '1', '1', null, 'qop'))).toBe('qop');
+  });
+
+  it('bir yangi nom ikki qatorda: bitta tovar; ikki xil birlikda: xato', () => {
+    const same = buildPurchasePlan({ lines: [L('a', 'Shakar', '1', '1 000', null, 'kg'), L('b', 'shakar', '2', '1 000', null, 'kg')], products: cat, balanceBefore: 0n, paid: '', method: 'naqd', allowNew: true });
+    expect(same.ok && same.plan.newProducts).toHaveLength(1);
+    const diff = buildPurchasePlan({ lines: [L('a', 'Shakar', '1', '1 000', null, 'kg'), L('b', 'shakar', '2', '1 000', null, 'qop')], products: cat, balanceBefore: 0n, paid: '', method: 'naqd', allowNew: true });
+    expect(diff.ok).toBe(false);
+    if (!diff.ok) expect(diff.lineErrors.get('b')?.unit).toMatch(/kg birlikda ham yozilgan/);
+  });
+
+  it('bindNewProducts: vaqtinchalik id almashtiriladi; yaratilmagan tovar bo‘lsa xato', () => {
+    const k = newProductKey('Shakar', 'kg');
+    const lines = [
+      { product_id: pendingProductId(k), qty_milli: 1000n, unit_cost: 5n },
+      { product_id: 'un', qty_milli: 1000n, unit_cost: 5n },
+    ];
+    expect(bindNewProducts(lines, new Map([[k, 'p1']])).map((l) => l.product_id)).toEqual(['p1', 'un']);
+    expect(() => bindNewProducts(lines, new Map())).toThrow();
+  });
+});
+
+describe('W5: kirim qatorlari birligi (panelLines)', () => {
+  it('katalog tovari tanlanganda birlik tovardan o‘tadi', () => {
+    const l = applyPurchaseSelection([], [P('un', 'Un', true, 'kg')], () => null, () => 'k1');
+    expect(l[0]).toMatchObject({ productId: 'un', unit: 'kg' });
+    expect(purchaseAsDraft(l)[0]!.unit).toBe('kg');
+  });
+  it('yangi nom qatori berilgan birlik bilan; standart: bitta birlik yoqilgan bo‘lsa o‘sha, aks holda tanlanmagan', () => {
+    expect(addNewPurchaseLine([], 'Shakar', () => 'k1', 'kg')[0]).toMatchObject({ productId: null, productName: 'Shakar', unit: 'kg' });
+    expect(addNewPurchaseLine([], 'Shakar', () => 'k1')[0]!.unit).toBeNull();
+    expect(defaultNewUnit(['kg'])).toBe('kg');
+    expect(defaultNewUnit(['dona', 'pachka'])).toBeNull();
   });
 });

@@ -34,10 +34,11 @@ import { lineStatus, summarizeLines } from '@/lib/lineStatus';
 import { formatQty, formatSom } from '@/lib/money';
 import { ACTION_INFO, panelHref, parsePanelParams, whoForAction, type PanelAction } from '@/lib/panelState';
 import { patchSaleLine } from '@/lib/productIdentity';
-import { addNewPurchaseLine, addNewSaleLine, applyPurchaseSelection, purchaseAsDraft } from '@/lib/panelLines';
+import { addNewPurchaseLine, addNewSaleLine, applyPurchaseSelection, defaultNewUnit, purchaseAsDraft } from '@/lib/panelLines';
 import { topProducts } from '@/lib/productPicker';
 import { applySelection, sameName, searchProductsAll, toggleSelection } from '@/lib/productSearch';
-import { resolveProduct, type PurchaseDraftLine } from '@/lib/purchaseForm';
+import { lineUnit, resolveProduct, type PurchaseDraftLine } from '@/lib/purchaseForm';
+import { parseEnabledUnits, unitChoices } from '@/lib/units';
 import { buildSalePlan, DEFAULT_PAY_MODE, effectiveMode, type DraftLine, type PayMode } from '@/lib/saleForm';
 import { saleInsights } from '@/lib/saleInsights';
 import { ActionMenu, PlusMenu, type PlusChoice } from './ActionMenu';
@@ -54,7 +55,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
-  const { balances, customerById } = useShop();
+  const { balances, customerById, membership } = useShop();
   const books = useBooks();
   const panelId = useId();
   const composer = useRef<SaleComposerHandle>(null);
@@ -107,6 +108,8 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const popular = useMemo(() => topProducts(products, data.sales, data.saleLines, TOP_LIMIT), [products, data.sales, data.saleLines]);
   const lastCost = useMemo(() => new Map((books.data?.stock ?? []).map((s) => [s.product_id, s.cost_price])), [books.data]);
   const totals = useMemo(() => (books.data ? supplierTotals(books.data) : new Map()), [books.data]);
+  /** Kirimdagi yangi tovar birligi tanlovi: do'kon sozlamasidagi yoqilgan birliklar */
+  const buyUnits = useMemo(() => unitChoices(parseEnabledUnits(membership.shop.settings)), [membership.shop.settings]);
 
   // Takliflar xotiradagi katalogdan (serverga so'rov yo'q); har harfda og'ir qayta hisob bo'lmasin
   const deferredQuery = useDeferredValue(query);
@@ -164,7 +167,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const addSelected = () => addProducts(selected.map((id) => productById.get(id)));
   function addNew(name: string) {
     if (action === 'savdo') setSaleLines((ls) => addNewSaleLine(ls, name));
-    else setBuyLines((ls) => addNewPurchaseLine(ls, name));
+    else setBuyLines((ls) => addNewPurchaseLine(ls, name, undefined, defaultNewUnit(buyUnits)));
     afterAdd();
   }
 
@@ -383,7 +386,10 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
             <PurchaseView
               supplierName={supplierName}
               lines={buyLines}
-              onLine={(key, patch) => setBuyLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
+              onLine={(key, patch) => {
+                setBuyLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+                buy.clearLineError(key);
+              }}
               onRemove={(key) => setBuyLines((ls) => ls.filter((l) => l.key !== key))}
               balanceBefore={supplierDebt}
               paid={buyPaid}
@@ -391,6 +397,8 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
               paidError={buy.paidError}
               lineErrors={buy.lineErrors}
               isNew={(l) => !!l.productName.trim() && !resolveProduct(products, l)}
+              unitOf={(l) => lineUnit(products, l)}
+              units={buyUnits}
               error={buy.error}
               locked={buy.locked}
               busy={buy.busy}
