@@ -61,7 +61,8 @@ export function addNewSaleLine(lines: readonly DraftLine[], name: string, makeKe
   const at = lines.findIndex((l) => sameName(l.productName, n));
   if (at >= 0) return lines.map((l, i) => (i === at ? { ...l, qty: stepQty(l.qty, 1000n) } : l));
   const blankAt = lines.findIndex((l) => !l.productName.trim() && !l.qty.trim() && !l.price.trim());
-  const filled = (l: DraftLine): DraftLine => ({ ...l, productName: n, qty: '1' });
+  // Erkin matnli yangi tovar: aniq tanlov yo'q (productId null), server nom + birlik bo'yicha bog'laydi yoki tovarsiz saqlaydi
+  const filled = (l: DraftLine): DraftLine => ({ ...l, productId: null, productName: n, qty: '1' });
   if (blankAt >= 0) return lines.map((l, i) => (i === blankAt ? filled(l) : l));
-  return [...lines, filled({ key: makeKey(), productName: '', qty: '', unit: 'dona', price: '' })];
+  return [...lines, filled({ key: makeKey(), productId: null, productName: '', qty: '', unit: 'dona', price: '' })];
 }
