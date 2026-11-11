@@ -107,7 +107,8 @@ export function ConfirmSaleModal(p: ConfirmSaleModalProps) {
           {!p.customerId && <p className="text-xs text-muted">Qarzga yoki qisman to&apos;lov uchun «Kimga» da mijozni tanlang.</p>}
         </div>
 
-        {p.mode !== 'debt' && p.customerId && (
+        {/* Mijozsiz savdo ham to'lov yozuvi bilan saqlanadi (W10): usul kassa hisobiga ta'sir qiladi */}
+        {p.mode !== 'debt' && (
           <Select label="To'lov usuli" value={p.method} onChange={(e) => p.onMethod(e.target.value as PaymentMethod)} disabled={p.busy} className="h-11">
             {PAYMENT_METHODS.map((m) => (
               <option key={m} value={m}>

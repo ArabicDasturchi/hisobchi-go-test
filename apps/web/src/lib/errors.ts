@@ -56,6 +56,8 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   [/supplier_not_in_shop|supplier_not_found/, 'not_found', "Ta'minotchi topilmadi yoki bu do'konga tegishli emas."],
   [/opening_balance_exists/, 'conflict', "Bu ta'minotchining boshlang'ich qarzi allaqachon kiritilgan. Avval uni bekor qiling."],
   [/invalid_method/, 'validation', "To'lov usulini tanlang."],
+  [/walkin_requires_full_payment/, 'validation', "Mijozsiz savdo to'liq to'langan bo'lishi kerak. Qarzga yoki qisman uchun «Kimga» da mijozni tanlang."],
+  [/payment_requires_customer/, 'validation', "To'lov uchun mijozni tanlang."],
   [/invalid_date/, 'validation', "Sana noto'g'ri."],
   [/invalid_product|product_not_found/, 'not_found', 'Tovar topilmadi. Katalogdan tanlang.'],
   [/could not find the function|pgrst202|42883/, 'unknown', "Serverda bu amal hali yoqilmagan (migratsiya qo'llanmagan). Administratorga ayting."],

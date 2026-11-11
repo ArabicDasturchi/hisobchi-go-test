@@ -159,7 +159,7 @@ export default function SaleDetailPage() {
             <div>
               <dt className="text-xs text-muted">Mijoz</dt>
               <dd className="mt-0.5">
-                {customer ? (
+                {customer && customer.kind !== 'one_time' ? (
                   <Link href={`/customers/${customer.id}`} className="inline-flex items-center gap-1.5 font-medium text-emerald-700 hover:underline dark:text-emerald-400">
                     <User className="h-3.5 w-3.5" /> {customer.name}
                   </Link>
@@ -170,7 +170,7 @@ export default function SaleDetailPage() {
             </div>
             <div>
               <dt className="text-xs text-muted">Turi</dt>
-              <dd className="mt-0.5 text-fg">{customer ? 'Mijoz hisobiga' : 'Naqd savdo'}</dd>
+              <dd className="mt-0.5 text-fg">{customer && customer.kind !== 'one_time' ? 'Mijoz hisobiga' : 'Naqd savdo'}</dd>
             </div>
           </dl>
         </Card>
@@ -184,7 +184,7 @@ export default function SaleDetailPage() {
         summary={
           <>
             <b>{shortNumber(doc.id)}</b> savdosi (<Money value={doc.subtotal} className="font-semibold" />) bekor qilinadi.
-            {customer ? ` Summa «${customer.name}» qarzidan chiqariladi.` : ''} Bu amalni qaytarib bo&apos;lmaydi.
+            {customer && customer.kind !== 'one_time' ? ` Summa «${customer.name}» qarzidan chiqariladi.` : ''} Bu amalni qaytarib bo&apos;lmaydi.
           </>
         }
         onConfirm={async (reason) => {
