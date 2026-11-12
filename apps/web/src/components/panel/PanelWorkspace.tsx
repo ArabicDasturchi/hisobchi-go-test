@@ -253,7 +253,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     ...(info.who !== 'customer' ? [{ label: "Yangi ta'minotchi", onClick: () => setNewPartner('supplier') }] : []),
   ];
 
-  const showPanel = searching && panelOpen && !dockLocked && (items.length > 0 || newName !== null);
+  const showPanel = searching && panelOpen && !dockLocked && query.trim() !== '' && (items.length > 0 || newName !== null);
   const textValue = action === 'tolov' || action === 'ta-tolov' ? amount : action === 'daftar' ? note : query;
   const money = action === 'tolov' || action === 'ta-tolov';
   const sendDisabled = money ? !who || !amount.trim() : action === 'daftar' ? !previewLedgerNote(partnerBalance, note).ok || !who : !query.trim();
@@ -419,7 +419,6 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
             onSubmit={submitComposer}
             onFocusPanel={() => setFocusSignal((n) => n + 1)}
             onEscape={() => setPanelOpen(false)}
-            onFocus={() => searching && setPanelOpen(true)}
             plus={<PlusMenu onChoose={onPlus} />}
             action={<ActionMenu value={action} onChange={changeAction} />}
             who={
