@@ -22,8 +22,8 @@ export interface Supplier {
 
 export interface PurchaseDoc {
   id: string;
-  /** 'opening' = boshlang'ich qarz (ochilish qoldig'i, 009); ustun bo'lmasa undefined = oddiy kirim */
-  kind?: 'purchase' | 'opening';
+  /** 'opening' = boshlang'ich qarz (ochilish qoldig'i, 009); 'debt' = tovarsiz qarz yozuvi (013); ustun bo'lmasa undefined = oddiy kirim */
+  kind?: 'purchase' | 'opening' | 'debt';
   supplier_id: string;
   doc_date: string;
   status: 'posted' | 'reversed';
@@ -101,7 +101,7 @@ export async function loadBooks(sb: SB, shopId: string): Promise<BooksData> {
 /** Xom server qatorlarini tiplarga o'giradi (sof, testlanadi) */
 export function buildBooks(raw: {
   suppliers: Supplier[];
-  purchases: { id: string; supplier_id: string; doc_date: string; status: 'posted' | 'reversed'; kind?: 'purchase' | 'opening'; subtotal: string; created_at: string }[];
+  purchases: { id: string; supplier_id: string; doc_date: string; status: 'posted' | 'reversed'; kind?: 'purchase' | 'opening' | 'debt'; subtotal: string; created_at: string }[];
   lines: { document_id: string; line_index: number; product_id: string; product_name: string; qty_milli: string; unit: string; unit_cost: string; line_total: string }[];
   payments: { id: string; supplier_id: string; amount: string; method: string; note: string | null; created_at: string }[];
   voids: { payment_id: string }[];

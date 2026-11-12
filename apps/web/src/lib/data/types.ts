@@ -63,6 +63,8 @@ export interface SaleDoc {
   created_at: string;
   posted_at: string | null;
   created_by: string;
+  /** Idempotentlik kaliti: savdo bilan kelgan to'lov `sale-pay:<client_op_id>` (W1). Eski ma'lumotda yo'q bo'lishi mumkin */
+  client_op_id?: string | null;
 }
 
 export interface SaleLine {
@@ -113,6 +115,8 @@ export interface Payment {
   created_by: string;
   created_at: string;
   void: PaymentVoid | null;
+  /** `sale-pay:<savdo client_op_id>` — savdo bilan birga yozilgan to'lov (W1) */
+  client_op_id?: string | null;
 }
 
 export interface SaleDetail {

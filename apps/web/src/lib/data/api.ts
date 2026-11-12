@@ -9,7 +9,7 @@
  * - RPC muvaffaqiyatidan keyin natija serverdan qayta o'qib tekshiriladi.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { AppError, isDraftAlreadyDecided, toAppError } from '../errors';
+import { AppError, isDraftAlreadyDecided, isRpcMissing, RpcMissingError, toAppError } from '../errors';
 import { toBig } from '../money';
 import { AGENT_DRAFT_COLS, toAgentDraft, type AgentDraftRow } from './agentDrafts';
 import type {
@@ -236,7 +236,7 @@ export async function updateProduct(sb: SB, shopId: string, id: string, input: P
 // Savdolar
 // ---------------------------------------------------------------------------
 
-const DOC_COLS = 'id, customer_id, status, subtotal::text, created_at, posted_at, created_by';
+const DOC_COLS = 'id, customer_id, status, subtotal::text, created_at, posted_at, created_by, client_op_id';
 
 interface DocRow extends Omit<SaleDoc, 'subtotal'> {
   subtotal: string;
@@ -351,6 +351,8 @@ export interface PostSaleLine {
   qty_milli: bigint;
   unit: Unit;
   unit_price: bigint;
+  /** Katalogdan tanlangan tovar (W4); bo'lmasa server nom + birlik bo'yicha bog'laydi */
+  product_id?: string | null;
 }
 
 export interface PostSaleArgs {
@@ -361,14 +363,29 @@ export interface PostSaleArgs {
   note: string | null;
   lines: PostSaleLine[];
   clientTotal: bigint;
+  /**
+   * Savdo bilan birga to'lanadigan summa (W3): savdo va to'lov BITTA tranzaksiyada (`post_sale` p_paid, 006).
+   * 0 yoki berilmasa to'lov yozilmaydi. Server to'lov kalitini `sale-pay:<client_op_id>` qiladi (idempotent).
+   */
+  paid?: bigint;
+  method?: PaymentMethod | null;
+}
+
+/** post_sale ning to'lov argumentlari: faqat to'lov bo'lsa yuboriladi (eski chaqiruv imzosi o'zgarmaydi) */
+function salePaymentArgs(a: PostSaleArgs): Record<string, string> {
+  if (!a.paid || a.paid <= 0n) return {};
+  if (!a.method) throw new AppError('validation', "To'lov usulini tanlang.");
+  return { p_paid: a.paid.toString(), p_payment_method: a.method };
 }
 
 /**
  * post_sale RPC. Server summani qayta hisoblaydi (calc_mismatch bo'lsa hech narsa saqlanmaydi),
- * client_op_id bo'yicha idempotent. Muvaffaqiyatdan keyin hujjat qayta o'qilib tekshiriladi.
+ * client_op_id bo'yicha idempotent. Muvaffaqiyatdan keyin hujjat (va to'lov bo'lsa to'lov ham) qayta o'qilib tekshiriladi.
  */
 export async function postSale(sb: SB, a: PostSaleArgs): Promise<string> {
+  const pay = salePaymentArgs(a);
   const res = await sb.rpc('post_sale', {
+    ...pay,
     p_shop_id: a.shopId,
     p_sale_id: a.saleId,
     p_client_op_id: a.clientOpId,
@@ -380,6 +397,8 @@ export async function postSale(sb: SB, a: PostSaleArgs): Promise<string> {
       unit: l.unit,
       unit_price: l.unit_price.toString(),
       raw_text: null,
+      // Faqat to'g'ri uuid yuboriladi (server regex bilan tekshiradi; birlik mos kelmasa nom bo'yicha bog'laydi)
+      ...(l.product_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(l.product_id) ? { product_id: l.product_id } : {}),
     })),
     p_client_total: a.clientTotal.toString(),
   });
@@ -392,13 +411,47 @@ export async function postSale(sb: SB, a: PostSaleArgs): Promise<string> {
     // Shu client_op_id bilan avval boshqa tarkibdagi savdo saqlangan — foydalanuvchi bilishi kerak
     throw new AppError('conflict', "Server allaqachon boshqa summadagi savdoni qaytardi. Savdolar ro'yxatini tekshiring.");
   }
+  if (pay.p_paid) {
+    const p = check(await sb.from('payments').select('amount::text').eq('shop_id', a.shopId).eq('client_op_id', `sale-pay:${a.clientOpId}`).maybeSingle()) as { amount: string } | null;
+    if (!p || toBig(p.amount) !== a.paid) throw new AppError('unknown', "Savdo saqlandi, lekin to'lov serverda kutilgan summada topilmadi. Mijoz daftarini tekshiring.");
+  }
   return id;
 }
 
-export async function reverseSale(sb: SB, shopId: string, documentId: string, clientOpId: string, reason: string): Promise<void> {
-  check(await sb.rpc('reverse_sale', { p_shop_id: shopId, p_document_id: documentId, p_client_op_id: clientOpId, p_reason: reason.trim() }));
+/** Bir martalik (mijozsiz, naqd) savdo uchun tizim mijozi (006 ensure_walkin_customer). Idempotent: do'konda bitta */
+export async function ensureWalkinCustomer(sb: SB, shopId: string): Promise<string> {
+  const id = check(await sb.rpc('ensure_walkin_customer', { p_shop_id: shopId })) as string | null;
+  if (!id) throw new AppError('unknown', 'Server bir martalik mijozni qaytarmadi.');
+  return id;
+}
+
+/**
+ * Savdoni bekor qilish (teskari yozuv). `voidPaymentIds` berilsa (shu savdo bilan kelgan to'lovlar, `salePayments`),
+ * savdo va to'lovlar BITTA tranzaksiyada bekor qilinadi: `reverse_sale_with_payments` (013). Ikki alohida RPC
+ * ishlatilmaydi (orada uzilish yarim holat qoldirardi). 013 qo'llanmagan bo'lsa tushunarli xato, jim fallback yo'q.
+ * client_op_id bo'yicha idempotent. Natija serverdan qayta o'qib tekshiriladi.
+ */
+export async function reverseSale(sb: SB, shopId: string, documentId: string, clientOpId: string, reason: string, voidPaymentIds: readonly string[] = []): Promise<void> {
+  const base = { p_shop_id: shopId, p_document_id: documentId, p_client_op_id: clientOpId, p_reason: reason.trim() };
+  if (voidPaymentIds.length > 0) {
+    const res = await sb.rpc('reverse_sale_with_payments', { ...base, p_void_payment_ids: [...voidPaymentIds] });
+    // 013 hali qo'llanmagan server: hech narsa o'zgarmagan. Jim fallback yo'q (to'lov qolib, kassa noto'g'ri bo'lardi):
+    // savdogar o'zi tanlaydi
+    if (res.error && isRpcMissing(res.error, 'reverse_sale_with_payments')) {
+      throw new RpcMissingError(
+        'reverse_sale_with_payments',
+        "Savdo bilan to'lovni birga bekor qilish serverda hali yoqilmagan, hech narsa o'zgarmadi. «To'lovni ham bekor qilish» belgisi olib tashlandi: savdoni bekor qilish uchun yana tasdiqlang, to'lovni keyin mijoz daftaridan alohida bekor qiling.",
+      );
+    }
+    check(res);
+  }
+  else check(await sb.rpc('reverse_sale', base));
   const doc = check(await sb.from('documents').select('status').eq('shop_id', shopId).eq('id', documentId).maybeSingle()) as { status: string } | null;
   if (doc?.status !== 'reversed') throw new AppError('unknown', 'Server bekor qilishni tasdiqlamadi.');
+  if (voidPaymentIds.length > 0) {
+    const voids = (check(await sb.from('payment_voids').select('payment_id').eq('shop_id', shopId).in('payment_id', [...voidPaymentIds])) ?? []) as { payment_id: string }[];
+    if (voids.length !== voidPaymentIds.length) throw new AppError('unknown', "Server to'lov bekor qilinishini tasdiqlamadi. Mijoz daftarini tekshiring.");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +462,7 @@ interface PaymentRow extends Omit<Payment, 'amount' | 'void'> {
   amount: string;
 }
 
-const PAYMENT_COLS = 'id, customer_id, amount::text, method, note, created_by, created_at';
+const PAYMENT_COLS = 'id, customer_id, amount::text, method, note, created_by, created_at, client_op_id';
 
 export async function listPayments(sb: SB, shopId: string): Promise<Payment[]> {
   const [rows, voids] = await Promise.all([

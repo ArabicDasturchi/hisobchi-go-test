@@ -6,7 +6,7 @@
 import { lineProfit, saleProfit, soldBelowCost, stockCheck, type StockCheck } from '@hisobchi/core';
 import type { Product } from './data/types';
 import { parseMoneyInput, parseQtyInput } from './money';
-import { findProductByName } from './productPicker';
+import { resolveSaleProduct } from './productIdentity';
 import { isBlank, type DraftLine } from './saleForm';
 
 export interface LineInsight {
@@ -37,7 +37,8 @@ export function saleInsights(lines: readonly DraftLine[], products: readonly Pro
     const qty = parseQtyInput(l.qty);
     const price = parseMoneyInput(l.price, { allowZero: true });
     if (!qty.ok || !price.ok || !l.productName.trim()) continue;
-    valid.push({ key: l.key, product: findProductByName(products, l.productName), qty: qty.value, price: price.value });
+    // Server post_sale qaysi tovarni olsa, ogohlantirish ham o'sha tovardan (W4): productId, keyin nom + birlik, eng eskisi
+    valid.push({ key: l.key, product: resolveSaleProduct(products, l), qty: qty.value, price: price.value });
   }
 
   // Bir tovar bir necha qatorda bo'lsa qoldiq birgalikda tekshiriladi

@@ -46,17 +46,20 @@ function Reports({ data }: { data: ShopData }) {
     const days = Math.round((toD.getTime() - fromD.getTime()) / 86_400_000) + 1;
     const series = days <= MAX_CHART_DAYS ? rangeSeries(sales, payments, fromD, toD) : null;
 
+    // Bir martalik (tizim) mijoz = mijozsiz naqd savdo (W10: veb shunday yozadi), mijozlar jadvaliga kirmaydi
+    const walkinId = data.walkin?.id ?? null;
+    const anon = (id: string | null) => !id || id === walkinId;
     // Mijozlar bo'yicha: oraliqdagi savdo/to'lov + joriy qarz
     const byCustomer = new Map<string, { sales: bigint; count: number; paid: bigint }>();
     for (const s of posted) {
-      if (!s.customer_id) continue;
+      if (!s.customer_id || anon(s.customer_id)) continue;
       const r = byCustomer.get(s.customer_id) ?? { sales: 0n, count: 0, paid: 0n };
       r.sales += s.subtotal;
       r.count++;
       byCustomer.set(s.customer_id, r);
     }
     for (const p of payments) {
-      if (p.void) continue;
+      if (p.void || anon(p.customer_id)) continue;
       const r = byCustomer.get(p.customer_id) ?? { sales: 0n, count: 0, paid: 0n };
       r.paid += p.amount;
       byCustomer.set(p.customer_id, r);
@@ -64,7 +67,7 @@ function Reports({ data }: { data: ShopData }) {
     const customerRows = [...byCustomer.entries()]
       .map(([id, r]) => ({ id, name: customerById.get(id)?.name ?? "Noma'lum", ...r, debt: balanceOf(balances, id).debt }))
       .sort((a, b) => (b.sales > a.sales ? 1 : b.sales < a.sales ? -1 : 0));
-    const anonSales = sumPosted(posted.filter((s) => !s.customer_id));
+    const anonSales = sumPosted(posted.filter((s) => anon(s.customer_id)));
     // Usul bo'yicha (W6): naqd, karta, o'tkazma aralashmasin. Yig'indi core'da
     const paymentsByMethod = sumPaymentsByMethod(toDayPayments(payments));
     return { sales, payments, posted, reversed, series, customerRows, anonSales, paymentsByMethod };
@@ -80,7 +83,7 @@ function Reports({ data }: { data: ShopData }) {
     [data.customers, balances],
   );
 
-  const name = (id: string | null) => (id ? (customerById.get(id)?.name ?? "Noma'lum") : uz.common.noCustomer);
+  const name = (id: string | null) => (id && id !== data.walkin?.id ? (customerById.get(id)?.name ?? "Noma'lum") : uz.common.noCustomer);
   const fileSuffix = `${from}_${to}`;
 
   function exportCsv() {

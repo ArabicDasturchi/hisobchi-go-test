@@ -9,6 +9,12 @@ import type { Unit } from './data/types';
 export interface DraftLine {
   key: string;
   productName: string;
+  /**
+   * Katalogdan tanlangan aniq tovar (W4). null/undefined — erkin matn: server nom + birlik bo'yicha bog'laydi.
+   * Ixtiyoriy maydon: kirim qatorini savdo shakliga o'tkazish (`purchaseAsDraft`) uni bilmaydi.
+   * Nom yoki birlik o'zgarsa `patchSaleLine` uni tozalaydi.
+   */
+  productId?: string | null;
   qty: string;
   unit: Unit;
   price: string;
@@ -77,7 +83,8 @@ export function buildSalePlan(input: { lines: DraftLine[]; customerId: string | 
       lineErrors.set(l.key, c.errors);
       continue;
     }
-    lines.push({ product_name: l.productName.trim(), qty_milli: qty.value, unit: l.unit, unit_price: price.value });
+    // Tanlangan tovar aniq id bilan ketadi: bir xil nomli ikki tovar bo'lsa server boshqasini olmasin (W4)
+    lines.push({ product_name: l.productName.trim(), qty_milli: qty.value, unit: l.unit, unit_price: price.value, ...(l.productId ? { product_id: l.productId } : {}) });
     total += c.total;
   }
   if (lineErrors.size > 0) return { ok: false, message: "Qatorlardagi xatolarni tuzating.", lineErrors };
