@@ -314,7 +314,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
               )}
               {sale.phase.kind === 'editing' && sale.formError && !modalOpen && <Alert tone="red">{sale.formError}</Alert>}
               {saleLines.length > 0 && (
-                <div className="sticky bottom-0 bg-bg pt-1">
+                <div className={kb > 0 ? 'bg-bg pt-1' : 'sticky bottom-0 bg-bg pt-1'}>
                   <SaleSummaryBar summary={summary} retry={lockedRetry} busy={sale.busy} onConfirm={() => setConfirmOpen(true)} />
                 </div>
               )}

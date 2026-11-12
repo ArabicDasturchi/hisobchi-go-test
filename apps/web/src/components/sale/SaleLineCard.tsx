@@ -106,6 +106,7 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
             disabled={disabled}
             placeholder={uz.composer.price}
             aria-invalid={reason === 'price' || undefined}
+            onFocus={() => setEditingPrice(true)}
             onBlur={() => setEditingPrice(false)}
             autoFocus={editingPrice}
             className={cn(field, 'min-w-0 flex-1 sm:w-32 sm:flex-none', reason === 'price' ? 'border-2 border-amber-500' : 'border-line')}
