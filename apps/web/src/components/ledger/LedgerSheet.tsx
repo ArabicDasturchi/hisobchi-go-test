@@ -56,6 +56,7 @@ const ENTRY_LABEL: Record<SheetEntry['ref'], string> = {
   sale: 'Savdo',
   purchase: 'Kirim',
   opening: "Boshlang'ich qarz",
+  debt: 'Qarz yozuvi (tovarsiz)',
   customer_payment: "To'lov",
   supplier_payment: "To'lov",
 };

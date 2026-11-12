@@ -14,6 +14,37 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * Serverda RPC hali yo'q (migratsiya qo'llanmagan: PostgREST PGRST202 yoki Postgres 42883). Chaqiruvchi shu holatda
+ * avvalgi xavfsiz yo'lga qaytishi yoki aniq ko'rsatma berishi mumkin. Hech narsa yozilmagan bo'ladi.
+ */
+export class RpcMissingError extends AppError {
+  constructor(
+    public readonly rpc: string,
+    message: string = "Serverda bu amal hali yoqilmagan (migratsiya qo'llanmagan). Administratorga ayting.",
+  ) {
+    super('unknown', message);
+    this.name = 'RpcMissingError';
+  }
+}
+
+/**
+ * Xom Supabase/PostgREST xatosi "funksiya topilmadi" mi (faqat aniq kodlar va xabar). `rpc` berilsa, xabarda aynan shu
+ * RPC nomi bo'lishi shart: mavjud RPC ichida boshqa yo'q funksiya chaqirilgani (ham 42883) RPC yo'qligi EMAS.
+ */
+export function isRpcMissing(err: unknown, rpc?: string): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; message?: string };
+  const msg = e.message ?? '';
+  if (rpc && !msg.includes(rpc)) return false;
+  // PGRST202: PostgREST sxemada bunday RPC yo'q. 42883 faqat "function ... does not exist" bo'lsa: mavjud funksiya
+  // ichidagi "operator does not exist" (ham 42883) RPC yo'qligi EMAS
+  if (e.code === 'PGRST202') return true;
+  if (e.code === '42883') return /\bfunction\b.*\bdoes not exist\b/i.test(msg) && !/\boperator\b/i.test(msg);
+  // Kod bo'lmasa faqat PostgREST'ning aniq matni (masalan, eski klient javobi)
+  return !e.code && /could not find the function/i.test(msg);
+}
+
 interface ErrorShape {
   message?: string;
   code?: string;
@@ -56,11 +87,16 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   [/supplier_not_in_shop|supplier_not_found/, 'not_found', "Ta'minotchi topilmadi yoki bu do'konga tegishli emas."],
   [/opening_balance_exists/, 'conflict', "Bu ta'minotchining boshlang'ich qarzi allaqachon kiritilgan. Avval uni bekor qiling."],
   [/invalid_method/, 'validation', "To'lov usulini tanlang."],
+  [/walkin_requires_full_payment/, 'validation', "Mijozsiz savdo to'liq to'langan bo'lishi kerak. Qarzga yoki qisman uchun «Kimga» da mijozni tanlang."],
+  [/payment_requires_customer/, 'validation', "To'lov uchun mijozni tanlang."],
   [/invalid_date/, 'validation', "Sana noto'g'ri."],
   [/invalid_product|product_not_found/, 'not_found', 'Tovar topilmadi. Katalogdan tanlang.'],
   [/could not find the function|pgrst202|42883/, 'unknown', "Serverda bu amal hali yoqilmagan (migratsiya qo'llanmagan). Administratorga ayting."],
   [/calc_mismatch/, 'validation', 'Server hisobi summa bilan mos kelmadi — savdo saqlanmadi.'],
   [/already_reversed/, 'conflict', 'Bu savdo allaqachon bekor qilingan.'],
+  // --- Savdoni to'lovi bilan bekor qilish (013) ---
+  [/payment_exceeds_sale/, 'validation', "Bekor qilinayotgan to'lovlar savdo summasidan katta. Sahifani yangilab qayta urinib ko'ring."],
+  [/payment_not_linked|invalid_payment_list/, 'conflict', "To'lov bu savdoga tegishli emas yoki allaqachon bekor qilingan. Sahifani yangilab qayta urinib ko'ring."],
   [/customer_not_in_shop/, 'forbidden', "Mijoz bu do'konga tegishli emas."],
   [/document_not_found/, 'not_found', 'Savdo topilmadi.'],
   [/payment_not_found/, 'not_found', "To'lov topilmadi."],

@@ -1,7 +1,7 @@
 'use client';
 /**
  * Panelning ta'minotchi/daftar amallari uchun saqlash hooklari. Hammasi mavjud, sinalgan yo'llar ustida:
- * `postPurchase`, `recordSupplierPayment`, `postSale` + `recordPayment`, `postSupplierOpeningBalance`.
+ * `postPurchase`, `recordSupplierPayment`, `postSale` + `recordPayment`, `postSupplierDebt` (013, ta'minotchiga tovarsiz qarz).
  * Bir martalik kalitlar: tarmoq xatosidan keyin qulflanadi, qayta urinish o'sha kalit bilan (takroriy yozuv yo'q).
  * Tasdiqlamaguncha hech narsa saqlanmaydi: hooklar faqat `submit()` chaqirilganda yozadi.
  */
@@ -9,12 +9,12 @@ import { useRef, useState } from 'react';
 import { QUICK_SALE_LINE } from '@/components/ledger/CustomerLedger';
 import { useShop } from '@/components/ShopDataProvider';
 import { createProduct, postSale, recordPayment } from '@/lib/data/api';
-import { postPurchase, postSupplierOpeningBalance } from '@/lib/data/purchases';
+import { postPurchase, postSupplierDebt, postSupplierOpeningBalance } from '@/lib/data/purchases';
 import { recordSupplierPayment } from '@/lib/data/supplierPayments';
 import type { PaymentMethod, Product } from '@/lib/data/types';
-import { toAppError } from '@/lib/errors';
+import { RpcMissingError, toAppError } from '@/lib/errors';
 import { lineTotal, parseMoneyInput } from '@/lib/money';
-import { buildPurchasePlan, resolveProduct, type PurchaseDraftLine, type PurchaseLineErrors } from '@/lib/purchaseForm';
+import { bindNewProducts, buildPurchasePlan, type PurchaseDraftLine, type PurchaseLineErrors } from '@/lib/purchaseForm';
 import { previewLedgerNote } from '@/lib/ledgerNote';
 import { getSupabase } from '@/lib/supabase/client';
 
@@ -82,7 +82,10 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
   const st = useAttemptState();
   const [lineErrors, setLineErrors] = useState<Map<string, PurchaseLineErrors>>(new Map());
   const [paidError, setPaidError] = useState<string | null>(null);
-  /** Shu kirim uchun yaratilgan yangi tovarlar: qayta urinishda takroriy yaratilmaydi */
+  /**
+   * Shu kirim uchun yaratilgan yangi tovarlar (kalit: nom + birlik, `newProductKey`): qayta urinishda takror
+   * yaratilmaydi. Muvaffaqiyatli kirimdan keyin tozalanadi.
+   */
   const created = useRef(new Map<string, Product>());
 
   async function submit(): Promise<PurchaseDone | null> {
@@ -93,16 +96,10 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
     setPaidError(null);
     try {
       const sb = getSupabase();
-      // Yangi tovar (katalogda yo'q nom): faqat tasdiqlanganda yaratiladi, sotuv narxi bo'sh (keyin kiritiladi)
-      let products: Product[] = [...input.products, ...created.current.values()];
-      for (const l of input.lines) {
-        const name = l.productName.trim();
-        if (!name || resolveProduct(products, l)) continue;
-        const p = await createProduct(sb, shopId, { name, unit: 'dona', last_price: null, is_active: true });
-        created.current.set(p.id, p);
-        products = [...products, p];
-      }
-      const res = buildPurchasePlan({ lines: input.lines, products, balanceBefore: input.balanceBefore, paid: input.paid, method: input.method });
+      // 1) Avval TO'LIQ tekshiruv: yangi (katalogda yo'q) nomlar ham "kutilayotgan yangi tovar" sifatida (nom, birlik,
+      // miqdor, tan narx, to'lov). Xato bo'lsa hech narsa yaratilmaydi va yozilmaydi.
+      const products: Product[] = [...input.products, ...created.current.values()];
+      const res = buildPurchasePlan({ lines: input.lines, products, balanceBefore: input.balanceBefore, paid: input.paid, method: input.method, allowNew: true });
       if (!res.ok) {
         setLineErrors(res.lineErrors);
         setPaidError(res.paidError ?? null);
@@ -111,7 +108,20 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
       }
       setLineErrors(new Map());
       const plan = res.plan;
-      await postPurchase(sb, { shopId, purchaseId: keys.purchaseId, clientOpId: keys.op, supplierId: input.supplierId, docDate: null, lines: plan.lines, clientTotal: plan.subtotal, paid: plan.paid, method: plan.method });
+      // 2) Reja OK: yangi tovarlar tanlangan birlik bilan yaratiladi (sotuv narxi bo'sh, keyin kiritiladi).
+      // Oldingi urinishda yaratilgani qayta yaratilmaydi.
+      const ids = new Map<string, string>();
+      for (const np of plan.newProducts) {
+        let p = created.current.get(np.key);
+        if (!p) {
+          p = await createProduct(sb, shopId, { name: np.name, unit: np.unit, last_price: null, is_active: true });
+          created.current.set(np.key, p);
+        }
+        ids.set(np.key, p.id);
+      }
+      // 3) Kirim (server `post_purchase` jamini qayta hisoblaydi). Eslatma: 2 va 3 bitta tranzaksiya emas, hisobotga qarang
+      const lines = bindNewProducts(plan.lines, ids);
+      await postPurchase(sb, { shopId, purchaseId: keys.purchaseId, clientOpId: keys.op, supplierId: input.supplierId, docDate: null, lines, clientTotal: plan.subtotal, paid: plan.paid, method: plan.method });
       await Promise.all([reload(), input.reloadBooks()]);
       setKeys({ purchaseId: id(), op: id() });
       created.current.clear();
@@ -126,7 +136,16 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
       st.setBusy(false);
     }
   }
-  return { busy: st.busy, locked: st.locked, error: st.error, lineErrors, paidError, clearError: () => st.setError(null), submit };
+  /** Qator o'zgarganda uning eski xatosi (masalan birlik mos emas) olib tashlanadi */
+  function clearLineError(key: string) {
+    setLineErrors((m) => {
+      if (!m.has(key)) return m;
+      const n = new Map(m);
+      n.delete(key);
+      return n;
+    });
+  }
+  return { busy: st.busy, locked: st.locked, error: st.error, lineErrors, paidError, clearError: () => st.setError(null), clearLineError, submit };
 }
 
 // ---------------------------------------------------------------------------
@@ -160,8 +179,17 @@ export function useLedgerNoteSubmit(input: { kind: 'customer' | 'supplier'; part
           const total = lineTotal({ qtyMilli: 1000n, unitPrice: goods });
           await postSale(sb, { shopId, saleId: a.saleId, clientOpId: a.saleOp, customerId: input.partnerId, note: QUICK_SALE_LINE, lines: [{ product_name: QUICK_SALE_LINE, qty_milli: 1000n, unit: 'dona', unit_price: goods }], clientTotal: total });
         } else {
-          // Tovarsiz kirim = qarz yozuvi ("ochilish qoldig'i"): ombor o'zgarmaydi, tovar uchun «Kirim» amali
-          await postSupplierOpeningBalance(sb, { shopId, documentId: a.docId, clientOpId: a.docOp, supplierId: input.partnerId, amount: goods });
+          // Tovarsiz qarz yozuvi (W2, 013): ombor o'zgarmaydi, bir nechta bo'lishi mumkin; tovar uchun «Kirim» amali.
+          // Avval ochilish qoldig'i RPC'si ishlatilardi: u bir ta'minotchiga bitta yozuvga ruxsat beradi, 2-yozuv yiqilardi
+          const args = { shopId, documentId: a.docId, clientOpId: a.docOp, supplierId: input.partnerId, amount: goods };
+          try {
+            await postSupplierDebt(sb, args);
+          } catch (e) {
+            // 013 qo'llanmagan server: avvalgi yo'l (ochilish qoldig'i) — `main` dagi xatti-harakat saqlanadi, regressiya yo'q.
+            // Ikkinchi yozuv bu holatda avvalgidek `opening_balance_exists` bilan rad etiladi
+            if (!(e instanceof RpcMissingError)) throw e;
+            await postSupplierOpeningBalance(sb, args);
+          }
         }
       }
       if (paid > 0n) {

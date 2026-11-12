@@ -4,7 +4,6 @@
  * Amal (Savdo, To'lov olish, Kirim, Ta'minotchiga to'lov, Daftarga yozish) va Kimga URL'da: `/dashboard?amal=..&kimga=..`.
  * Hisob faqat mavjud yo'ldan (`buildSalePlan`, `settle`, server RPC). AI yo'q. Tasdiqlamaguncha hech narsa saqlanmaydi.
  */
-import { RotateCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CustomerFormModal } from '@/components/forms/CustomerFormModal';
@@ -20,23 +19,24 @@ import { usePaymentSubmit } from '@/components/sale/usePaymentSubmit';
 import { useSaleSubmit } from '@/components/sale/useSaleSubmit';
 import { Money } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
-import { Alert, Button, LinkButton } from '@/components/ui/primitives';
+import { Alert } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/Toast';
 import { useBooks } from '@/components/useBooks';
 import { supplierTotals } from '@/lib/data/books';
 import { selectableCustomers } from '@/lib/data/customers';
 import { balanceOf } from '@/lib/data/ledger';
 import type { PaymentMethod } from '@/lib/data/types';
-import { shortNumber } from '@/lib/dates';
 import { previewLedgerNote } from '@/lib/ledgerNote';
 import { parseResale, RESALE_KEY, resaleLines } from '@/lib/resale';
 import { lineStatus, summarizeLines } from '@/lib/lineStatus';
 import { formatQty, formatSom } from '@/lib/money';
 import { ACTION_INFO, panelHref, parsePanelParams, whoForAction, type PanelAction } from '@/lib/panelState';
-import { addNewPurchaseLine, addNewSaleLine, applyPurchaseSelection, purchaseAsDraft } from '@/lib/panelLines';
+import { patchSaleLine } from '@/lib/productIdentity';
+import { addNewPurchaseLine, addNewSaleLine, applyPurchaseSelection, defaultNewUnit, purchaseAsDraft } from '@/lib/panelLines';
 import { topProducts } from '@/lib/productPicker';
 import { applySelection, sameName, searchProductsAll, toggleSelection } from '@/lib/productSearch';
-import { resolveProduct, type PurchaseDraftLine } from '@/lib/purchaseForm';
+import { lineUnit, resolveProduct, type PurchaseDraftLine } from '@/lib/purchaseForm';
+import { parseEnabledUnits, unitChoices } from '@/lib/units';
 import { buildSalePlan, DEFAULT_PAY_MODE, effectiveMode, type DraftLine, type PayMode } from '@/lib/saleForm';
 import { saleInsights } from '@/lib/saleInsights';
 import { ActionMenu, PlusMenu, type PlusChoice } from './ActionMenu';
@@ -53,7 +53,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
-  const { balances, customerById } = useShop();
+  const { balances, customerById, membership } = useShop();
   const books = useBooks();
   const panelId = useId();
   const composer = useRef<SaleComposerHandle>(null);
@@ -106,6 +106,8 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const popular = useMemo(() => topProducts(products, data.sales, data.saleLines, TOP_LIMIT), [products, data.sales, data.saleLines]);
   const lastCost = useMemo(() => new Map((books.data?.stock ?? []).map((s) => [s.product_id, s.cost_price])), [books.data]);
   const totals = useMemo(() => (books.data ? supplierTotals(books.data) : new Map()), [books.data]);
+  /** Kirimdagi yangi tovar birligi tanlovi: do'kon sozlamasidagi yoqilgan birliklar */
+  const buyUnits = useMemo(() => unitChoices(parseEnabledUnits(membership.shop.settings)), [membership.shop.settings]);
 
   // Takliflar xotiradagi katalogdan (serverga so'rov yo'q); har harfda og'ir qayta hisob bo'lmasin
   const deferredQuery = useDeferredValue(query);
@@ -163,7 +165,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const addSelected = () => addProducts(selected.map((id) => productById.get(id)));
   function addNew(name: string) {
     if (action === 'savdo') setSaleLines((ls) => addNewSaleLine(ls, name));
-    else setBuyLines((ls) => addNewPurchaseLine(ls, name));
+    else setBuyLines((ls) => addNewPurchaseLine(ls, name, undefined, defaultNewUnit(buyUnits)));
     afterAdd();
   }
 
@@ -266,25 +268,6 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
       {/* Asosiy maydon: faqat shu suriladi */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="panel-main">
         <div className="mx-auto w-full max-w-[780px] space-y-3 px-3 pb-3 pt-4 sm:px-4">
-          {sale.phase.kind === 'payment_failed' && (
-            <Alert tone="amber" title="Savdo saqlandi, lekin to'lov yozilmadi">
-              <p>{sale.phase.message}</p>
-              <p className="mt-1">
-                Savdo {shortNumber(sale.phase.saleId)} saqlandi. <Money value={sale.phase.plan.paidNow} className="font-semibold" /> to&apos;lovni qayta yuboring yoki keyinroq mijoz sahifasidan kiriting.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button className="h-11" onClick={() => void sale.retryPayment()} icon={<RotateCw className="h-3.5 w-3.5" />}>
-                  To&apos;lovni qayta yuborish
-                </Button>
-                <LinkButton href={`/sales/${sale.phase.saleId}`} variant="outline" className="h-11">
-                  Savdoni ochish
-                </LinkButton>
-                <Button variant="ghost" className="h-11" onClick={newSale}>
-                  Yangi savdo boshlash
-                </Button>
-              </div>
-            </Alert>
-          )}
 
           {action === 'savdo' && (
             <section aria-label="Savdo" className="space-y-3" data-testid="sale-view">
@@ -323,7 +306,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
                       status={lineStatus(l, products)}
                       warnings={lineWarnings(l, insights.perLine.get(l.key))}
                       disabled={frozenSale}
-                      onChange={(patch) => setSaleLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, ...patch } : x)))}
+                      onChange={(patch) => setSaleLines((ls) => ls.map((x) => (x.key === l.key ? patchSaleLine(x, patch) : x)))}
                       onRemove={() => setSaleLines((ls) => ls.filter((x) => x.key !== l.key))}
                     />
                   ))}
@@ -332,7 +315,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
               {sale.phase.kind === 'editing' && sale.formError && !modalOpen && <Alert tone="red">{sale.formError}</Alert>}
               {saleLines.length > 0 && (
                 <div className="sticky bottom-0 bg-bg pt-1">
-                  <SaleSummaryBar summary={summary} retry={lockedRetry} busy={sale.busy} frozen={sale.phase.kind === 'payment_failed'} onConfirm={() => setConfirmOpen(true)} />
+                  <SaleSummaryBar summary={summary} retry={lockedRetry} busy={sale.busy} onConfirm={() => setConfirmOpen(true)} />
                 </div>
               )}
             </section>
@@ -382,7 +365,10 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
             <PurchaseView
               supplierName={supplierName}
               lines={buyLines}
-              onLine={(key, patch) => setBuyLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))}
+              onLine={(key, patch) => {
+                setBuyLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+                buy.clearLineError(key);
+              }}
               onRemove={(key) => setBuyLines((ls) => ls.filter((l) => l.key !== key))}
               balanceBefore={supplierDebt}
               paid={buyPaid}
@@ -390,6 +376,8 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
               paidError={buy.paidError}
               lineErrors={buy.lineErrors}
               isNew={(l) => !!l.productName.trim() && !resolveProduct(products, l)}
+              unitOf={(l) => lineUnit(products, l)}
+              units={buyUnits}
               error={buy.error}
               locked={buy.locked}
               busy={buy.busy}

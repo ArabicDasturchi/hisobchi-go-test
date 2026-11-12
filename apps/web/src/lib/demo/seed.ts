@@ -134,8 +134,8 @@ export function buildDemoTables(now: Date = new Date(), newId: () => string = ()
     document_lines: [...saleLines(saleId, DEMO_SALE.lines, saleCalc), ...saleLines(walkinSaleId, DEMO_WALKIN_SALE.lines, walkinCalc), ...ex.document_lines],
     document_reversals: [],
     payments: [
-      // bir martalik savdo to'liq naqd to'langan; Karim akaning savdosi qarzga
-      { id: newId(), shop_id: shopId, customer_id: walkinId, amount: walkinCalc.subtotal.toString(), method: DEMO_WALKIN_SALE.method, note: null, created_by: DEMO_USER_ID, created_at: iso(-1) },
+      // bir martalik savdo to'liq naqd to'langan (post_sale p_paid kaliti bilan); Karim akaning savdosi qarzga
+      { id: newId(), shop_id: shopId, customer_id: walkinId, amount: walkinCalc.subtotal.toString(), method: DEMO_WALKIN_SALE.method, note: null, created_by: DEMO_USER_ID, created_at: iso(-1), client_op_id: `sale-pay:demo-doc:${walkinSaleId}` },
       ...ex.payments,
     ],
     payment_voids: [],
@@ -153,6 +153,9 @@ export function buildDemoTables(now: Date = new Date(), newId: () => string = ()
       },
     ],
   };
+  // Haqiqiy sxemadagi kabi har hujjat va to'lovda idempotentlik kaliti bor (veb savdo↔to'lov bog'lanishi uchun o'qiydi)
+  for (const d of tables.documents!) d.client_op_id ??= `demo-doc:${d.id as string}`;
+  for (const p of tables.payments!) p.client_op_id ??= `demo-pay:${p.id as string}`;
 
   // Ombor harakatlari (Chiqim ko'rinishi): har savdo qatori — 'sale' harakati; ikkita inventarizatsiya tuzatishi
   const docAt = new Map(tables.documents!.map((d) => [d.id as string, d.created_at as string]));

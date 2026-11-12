@@ -17,22 +17,43 @@ export function useBooks() {
   /** Oxirgi muvaffaqiyatli yuklash vaqti (ms): ikkinchi yo'l tekshiruvi shu bo'yicha yangilanadi */
   const [loadedAt, setLoadedAt] = useState(0);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      setData(await loadBooks(getSupabase(), shopId));
+  /** Javobni holatga yozish. Faqat promise callback'ida chaqiriladi (effect ichida sinxron setState yo'q) */
+  const settle = useCallback((res: { ok: true; data: BooksData } | { ok: false; error: unknown }) => {
+    if (res.ok) {
+      setData(res.data);
       setLoadedAt(Date.now());
       setError(null);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setLoading(false);
+    } else {
+      setError(errorMessage(res.error));
     }
-  }, [shopId]);
+    setLoading(false);
+  }, []);
 
+  const fetchBooks = useCallback(
+    () =>
+      loadBooks(getSupabase(), shopId).then(
+        (data) => ({ ok: true as const, data }),
+        (error: unknown) => ({ ok: false as const, error }),
+      ),
+    [shopId],
+  );
+
+  /** Qo'lda yangilash (amal saqlangandan keyin): yuklanish belgisi yoqiladi */
+  const reload = useCallback(async () => {
+    setLoading(true);
+    settle(await fetchBooks());
+  }, [fetchBooks, settle]);
+
+  // Birinchi yuklash (`loading` boshlang'ich holatda true). Komponent yopilsa yoki do'kon almashsa eskirgan javob yozilmaydi
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    let active = true;
+    void fetchBooks().then((res) => {
+      if (active) settle(res);
+    });
+    return () => {
+      active = false;
+    };
+  }, [fetchBooks, settle]);
 
   return { data, error, loading, reload, loadedAt };
 }
