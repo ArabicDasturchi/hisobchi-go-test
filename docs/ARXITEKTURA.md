@@ -234,3 +234,9 @@ Bosh sahifa (`/dashboard`) tepasida `SaleWorkspace` ([components/sale/](../apps/
 
 ### Panel-3: Tuzatish va Baza (10.11.2026)
 `components/edit/` (`useRowEdit` holat mashinasi, `EditableCell`, `RowActions`/`EditableRow`) + `lib/rowEdit.ts` (tekshiruv). Ishlatiladi: Mahsulotlar (`app/(app)/products`, `lib/productsView.ts`), Ombor/Qoldiq (`components/warehouse/StockTab.tsx`, `lib/stockView.ts`; tahrir `adjust_stock` yozuvi), Mijozlar/Ta'minotchilar (`components/partners/PartnerList.tsx`), Savdolar (Bekor qilish, `lib/resale.ts` bilan Qayta yozish). Daftar varag'i (`components/ledger/LedgerSheet.tsx`) faqat o'qiladi; yozuv panelda (`/dashboard?amal=daftar&kimga=`).
+
+## Ombor narxlari va optom narx (12.11.2026)
+
+- **Ma'lumotlar:** `products.cost_price` (tan narx, 006), `products.sale_price` (sotuv narxi; `last_price` bilan trigger orqali sinxron, 006), `products.wholesale_price` + `products.wholesale_min_qty_milli` (014; ikkalasi birga NULL yoki birga to'liq, CHECK). Do'kon sozlamalari `shops.settings` jsonb (010/014): `wholesale_enabled` (false), `stock_enabled` (true), `markup_percent` (0..1000 yoki null), shakli CHECK bilan.
+- **Hisob (ikki yo'l):** core `resolveUnitPrice` / `suggestSalePrice` (`packages/core/src/pricing.ts`, bigint) va SQL `resolve_unit_price` / `suggest_sale_price` (014). Bir xil kirishlar: `supabase/tests/fixtures/pricing-cases.json` (core testi + SQL testi 95). `post_sale` narx tanlamaydi: narxni klient yuboradi, qo'lda yozilgan narx o'zgarmaydi.
+- **Veb:** `lib/shopPricing.ts` (sozlamalar, ustama taklifi, narx patch, `repriceLines`, `withStockSetting`), `components/warehouse/StockTab.tsx` + `WarehouseSettings.tsx` (Ombor = narxlar markazi), `useShop().pricing`. Narx yozish `updateProductPrices` (bitta UPDATE, faqat o'zgargan ustunlar). Baza o'chiq: `ShopData.stock = null` (qoldiq ogohlantirishlari hech qayerda chiqmaydi).

@@ -18,6 +18,11 @@ export interface DraftLine {
   qty: string;
   unit: Unit;
   price: string;
+  /**
+   * Narx tovardan o'zi to'lgan (katalogdan tanlanganda) va foydalanuvchi uni qo'lda o'zgartirmagan: optom/dona yoqiq bo'lsa
+   * miqdor o'zgarganda narx `repriceLines` bilan yangilanadi. Qo'lda yozilsa false bo'ladi; yo'q (undefined) — avtomatik emas.
+   */
+  autoPrice?: boolean;
 }
 
 export interface LineCheck {

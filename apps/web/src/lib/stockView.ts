@@ -10,7 +10,7 @@ import { looseKey } from './translit';
 /** "Kam qolgan" chegarasi: qoldiq shu miqdordan ko'p emas (3 birlik), manfiy emas. QARORLAR.md da yozilgan default */
 export const LOW_STOCK_MILLI = 3000n;
 
-export type StockFilter = 'all' | 'low' | 'negative';
+export type StockFilter = 'all' | 'low' | 'negative' | 'noprice';
 
 /** Sabablar (tanlanadi; sabab majburiy, kamida 3 belgi) */
 export const STOCK_REASONS = ['Inventarizatsiya (sanoq)', "Sanoqda xato chiqdi", "Yo'qotish (buzildi, yo'qoldi)", 'Hisobdagi xato'] as const;
@@ -25,18 +25,20 @@ export function parseActualQty(raw: string): { ok: true; value: bigint } | { ok:
 export const isLow = (i: Pick<StockItem, 'qty_milli'>) => i.qty_milli >= 0n && i.qty_milli <= LOW_STOCK_MILLI;
 export const isNegative = (i: Pick<StockItem, 'qty_milli'>) => i.qty_milli < 0n;
 
-export function stockCounts(items: readonly StockItem[]): { low: number; negative: number } {
+export function stockCounts(items: readonly StockItem[]): { low: number; negative: number; noPrice: number } {
   const active = items.filter((i) => i.is_active);
-  return { low: active.filter(isLow).length, negative: active.filter(isNegative).length };
+  return { low: active.filter(isLow).length, negative: active.filter(isNegative).length, noPrice: active.filter((i) => i.sale_price === null).length };
 }
 
 /** Filtr + qidiruv (Kirill/Lotin farqsiz). Faol tovarlar; tartib: manfiy, kam qolgan, so'ng alifbo */
-export function filterStock(items: readonly StockItem[], o: { query: string; filter: StockFilter }): StockItem[] {
+export function filterStock(items: readonly StockItem[], o: { query: string; filter: StockFilter; /** Qoldiq hisobi yoqiqmi (default true); o'chiq bo'lsa qoldiq bo'yicha filtr va tartib yo'q */ stockEnabled?: boolean }): StockItem[] {
   const k = looseKey(o.query);
-  const rank = (i: StockItem) => (isNegative(i) ? 0 : isLow(i) ? 1 : 2);
+  const byStock = o.stockEnabled !== false;
+  // Narxi yo'q (sotuv narxi bo'sh) tovarlar ham yuqorida: narx markazi Ombor
+  const rank = (i: StockItem) => (byStock ? (isNegative(i) ? 0 : isLow(i) ? 1 : 2) : 0) * 2 + (i.sale_price === null ? 0 : 1);
   return items
     .filter((i) => i.is_active)
-    .filter((i) => (o.filter === 'low' ? isLow(i) : o.filter === 'negative' ? isNegative(i) : true))
+    .filter((i) => (o.filter === 'noprice' ? i.sale_price === null : byStock && o.filter === 'low' ? isLow(i) : byStock && o.filter === 'negative' ? isNegative(i) : true))
     .filter((i) => !k || looseKey(i.name).includes(k))
     .sort((a, b) => rank(a) - rank(b) || (looseKey(a.name) < looseKey(b.name) ? -1 : looseKey(a.name) > looseKey(b.name) ? 1 : 0));
 }

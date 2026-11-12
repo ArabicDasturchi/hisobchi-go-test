@@ -88,6 +88,10 @@ Bog'liqlik: kirim, ombor, ta'minotchi modeli (`PROMPT-3` S2-S3: `post_purchase`)
 - Rasm MVP da saqlanmaydi.
 - Qabul: 30 qatorli yuk xati suratdan tasdiqlash ekranigacha ≤ 15 s; qo'lda kiritishdan kamida 5 barobar tez (sekundomer bilan o'lchanadi).
 
+## 3.1 Ombor narxlari (12.11.2026)
+
+Mahsulotlar: nom, birlik, sotuv narxi. **Ombor: narxlar markazi**: tovar uchun tan narx, sotuv narxi, (do'konda "Optom/dona" yoqiq bo'lsa) optom narx va optom boshlanadigan miqdor, (do'konda "Baza (qoldiq hisobi)" yoqiq bo'lsa) soni. Do'kon sozlamalari Ombor sahifasi tepasida: Optom/dona, Baza, Umumiy ustama %. Qoidalar: miqdor >= optom chegarasi bo'lsa savdoda narx optom narxga o'tadi (qo'lda yozilgan narx o'zgarmaydi); ustama tan narxdan sotuv narxini TAKLIF qiladi: `(tan x (100 + foiz) + 50) / 100`; tan narx sotuv narxidan baland bo'lsa ogohlantirish. Qaror va sabablar: [QARORLAR.md](QARORLAR.md) (12.11.2026).
+
 ## 4. Umumiy texnik talablar (o'zgarmaydi)
 
 - CLAUDE.md qoidalari: AI yig'indi hisoblamaydi; ikki mustaqil hisob; tasdiqsiz saqlanmaydi; jurnal faqat qo'shiladi; pul butun so'm; sirlar repoda yo'q.

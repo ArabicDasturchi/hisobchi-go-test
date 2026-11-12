@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError, isDraftAlreadyDecided, isRpcMissing, RpcMissingError, toAppError } from '../errors';
 import { toBig } from '../money';
+import type { PricePatch } from '../shopPricing';
 import { AGENT_DRAFT_COLS, toAgentDraft, type AgentDraftRow } from './agentDrafts';
 import type {
   AgentDraft,
@@ -172,15 +173,21 @@ export async function deleteCustomer(sb: SB, shopId: string, id: string): Promis
 
 const PRODUCT_COLS = 'id, name, unit, last_price::text, is_active, source, created_at, updated_at';
 
-interface ProductRow extends Omit<Product, 'last_price' | 'cost_price'> {
+interface ProductRow extends Omit<Product, 'last_price' | 'cost_price' | 'wholesale_price' | 'wholesale_min_qty_milli'> {
   last_price: string | null;
   cost_price?: string | null;
+  wholesale_price?: string | null;
+  wholesale_min_qty_milli?: string | null;
 }
+
+const optBig = (v: string | null | undefined): bigint | null | undefined => (v === undefined ? undefined : v === null ? null : toBig(v));
 
 const toProduct = (r: ProductRow): Product => ({
   ...r,
   last_price: r.last_price === null ? null : toBig(r.last_price),
-  cost_price: r.cost_price === undefined ? undefined : r.cost_price === null ? null : toBig(r.cost_price),
+  cost_price: optBig(r.cost_price),
+  wholesale_price: optBig(r.wholesale_price),
+  wholesale_min_qty_milli: optBig(r.wholesale_min_qty_milli),
 });
 
 /** Ustun bazada bormi (migratsiya qo'llanmagan bo'lsa ilova avvalgidek ishlashi kerak) */
@@ -193,7 +200,9 @@ export async function hasColumn(sb: SB, table: string, column: string, shopId: s
 }
 
 export async function listProducts(sb: SB, shopId: string): Promise<Product[]> {
-  const cols = (await hasColumn(sb, 'products', 'cost_price', shopId)) ? `${PRODUCT_COLS}, cost_price::text` : PRODUCT_COLS;
+  let cols = (await hasColumn(sb, 'products', 'cost_price', shopId)) ? `${PRODUCT_COLS}, cost_price::text` : PRODUCT_COLS;
+  // Optom ustunlari 014 migratsiyasidan: bo'lmasa ilova avvalgidek ishlaydi
+  if (await hasColumn(sb, 'products', 'wholesale_price', shopId)) cols += ', wholesale_price::text, wholesale_min_qty_milli::text';
   const rows = await fetchAll<ProductRow>((from, to) =>
     sb.from('products').select(cols).eq('shop_id', shopId).order('name').order('id').range(from, to) as unknown as Res<ProductRow>,
   );
@@ -230,6 +239,21 @@ export async function updateProduct(sb: SB, shopId: string, id: string, input: P
   const row = rows?.[0];
   if (!row) throw new AppError('not_found', "Mahsulot topilmadi yoki ruxsat yo'q.");
   return toProduct(row);
+}
+
+/**
+ * Ombor narxlari: faqat o'zgargan ustunlar bitta UPDATE (bitta tranzaksiya) bilan yoziladi. Yangi RPC kerak emas:
+ * mavjud RLS (a'zo) va `sale_price` <-> `last_price` triggeri (006). Optom ustunlari 014 dan; CHECK'lar bazada.
+ */
+export async function updateProductPrices(sb: SB, shopId: string, id: string, patch: PricePatch): Promise<void> {
+  const body: Record<string, string | null> = {};
+  if (patch.cost_price !== undefined) body.cost_price = patch.cost_price === null ? null : patch.cost_price.toString();
+  if (patch.sale_price !== undefined) body.sale_price = patch.sale_price.toString();
+  if (patch.wholesale_price !== undefined) body.wholesale_price = patch.wholesale_price === null ? null : patch.wholesale_price.toString();
+  if (patch.wholesale_min_qty_milli !== undefined) body.wholesale_min_qty_milli = patch.wholesale_min_qty_milli === null ? null : patch.wholesale_min_qty_milli.toString();
+  if (Object.keys(body).length === 0) return;
+  const rows = check(await sb.from('products').update(body).eq('id', id).eq('shop_id', shopId).select('id')) as { id: string }[] | null;
+  if (!rows || rows.length === 0) throw new AppError('not_found', "Mahsulot topilmadi yoki ruxsat yo'q.");
 }
 
 // ---------------------------------------------------------------------------

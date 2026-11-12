@@ -51,7 +51,8 @@ export function lacksSalePrice(products: readonly Product[], productName: string
  * `productId` ham yoziladi: server aynan shu tovarga bog'laydi, bir xil nomli boshqasiga emas (W4).
  */
 export function applyProduct(line: DraftLine, p: Product): DraftLine {
-  return { ...line, productId: p.id, productName: p.name, unit: p.unit, price: p.last_price !== null ? formatMoneyInput(p.last_price.toString()) : line.price };
+  // autoPrice: narx tovardan keldi (qo'lda emas): optom/dona yoqiq bo'lsa miqdorga qarab yangilanadi
+  return { ...line, productId: p.id, productName: p.name, unit: p.unit, price: p.last_price !== null ? formatMoneyInput(p.last_price.toString()) : line.price, autoPrice: true };
 }
 
 /** qty_milli → kiritish maydoni matni: 5000n → "5", 1500n → "1,5" */

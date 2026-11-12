@@ -1,17 +1,21 @@
 # HOLAT: Ombor narxlari, optom narx va ombor sozlamalari
 
-Sana: 12.11.2026. Branch: `claude/stoic-sagan-gf2fji` (so'ralgan `feat/ombor-narxlar` o'rniga: seans faqat shu branchga push qila oladi). `main` dan (2470e10) boshlangan.
+Sana: 12.11.2026. Branch: `feat/ombor-narxlar-ui` (S3-S7), `main` dan. Migratsiya 014 production'ga qo'llangan (#58).
 
-## Tayyor (S0-S2, asoschi tasdig'i kutilmoqda)
-- **S0:** migratsiya raqami **014** (013 oxirgi; boshqa branchlarda 014+ yo'q).
-- **S1:** `supabase/migrations/014_ombor_narxlar.sql`: `products.wholesale_price`, `products.wholesale_min_qty_milli` (+CHECK'lar), `shops.settings` shakli CHECK, SQL `resolve_unit_price`, `suggest_sale_price`. Faqat qo'shuvchi (`dangerous=false`), qayta ishga tushirish xavfsiz. Production'ga qo'llanmagan.
-- **S2:** `packages/core/src/pricing.ts` (`resolveUnitPrice`, `isWholesaleApplied`, `suggestSalePrice`), 27 test.
-- Ikki yo'l mosligi: `supabase/tests/fixtures/pricing-cases.json` ni core testi va `supabase/tests/95_ombor_narxlar.test.sql` o'qiydi (21 bir xil holat).
-- Qarorlar: `docs/QARORLAR.md` (12.11.2026, "TASDIQ KUTILMOQDA").
+## Tayyor
+- S0-S2: migratsiya 014, core `pricing.ts` (PR #58, merge qilingan).
+- S3 Ombor sahifasi: sozlamalar paneli (Optom/dona, Baza, Ustama %), tan narx/sotuv narx/optom, soni (Baza yoqiq bo'lsa), "Narxi yo'q" filtri, ustama taklifi, tan narx > sotuv ogohlantirishi.
+- S4 Mahsulotlar: faqat nom, birlik, sotuv narxi (tan narx va optom Omborda).
+- S5 Savdo paneli: optom narx (`repriceLines`, `autoPrice`), "Optom narx" belgisi; Baza o'chiq bo'lsa qoldiq ogohlantirishlari yo'q.
+- S6: testlar (shop-pricing, warehouse-pricing-ui, sale-wholesale), QARORLAR/ARXITEKTURA/TZ-MVP.
 
-## To'xtash nuqtasi
-Shartnoma bo'yicha migratsiya va pul hisobi qoidalari asoschi tasdig'ini kutadi. Tasdiqdan keyin S3-S7.
+## Sinalmagan
+Telefonda (haqiqiy qurilma, klaviatura), haqiqiy Supabase (PostgREST UPDATE, `shops.settings` yozish, RLS), Safari. Demo rejimda (soxta ma'lumot, yozish o'chiq) Chromium'da ko'rilgan: Ombor sahifasi 390 va 1280 px.
 
-## Qolgan (tasdiqdan keyin)
-S3 Ombor sahifasi (sozlamalar paneli, tan/sotuv/optom, soni), S4 Mahsulotlar (faqat nom/birlik/sotuv narxi), S5 savdo panelida optom narx, S6 hujjat + UI testlar, S7 chiqarish (migratsiya merge'dan keyin CI qo'llaydi).
-`stock_enabled=false` da o'chadigan joylar: `StockTab` (Kam qoldi/Manfiy), `lineWarnings`/`saleInsights` ("Omborda N bor").
+## Ma'lum xavf (tanqidchi, to'smaydi)
+- `shops.settings` butun obyekt sifatida xotiradagi nusxadan yoziladi (sozlamalar sahifasidagi `units` bilan bir xil naqsh): ikki qurilmada bir vaqtda o'zgartirilsa eskisi qaytishi mumkin. Yozishdan oldin qayta o'qish keyingi tuzatish.
+- "Qo'llash" tugmasi fokusni `onMouseDown preventDefault` bilan saqlaydi; iOS/Android teginishida ishonchliligi sinalmagan.
+- `apps/mobile` yangi sozlamalarni hali hisobga olmaydi (mobil muzlatilgan): `docs/VEB-DAN-MOBILGA.md`.
+
+## Qolmagan / qilinmagan (vazifa chegarasi)
+Barcha tovarlarga ustamani ommaviy qo'llash, narx tarixi, kirim narxlari tarixi.

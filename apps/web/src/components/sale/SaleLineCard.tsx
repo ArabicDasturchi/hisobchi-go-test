@@ -17,6 +17,8 @@ export interface SaleLineCardProps {
   status: LineStatus;
   /** Ombor/tan narx ogohlantirishlari (saqlashni to'smaydi) */
   warnings?: readonly string[];
+  /** Hozir optom narx amal qiladi (optom/dona yoqiq, miqdor chegaraga yetgan, narx qo'lda emas): "Optom narx" belgisi */
+  wholesale?: boolean;
   disabled?: boolean;
   onChange: (patch: Partial<DraftLine>) => void;
   onRemove: () => void;
@@ -25,7 +27,7 @@ export interface SaleLineCardProps {
 const field =
   'h-11 rounded-xl border bg-surface px-3 text-center text-base font-semibold text-fg tabular-nums outline-none transition-colors placeholder:font-normal placeholder:text-muted focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/25 disabled:opacity-60';
 
-export function SaleLineCard({ line, status, warnings = [], disabled, onChange, onRemove }: SaleLineCardProps) {
+export function SaleLineCard({ line, status, warnings = [], wholesale = false, disabled, onChange, onRemove }: SaleLineCardProps) {
   const yellow = status.status === 'yellow';
   const reason = yellow ? status.reason : null;
   const qty = parseQtyInput(line.qty);
@@ -62,6 +64,7 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
             </p>
           ) : (
             unitText && (
+              <span className="flex flex-wrap items-center gap-x-2">
               <button
                 type="button"
                 disabled={disabled}
@@ -72,6 +75,12 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
                 {unitText}
                 <span className="hidden sm:inline"> / {uz.units[line.unit]}</span>
               </button>
+              {wholesale && (
+                <span data-testid="wholesale-badge" className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
+                  Optom narx
+                </span>
+              )}
+              </span>
             )
           )}
         </div>
@@ -102,7 +111,8 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
             aria-label={`${uz.composer.price}: ${line.productName.trim() || 'qator'}`}
             inputMode="numeric"
             value={line.price}
-            onChange={(e) => onChange({ price: formatMoneyInput(e.target.value) })}
+            // Qo'lda yozilgan narx avtomatik (optom/dona) yangilanishdan chiqadi: foydalanuvchi narxi hech qachon almashtirilmaydi
+            onChange={(e) => onChange({ price: formatMoneyInput(e.target.value), autoPrice: false })}
             disabled={disabled}
             placeholder={uz.composer.price}
             aria-invalid={reason === 'price' || undefined}

@@ -39,6 +39,7 @@ import { lineUnit, resolveProduct, type PurchaseDraftLine } from '@/lib/purchase
 import { parseEnabledUnits, unitChoices } from '@/lib/units';
 import { buildSalePlan, DEFAULT_PAY_MODE, effectiveMode, type DraftLine, type PayMode } from '@/lib/saleForm';
 import { saleInsights } from '@/lib/saleInsights';
+import { isWholesaleLine, repriceLines } from '@/lib/shopPricing';
 import { ActionMenu, PlusMenu, type PlusChoice } from './ActionMenu';
 import { NoteView } from './NoteView';
 import { PartnerChip, type PartnerOption } from './PartnerChip';
@@ -53,7 +54,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
-  const { balances, customerById, membership } = useShop();
+  const { balances, customerById, membership, pricing } = useShop();
   const books = useBooks();
   const panelId = useId();
   const composer = useRef<SaleComposerHandle>(null);
@@ -158,7 +159,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   function addProducts(ps: ReturnType<typeof productById.get>[]) {
     const chosen = ps.flatMap((p) => p ?? []);
     if (chosen.length === 0) return;
-    if (action === 'savdo') setSaleLines((ls) => applySelection(ls, chosen));
+    if (action === 'savdo') setSaleLines((ls) => repriceLines(applySelection(ls, chosen), products, pricing.wholesaleEnabled));
     else setBuyLines((ls) => applyPurchaseSelection(ls, chosen, (id) => lastCost.get(id)));
     afterAdd();
   }
@@ -305,8 +306,9 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
                       line={l}
                       status={lineStatus(l, products)}
                       warnings={lineWarnings(l, insights.perLine.get(l.key))}
+                      wholesale={isWholesaleLine(l, products, pricing.wholesaleEnabled)}
                       disabled={frozenSale}
-                      onChange={(patch) => setSaleLines((ls) => ls.map((x) => (x.key === l.key ? patchSaleLine(x, patch) : x)))}
+                      onChange={(patch) => setSaleLines((ls) => repriceLines(ls.map((x) => (x.key === l.key ? patchSaleLine(x, patch) : x)), products, pricing.wholesaleEnabled))}
                       onRemove={() => setSaleLines((ls) => ls.filter((x) => x.key !== l.key))}
                     />
                   ))}

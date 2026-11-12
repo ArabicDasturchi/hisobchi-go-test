@@ -9,6 +9,7 @@ import { listAgentDrafts, listCustomers, listPayments, listProducts, listReversa
 import { customerBalances, type CustomerBalance } from '@/lib/data/ledger';
 import type { AgentDraft, Customer, Membership, Payment, Product, Reversal, SaleDoc, SaleLineCost } from '@/lib/data/types';
 import { errorMessage } from '@/lib/errors';
+import { parsePricingSettings, withStockSetting, type PricingSettings } from '@/lib/shopPricing';
 import { getSupabase } from '@/lib/supabase/client';
 import { useAuth } from './AuthProvider';
 
@@ -35,6 +36,8 @@ export const LINES_WINDOW_DAYS = 30;
 
 interface Ctx {
   membership: Membership;
+  /** Ombor sozlamalari (shops.settings): optom/dona, qoldiq hisobi, ustama %. Qiymat yo'q bo'lsa default */
+  pricing: PricingSettings;
   shopId: string;
   data: ShopData | null;
   loading: boolean;
@@ -150,9 +153,13 @@ export function ShopDataProvider({ membership: initial, children }: { membership
 
   const pendingDrafts = data?.drafts?.length ?? 0;
 
+  const pricing = useMemo(() => parsePricingSettings(membership.shop.settings), [membership.shop.settings]);
+  // Qoldiq hisobi o'chiq: qoldiq xaritasi yo'q (null), shuning uchun "Omborda N bor", "Kam qoldi" va "Tugayotgan tovarlar" hech qayerda chiqmaydi
+  const visibleData = useMemo(() => (data ? withStockSetting(data, pricing.stockEnabled) : data), [data, pricing.stockEnabled]);
+
   const value = useMemo<Ctx>(
-    () => ({ membership, shopId, data, loading, error, lastLoadedAt, reload, balances, pendingDrafts, customerById, setMembership }),
-    [membership, shopId, data, loading, error, lastLoadedAt, reload, balances, pendingDrafts, customerById],
+    () => ({ membership, pricing, shopId, data: visibleData, loading, error, lastLoadedAt, reload, balances, pendingDrafts, customerById, setMembership }),
+    [membership, pricing, shopId, visibleData, loading, error, lastLoadedAt, reload, balances, pendingDrafts, customerById],
   );
   return <ShopCtx.Provider value={value}>{children}</ShopCtx.Provider>;
 }

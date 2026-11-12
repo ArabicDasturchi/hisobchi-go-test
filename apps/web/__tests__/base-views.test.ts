@@ -47,12 +47,19 @@ describe('Ombor: qoldiq', () => {
     expect(isLow(items[3]!)).toBe(true);
     expect(isLow(items[4]!)).toBe(false);
     expect(isLow(items[2]!)).toBe(false);
-    expect(stockCounts(items)).toEqual({ low: 2, negative: 1 });
+    expect(stockCounts(items)).toEqual({ low: 2, negative: 1, noPrice: 0 });
   });
   it('filtr: kam qolgan va manfiy; tartib manfiy, kam, qolgani', () => {
     expect(filterStock(items, { query: '', filter: 'all' }).map((i) => i.name)).toEqual(['Uch', 'Bir', 'Tort', 'Besh', 'Ikki']);
     expect(filterStock(items, { query: '', filter: 'low' }).map((i) => i.name)).toEqual(['Bir', 'Tort']);
     expect(filterStock(items, { query: '', filter: 'negative' }).map((i) => i.name)).toEqual(['Uch']);
+  });
+  it("Baza o'chiq: qoldiq bo'yicha tartib/filtr yo'q; narxi yo'q tovarlar yuqorida va alohida filtr", () => {
+    const mixed = [S('a', 'Bir', 1), S('b', 'Ikki', 15, { sale_price: null }), S('c', 'Uch', -2)];
+    expect(filterStock(mixed, { query: '', filter: 'all', stockEnabled: false }).map((i) => i.name)).toEqual(['Ikki', 'Bir', 'Uch']);
+    expect(filterStock(mixed, { query: '', filter: 'low', stockEnabled: false }).map((i) => i.name)).toEqual(['Ikki', 'Bir', 'Uch']);
+    expect(filterStock(mixed, { query: '', filter: 'noprice' }).map((i) => i.name)).toEqual(['Ikki']);
+    expect(stockCounts(mixed).noPrice).toBe(1);
   });
   it('farq matni: 12 -> 10 farq -2; ozgarishsiz', () => {
     expect(adjustDiffText(12000n, '10')).toBe('12 → 10 (farq −2)');

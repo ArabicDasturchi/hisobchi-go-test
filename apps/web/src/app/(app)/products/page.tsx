@@ -215,7 +215,7 @@ function NewProduct({ units, products, onClose }: { units: readonly Unit[]; prod
           </Button>
         </div>
       </form>
-      <p className="mt-2 text-xs text-muted">Tan narx kirim orqali tushadi. Sotuv narxi keyin ham kiritilishi mumkin.</p>
+      <p className="mt-2 text-xs text-muted">Bu yerda faqat nom, birlik va sotuv narxi. Tan narx va optom narx Ombor sahifasida kiritiladi.</p>
       {dup.warnings.length > 0 && (
         <div className="mt-2 space-y-1" data-testid="product-duplicate-warning">
           {dup.warnings.map((w) => (
