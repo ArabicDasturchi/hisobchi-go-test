@@ -18,10 +18,10 @@ export interface SaleComposerProps {
   placeholder?: string;
   /** Panel ochiqmi: ↓ fokusni panelga o'tkazadi, Enter qo'shadi */
   panelOpen: boolean;
-  panelId: string;
+  panelId?: string;
   onSubmit: () => void;
-  onFocusPanel: () => void;
-  onEscape: () => void;
+  onFocusPanel?: () => void;
+  onEscape?: () => void;
   onFocus?: () => void;
   /** "+" menyusi va "Amal" chipi (slot) */
   plus: ReactNode;
@@ -58,12 +58,12 @@ export const SaleComposer = forwardRef<SaleComposerHandle, SaleComposerProps>(fu
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'ArrowDown' && panelOpen) {
       e.preventDefault();
-      onFocusPanel();
+      onFocusPanel?.();
     } else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       onSubmit();
     } else if (e.key === 'Escape') {
-      onEscape();
+      onEscape?.();
     }
   }
 
