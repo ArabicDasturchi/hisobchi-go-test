@@ -47,6 +47,8 @@ Foydalanuvchiga (Abdullohga) barcha javoblar, hisobotlar va tushuntirishlar FAQA
 
 ## Hujjatlar
 
+- [docs/ASOSCHI-TALABLARI.md](docs/ASOSCHI-TALABLARI.md) — asoschi maqsadi va ilovaga asosiy talablar
+- [docs/HUMOYUN-BACKEND.md](docs/HUMOYUN-BACKEND.md) — backend maqsadli arxitekturasi va audit topshirig'i (Humoyun)
 - [docs/TZ-MVP.md](docs/TZ-MVP.md) — MVP vazifasi (v2: ovozli savdo, suratdan kirim)
 - [docs/VAZIFALAR-ICE.md](docs/VAZIFALAR-ICE.md) — vazifalar navbati, ish bo'linishi (kim qaysi fayllarda ishlaydi)
 - [docs/ARXITEKTURA.md](docs/ARXITEKTURA.md) — tuzilma
