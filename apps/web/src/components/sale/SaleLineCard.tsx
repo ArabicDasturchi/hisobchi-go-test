@@ -44,7 +44,7 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
         yellow ? 'border-amber-400 bg-amber-50 dark:border-amber-500/60 dark:bg-amber-500/10' : 'border-line bg-surface',
       )}
     >
-      <div className="flex items-center gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 sm:flex sm:gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold text-fg">
             {line.productName.trim() || '—'}
@@ -76,6 +76,16 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
           )}
         </div>
 
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={disabled}
+          aria-label={`${uz.composer.removeLine}: ${line.productName.trim() || 'qator'}`}
+          className="flex h-11 w-11 shrink-0 sm:order-last items-center justify-center rounded-xl text-muted transition-colors hover:bg-subtle hover:text-fg disabled:opacity-50"
+        >
+          <X className="h-5 w-5" aria-hidden />
+        </button>
+        <div className="col-span-2 flex items-center justify-between gap-3 sm:contents">
         <input
           aria-label={`${uz.composer.qty}: ${line.productName.trim() || 'qator'}`}
           inputMode="decimal"
@@ -84,7 +94,7 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
           disabled={disabled}
           placeholder={uz.composer.qty}
           aria-invalid={reason === 'qty' || undefined}
-          className={cn(field, 'w-20 shrink-0', reason === 'qty' ? 'border-amber-500 ring-2 ring-amber-400/50' : 'border-line')}
+          className={cn(field, 'w-24 shrink-0 sm:w-20', reason === 'qty' ? 'border-amber-500 ring-2 ring-amber-400/50' : 'border-line')}
         />
 
         {priceEditable ? (
@@ -98,23 +108,15 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
             aria-invalid={reason === 'price' || undefined}
             onBlur={() => setEditingPrice(false)}
             autoFocus={editingPrice}
-            className={cn(field, 'w-28 shrink-0 sm:w-32', reason === 'price' ? 'border-2 border-amber-500' : 'border-line')}
+            className={cn(field, 'min-w-0 flex-1 sm:w-32 sm:flex-none', reason === 'price' ? 'border-2 border-amber-500' : 'border-line')}
           />
         ) : (
-          <span data-testid="line-total" className="w-24 shrink-0 text-right text-base font-semibold tabular-nums text-fg sm:w-28">
+          <span data-testid="line-total" className="min-w-0 flex-1 text-right text-base font-semibold tabular-nums text-fg sm:w-28 sm:flex-none">
             {total !== null ? <Money value={total} /> : '—'}
           </span>
         )}
 
-        <button
-          type="button"
-          onClick={onRemove}
-          disabled={disabled}
-          aria-label={`${uz.composer.removeLine}: ${line.productName.trim() || 'qator'}`}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:bg-subtle hover:text-fg disabled:opacity-50"
-        >
-          <X className="h-5 w-5" aria-hidden />
-        </button>
+        </div>
       </div>
       {warnings.length > 0 && (
         <ul className="mt-2 space-y-1">
