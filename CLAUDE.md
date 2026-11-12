@@ -21,7 +21,7 @@ MVP: savdogar pul to'laydigan **bitta to'liq ishlaydigan** qiymat, o'nta yarimta
 
 ## Ish uslubi: "Boil the Ocean" (ijro bosqichida) va vazifani oxirigacha tugatish
 
-**Chegara:** bu qoida faqat berilgan vazifa (yoki tasdiqlangan reja) **ichida** ishlaydi. U yuqoridagi "Eng muhim qoidalar"ni, "MVP tamoyili"ni va tasdiq bosqichlarini bekor qilmaydi: reja tasdig'i so'ralgan bo'lsa, tasdiqsiz ijroga o'tma; `main` ga o'zing merge qilma; migratsiyani production'ga o'zing qo'llama; sirlarni so'rama. "Hammasini qil" degani vazifa **chegarasini kengaytirish** emas: berilgan ishni to'liq qil, unga kirmagan yangi funksiya qo'shma.
+**Chegara:** bu qoida faqat berilgan vazifa (yoki tasdiqlangan reja) **ichida** ishlaydi. U yuqoridagi "Eng muhim qoidalar"ni, "MVP tamoyili"ni va tasdiq bosqichlarini bekor qilmaydi: reja tasdig'i so'ralgan bo'lsa, tasdiqsiz ijroga o'tma; `main` ga merge faqat [docs/ISH-SHARTNOMASI.md](docs/ISH-SHARTNOMASI.md) dagi shartlarda (u yerda sanalgan hollarda avval so'ra); migratsiyani production'ga o'zing qo'llama; sirlarni so'rama. "Hammasini qil" degani vazifa **chegarasini kengaytirish** emas: berilgan ishni to'liq qil, unga kirmagan yangi funksiya qo'shma.
 
 Remember when implementing: The marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that I am genuinely impressed, not politely satisfied, actually impressed.
 
@@ -60,7 +60,7 @@ Foydalanuvchiga (Abdullohga) barcha javoblar, hisobotlar va tushuntirishlar FAQA
 ## Ish tartibi
 
 - O'zgarishdan oldin TZ, VAZIFALAR-ICE va qarorlarni o'qi; qarorga zid ish qilmaydigan bo'l.
-- Ikki Claude Code parallel ishlaydi: faqat o'z hududingdagi fayllarni o'zgartir (VAZIFALAR-ICE, 3-bo'lim). `main` ga o'zing merge qilma.
+- Ikki Claude Code parallel ishlaydi: faqat o'z hududingdagi fayllarni o'zgartir (VAZIFALAR-ICE, 3-bo'lim). `main` ga merge qilish qoidasi: docs/ISH-SHARTNOMASI.md.
 - `docs/arxiv/` dagi hujjatlar eskirgan: ularga tayanma.
 - Hisob modulini har o'zgarishda testlar bilan tekshir (namuna: 10×13 000 + 5×15 000 + 20×9 000 = 385 000).
 - Faktni to'qima: topilmasa "topilmadi" deb yoz.
