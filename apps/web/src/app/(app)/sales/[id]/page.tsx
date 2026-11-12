@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ReasonModal } from '@/components/forms/ReasonModal';
+import { RefundChoice } from '@/components/sale/RefundChoice';
 import { Money, StatusBadge } from '@/components/shared';
 import { useShop } from '@/components/ShopDataProvider';
 import { Alert, Button, Card, CardHeader, EmptyState, ErrorState, LinkButton, Skeleton } from '@/components/ui/primitives';
@@ -14,16 +15,20 @@ import type { SaleDetail } from '@/lib/data/types';
 import { formatDateTime, shortNumber } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
 import { formatQty } from '@/lib/money';
+import { refundAfterError, salePayments } from '@/lib/saleReversal';
 import { getSupabase } from '@/lib/supabase/client';
 
 type State = { status: 'loading' } | { status: 'error'; message: string } | { status: 'missing' } | { status: 'ok'; detail: SaleDetail };
 
 export default function SaleDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { shopId, customerById, reload, membership } = useShop();
+  const { shopId, customerById, reload, membership, data } = useShop();
   const toast = useToast();
   const [state, setState] = useState<State>({ status: 'loading' });
   const [reversing, setReversing] = useState<{ opId: string } | null>(null);
+  const [refund, setRefund] = useState(true);
+  // Birinchi urinishdan keyin tanlov qulflanadi (o'sha client_op_id bilan boshqa tanlov yuborilmasin)
+  const [attempted, setAttempted] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -77,6 +82,8 @@ export default function SaleDetailPage() {
 
   const { doc, lines, reversal } = state.detail;
   const customer = doc.customer_id ? customerById.get(doc.customer_id) : null;
+  const linked = salePayments(doc, data?.payments ?? [], { walkin: customer?.kind === 'one_time' });
+  const refunding = refund && linked.ids.length > 0;
 
   return (
     <>
@@ -95,7 +102,7 @@ export default function SaleDetailPage() {
             Chop etish
           </Button>
           {doc.status === 'posted' && (
-            <Button variant="danger" onClick={() => setReversing({ opId: crypto.randomUUID() })} icon={<Ban className="h-4 w-4" />}>
+            <Button variant="danger" onClick={() => { setAttempted(false); setReversing({ opId: crypto.randomUUID() }); }} icon={<Ban className="h-4 w-4" />}>
               Bekor qilish
             </Button>
           )}
@@ -159,7 +166,7 @@ export default function SaleDetailPage() {
             <div>
               <dt className="text-xs text-muted">Mijoz</dt>
               <dd className="mt-0.5">
-                {customer ? (
+                {customer && customer.kind !== 'one_time' ? (
                   <Link href={`/customers/${customer.id}`} className="inline-flex items-center gap-1.5 font-medium text-emerald-700 hover:underline dark:text-emerald-400">
                     <User className="h-3.5 w-3.5" /> {customer.name}
                   </Link>
@@ -170,7 +177,7 @@ export default function SaleDetailPage() {
             </div>
             <div>
               <dt className="text-xs text-muted">Turi</dt>
-              <dd className="mt-0.5 text-fg">{customer ? 'Mijoz hisobiga' : 'Naqd savdo'}</dd>
+              <dd className="mt-0.5 text-fg">{customer && customer.kind !== 'one_time' ? 'Mijoz hisobiga' : 'Naqd savdo'}</dd>
             </div>
           </dl>
         </Card>
@@ -184,15 +191,30 @@ export default function SaleDetailPage() {
         summary={
           <>
             <b>{shortNumber(doc.id)}</b> savdosi (<Money value={doc.subtotal} className="font-semibold" />) bekor qilinadi.
-            {customer ? ` Summa «${customer.name}» qarzidan chiqariladi.` : ''} Bu amalni qaytarib bo&apos;lmaydi.
+            {customer && customer.kind !== 'one_time' ? ` Summa «${customer.name}» qarzidan chiqariladi.` : ''} Bu amalni qaytarib bo&apos;lmaydi.
+            <div className="mt-2">
+              <RefundChoice total={linked.total} checked={refund} onChange={setRefund} disabled={attempted} />
+            </div>
           </>
         }
         onConfirm={async (reason) => {
           if (!reversing) return;
-          // client_op_id modal ochilganda bir marta yaratilgan — qayta bosish takroriy bekor qilish yaratmaydi
-          await reverseSale(getSupabase(), shopId, doc.id, reversing.opId, reason);
+          setAttempted(true);
+          // client_op_id modal ochilganda bir marta yaratilgan — qayta bosish takroriy bekor qilish yaratmaydi.
+          // To'lovlar tanlansa savdo bilan bitta tranzaksiyada bekor qilinadi (W1)
+          try {
+            await reverseSale(getSupabase(), shopId, doc.id, reversing.opId, reason, refunding ? linked.ids : []);
+          } catch (e) {
+            // 013 yo'q server: hech narsa yozilmagan — tanlov ochiladi va olib tashlanadi, xabar modalda ko'rinadi
+            const next = refundAfterError(e);
+            if (next) {
+              setAttempted(next.attempted);
+              setRefund(next.refund);
+            }
+            throw e;
+          }
           await Promise.all([load(), reload()]);
-          toast.success('Savdo bekor qilindi.');
+          toast.success(refunding ? "Savdo va uning to'lovi bekor qilindi." : 'Savdo bekor qilindi.');
           setReversing(null);
         }}
       />

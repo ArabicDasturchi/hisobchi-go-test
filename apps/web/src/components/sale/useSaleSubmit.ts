@@ -1,14 +1,16 @@
 'use client';
 /**
- * Savdoni saqlash oqimi (eski /sales/new sahifasidan ko'chirilgan, xatti-harakat o'zgarmagan):
- * - bir martalik kalitlar (`newKeys`): qayta urinish serverda takroriy savdo/to'lov yaratmaydi;
+ * Savdoni saqlash oqimi:
+ * - savdo va to'lov BITTA tranzaksiyada (`post_sale` p_paid, W3): "savdo saqlandi, to'lov yozilmadi" yarim holati yo'q;
+ * - mijozsiz (naqd) savdo bir martalik tizim mijozi bilan yoziladi va to'lov yozuvi yaratiladi (W10, mobil va agent
+ *   bilan bir xil): kassa usul bo'yicha to'g'ri ko'rinadi, bekor qilinsa server to'lovni ham qaytaradi;
+ * - bir martalik kalitlar (`newKeys`): qayta urinish serverda takroriy savdo/to'lov yaratmaydi (client_op_id);
  * - tarmoq/noma'lum xatodan keyin qulflanadi (savdo saqlangan bo'lishi mumkin), server rad etsa tuzatish mumkin;
- * - savdo saqlandi, to'lov yozilmadi => `payment_failed`: faqat to'lovni qayta yuborish;
  * - hisob: `buildSalePlan` (klient), server `post_sale` qayta hisoblaydi.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useShop } from '@/components/ShopDataProvider';
-import { postSale, recordPayment } from '@/lib/data/api';
+import { ensureWalkinCustomer, postSale } from '@/lib/data/api';
 import { balanceOf } from '@/lib/data/ledger';
 import type { PaymentMethod } from '@/lib/data/types';
 import { shortNumber } from '@/lib/dates';
@@ -18,7 +20,7 @@ import { buildSalePlan, type DraftLine, type LineCheck, type PayMode, type SaleP
 import { getSupabase } from '@/lib/supabase/client';
 
 /** Bir martalik kalitlar: forma yuborilgach o'zgarmaydi */
-export const newKeys = () => ({ saleId: crypto.randomUUID(), saleOp: crypto.randomUUID(), paymentId: crypto.randomUUID(), paymentOp: crypto.randomUUID() });
+export const newKeys = () => ({ saleId: crypto.randomUUID(), saleOp: crypto.randomUUID() });
 
 export interface SaleDone {
   saleId: string;
@@ -29,12 +31,7 @@ export interface SaleDone {
   receipt: string;
 }
 
-export type SalePhase =
-  | { kind: 'editing' }
-  | { kind: 'saving' }
-  /** Savdo serverda saqlandi, lekin to'lov yozilmadi: faqat to'lovni qayta yuborish mumkin */
-  | { kind: 'payment_failed'; saleId: string; plan: SalePlan; message: string }
-  | { kind: 'done'; done: SaleDone };
+export type SalePhase = { kind: 'editing' } | { kind: 'saving' } | { kind: 'done'; done: SaleDone };
 
 export interface SaleSubmitInput {
   lines: DraftLine[];
@@ -44,9 +41,26 @@ export interface SaleSubmitInput {
   method: PaymentMethod;
 }
 
+/**
+ * Serverga yuboriladigan savdo: kimga va qancha to'lov (sof, testlanadi).
+ * Doimiy mijoz: rejadagi `paidNow` (0 bo'lsa to'lovsiz). Mijozsiz: bir martalik mijoz, to'liq to'langan (server talab qiladi).
+ * Mijozsiz 0 so'mlik savdo (narx 0, masalan sovg'a): pul yo'q, to'lov yozuvi kerak emas; server bir martalik mijozga 0 so'mni
+ * rad etadi (`walkin_requires_full_payment`), shuning uchun avvalgidek mijozsiz (customer_id NULL) yoziladi.
+ */
+export function saleTarget(plan: SalePlan, customerId: string | null, walkinId: string | null): { customerId: string | null; paid: bigint } {
+  if (customerId) return { customerId, paid: plan.paidNow };
+  if (plan.total <= 0n || !walkinId) return { customerId: null, paid: 0n };
+  return { customerId: walkinId, paid: plan.total };
+}
+
+/** Mijozsiz savdoga bir martalik mijoz kerakmi (faqat pul bo'lsa) */
+export const needsWalkin = (plan: SalePlan, customerId: string | null) => !customerId && plan.total > 0n;
+
 export function useSaleSubmit(input: SaleSubmitInput) {
-  const { shopId, reload, balances, membership, customerById } = useShop();
+  const { shopId, reload, balances, membership, customerById, data } = useShop();
   const [keys, setKeys] = useState(newKeys);
+  /** Shu savdo uchun olingan bir martalik mijoz id'si (qayta urinishda o'sha) */
+  const walkinRef = useRef<string | null>(null);
   /** Tarmoq xatosidan keyin forma qulflanadi: savdo serverda saqlangan bo'lishi mumkin */
   const [locked, setLocked] = useState(false);
   const [phase, setPhase] = useState<SalePhase>({ kind: 'editing' });
@@ -56,19 +70,6 @@ export function useSaleSubmit(input: SaleSubmitInput) {
 
   const customerId = input.customerId || null;
   const currentDebt = customerId ? balanceOf(balances, customerId).debt : 0n;
-
-  async function savePayment(saleId: string, plan: SalePlan) {
-    if (plan.paidNow <= 0n || !customerId) return;
-    await recordPayment(getSupabase(), {
-      shopId,
-      paymentId: keys.paymentId,
-      clientOpId: keys.paymentOp,
-      customerId,
-      amount: plan.paidNow,
-      method: input.method,
-      note: `Savdo ${shortNumber(saleId)} uchun`,
-    });
-  }
 
   async function finish(saleId: string, plan: SalePlan) {
     const customerName = customerId ? (customerById.get(customerId)?.name ?? null) : null;
@@ -108,50 +109,36 @@ export function useSaleSubmit(input: SaleSubmitInput) {
 
     let saleId: string;
     try {
-      saleId = await postSale(getSupabase(), {
+      const sb = getSupabase();
+      if (needsWalkin(plan, customerId) && !walkinRef.current) walkinRef.current = data?.walkin?.id ?? (await ensureWalkinCustomer(sb, shopId));
+      const target = saleTarget(plan, customerId, walkinRef.current);
+      saleId = await postSale(sb, {
         shopId,
         saleId: keys.saleId,
         clientOpId: keys.saleOp,
-        customerId,
+        customerId: target.customerId,
         note: null,
         lines: plan.lines,
         clientTotal: plan.total,
+        paid: target.paid,
+        method: input.method,
       });
     } catch (err) {
       const appErr = toAppError(err);
-      // Server rad etdi: hech narsa saqlanmagan, tuzatish mumkin. Tarmoq/noma'lum xato: saqlangan bo'lishi mumkin,
-      // forma qulflanadi va qayta urinish o'sha kalit bilan yuboriladi (takroriy savdo yaratilmaydi).
+      // Server rad etdi: hech narsa saqlanmagan (bitta tranzaksiya), tuzatish mumkin. Tarmoq/noma'lum xato: saqlangan
+      // bo'lishi mumkin, forma qulflanadi va qayta urinish o'sha kalit bilan yuboriladi (takroriy savdo yaratilmaydi).
       if (appErr.kind !== 'validation' && appErr.kind !== 'forbidden' && appErr.kind !== 'auth') setLocked(true);
       setFormError(appErr.message);
       setPhase({ kind: 'editing' });
       return;
     }
-
-    try {
-      await savePayment(saleId, plan);
-    } catch (err) {
-      setPhase({ kind: 'payment_failed', saleId, plan, message: toAppError(err).message });
-      await reload();
-      return;
-    }
     await finish(saleId, plan);
-  }
-
-  async function retryPayment() {
-    if (phase.kind !== 'payment_failed') return;
-    const { saleId, plan } = phase;
-    setPhase({ kind: 'saving' });
-    try {
-      await savePayment(saleId, plan);
-      await finish(saleId, plan);
-    } catch (err) {
-      setPhase({ kind: 'payment_failed', saleId, plan, message: toAppError(err).message });
-    }
   }
 
   /** Yangi savdo: kalitlar va holat tozalanadi (qatorlarni chaqiruvchi tozalaydi) */
   function reset() {
     setKeys(newKeys());
+    walkinRef.current = null;
     setLocked(false);
     setFormError(null);
     setLineErrors(new Map());
@@ -172,9 +159,8 @@ export function useSaleSubmit(input: SaleSubmitInput) {
     lineErrors,
     currentDebt,
     busy: phase.kind === 'saving',
-    frozen: locked || phase.kind === 'saving' || phase.kind === 'payment_failed',
+    frozen: locked || phase.kind === 'saving',
     submit,
-    retryPayment,
     reset,
     clearErrors,
   };

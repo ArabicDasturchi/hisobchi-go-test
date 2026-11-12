@@ -52,7 +52,7 @@ export interface ReceiptDay {
 }
 
 /**
- * Kirimlar ro'yxati kun bo'yicha (yangisi birinchi). Boshlang'ich qarz (`kind = 'opening'`) KIRIM EMAS: bu yerga kirmaydi
+ * Kirimlar ro'yxati kun bo'yicha (yangisi birinchi). Boshlang'ich qarz (`kind = 'opening'`) va tovarsiz qarz yozuvi (`'debt'`, 013) KIRIM EMAS: bu yerga kirmaydi
  * (u ta'minotchi varag'ida alohida qator). Bekor qilingan kirim qatorda qoladi, jamiga kirmaydi.
  */
 export function receiptDays(
@@ -65,7 +65,7 @@ export function receiptDays(
   const byDoc = new Map<string, PurchaseLine[]>();
   for (const l of lines) byDoc.set(l.document_id, [...(byDoc.get(l.document_id) ?? []), l]);
   const items: ReceiptItem[] = purchases
-    .filter((p) => p.kind !== 'opening' && inDayRange(p.doc_date, o.range) && (!o.supplierId || p.supplier_id === o.supplierId))
+    .filter((p) => p.kind !== 'opening' && p.kind !== 'debt' && inDayRange(p.doc_date, o.range) && (!o.supplierId || p.supplier_id === o.supplierId))
     .map((p) => ({
       id: p.id,
       date: p.doc_date,

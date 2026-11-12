@@ -105,7 +105,7 @@ export function buildExtraTables(ctx: { shopId: string; userId: string; iso: (of
     const customer = s.customer ? cByKey(s.customer) : null;
     documents.push({
       id: docId, shop_id: shopId, customer_id: customer?.id ?? null, status: 'posted', subtotal: calc.subtotal.toString(),
-      created_at: iso(at), posted_at: iso(at), created_by: userId,
+      created_at: iso(at), posted_at: iso(at), created_by: userId, client_op_id: `demo-doc:${docId}`,
     });
     s.lines.forEach(([k, qty], i) => {
       const p = pByKey(k);
@@ -120,7 +120,7 @@ export function buildExtraTables(ctx: { shopId: string; userId: string; iso: (of
     if (customer) {
       const paid = s.pay === 'cash' ? calc.subtotal : s.pay === 'debt' ? 0n : BigInt(s.pay);
       if (paid > 0n) {
-        payments.push({ id: newId(), shop_id: shopId, customer_id: customer.id, amount: paid.toString(), method: s.method ?? 'naqd', note: 'Savdo bilan', created_by: userId, created_at: iso(at) });
+        payments.push({ id: newId(), shop_id: shopId, customer_id: customer.id, amount: paid.toString(), method: s.method ?? 'naqd', note: 'Savdo bilan', created_by: userId, created_at: iso(at), client_op_id: `sale-pay:demo-doc:${docId}` });
       }
     }
   }

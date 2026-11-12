@@ -3,6 +3,7 @@
  */
 import type { Product } from './data/types';
 import { parseMoneyInput, parseQtyInput } from './money';
+import { resolveSaleProduct } from './productIdentity';
 import { findProductByName } from './productPicker';
 import { buildSalePlan, isBlank, type DraftLine } from './saleForm';
 
@@ -25,7 +26,8 @@ const MESSAGES: Record<YellowReason, string> = {
  */
 export function lineStatus(line: DraftLine, products: readonly Product[]): LineStatus {
   const name = line.productName.trim();
-  const isNew = name !== '' && findProductByName(products, name) === undefined;
+  // Tanlangan tovar (productId) birinchi; aks holda nom bo'yicha (avvalgi xatti-harakat)
+  const isNew = name !== '' && resolveSaleProduct(products, line) === undefined && findProductByName(products, name) === undefined;
   const yellow = (reason: YellowReason): LineStatus => ({ status: 'yellow', reason, message: MESSAGES[reason], isNew });
   if (!name) return yellow('name');
   if (!parseQtyInput(line.qty).ok) return yellow('qty');

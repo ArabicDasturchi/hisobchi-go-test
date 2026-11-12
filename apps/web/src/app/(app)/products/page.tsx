@@ -3,6 +3,8 @@
  * Mahsulotlar (P-09/M-09): nom, birlik, sotuv narxi, holat. Tan narx va foyda ustuni YO'Q (savdogar mijoz ko'rib
  * turganda ro'yxat yozishi mumkin). Nom, birlik, narx va arxivlash joyida tuzatiladi (`updateProduct`).
  * Narxi yo'q mahsulotlar sariq belgi bilan haqiqiy holatda ko'rsatiladi, yashirilmaydi.
+ * Takroriy tovar (W4): bir xil nom + birlik saqlanmaydi, boshqa birlik yoki o'xshash nom sariq ogohlantirish oladi,
+ * arxivdagi aynan shu tovar faollashtirishga taklif qilinadi (`checkProductDuplicate`, faqat klient tekshiruvi).
  */
 import { Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,6 +23,7 @@ import { createProduct, updateProduct } from '@/lib/data/api';
 import type { Product, Unit } from '@/lib/data/types';
 import { errorMessage } from '@/lib/errors';
 import { formatMoneyInput } from '@/lib/money';
+import { checkProductDuplicate, identityChanged } from '@/lib/productIdentity';
 import { filterProducts, productFields, productInitial, valuesToInput, type ProductFilter } from '@/lib/productsView';
 import { validateRow } from '@/lib/rowEdit';
 import { getSupabase } from '@/lib/supabase/client';
@@ -30,7 +33,7 @@ const GRID = 'grid items-center gap-x-3 gap-y-0 grid-cols-[minmax(0,1fr)_auto_au
 /** Telefonda: nom va birlik chapda ustma-ust, narx va tugma o'ngda; tahrirda bir ustun */
 const place = (editing: boolean, mobile: string) => (editing ? 'col-span-full' : `${mobile} md:col-auto md:row-auto md:row-span-1`);
 
-function ProductRow({ p, units }: { p: Product; units: readonly Unit[] }) {
+function ProductRow({ p, units, products }: { p: Product; units: readonly Unit[]; products: readonly Product[] }) {
   const { shopId, reload } = useShop();
   const toast = useToast();
   const fields = useMemo(() => productFields(units), [units]);
@@ -39,16 +42,32 @@ function ProductRow({ p, units }: { p: Product; units: readonly Unit[] }) {
     fields,
     initial,
     onSave: async (v) => {
-      await updateProduct(getSupabase(), shopId, p.id, valuesToInput(v, p.is_active));
+      const input = valuesToInput(v, p.is_active);
+      if (identityChanged(p, input)) {
+        const dup = checkProductDuplicate(products, input, { selfId: p.id, mode: 'edit' });
+        if (dup.error) throw new Error(dup.error);
+      }
+      await updateProduct(getSupabase(), shopId, p.id, input);
       await reload();
       toast.success('Mahsulot yangilandi.');
     },
   });
   const [toggling, setToggling] = useState(false);
   const noPrice = p.last_price === null;
+  // Tahrir paytida jonli ogohlantirish (sariq): boshqa birlikda yoki o'xshash nomli tovar bor
+  const editInput = row.editing ? valuesToInput(row.values, p.is_active) : null;
+  const editWarnings = editInput && identityChanged(p, editInput) ? checkProductDuplicate(products, editInput, { selfId: p.id, mode: 'edit' }).warnings : [];
 
   async function toggleActive() {
     if (toggling) return;
+    if (!p.is_active) {
+      // Arxivdan qaytarishda faol egizak bo'lsa, katalogda ikki bir xil tovar paydo bo'lmasin
+      const dup = checkProductDuplicate(products, { name: p.name, unit: p.unit }, { selfId: p.id, mode: 'edit' });
+      if (dup.error) {
+        toast.error(dup.error);
+        return;
+      }
+    }
     setToggling(true);
     try {
       await updateProduct(getSupabase(), shopId, p.id, { name: p.name, unit: p.unit, last_price: p.last_price, is_active: !p.is_active });
@@ -97,6 +116,15 @@ function ProductRow({ p, units }: { p: Product; units: readonly Unit[] }) {
           <RowError row={row} />
         </div>
       )}
+      {editWarnings.length > 0 && (
+        <div className="col-span-full mt-1 space-y-1" data-testid="product-duplicate-warning">
+          {editWarnings.map((w) => (
+            <Alert key={w} tone="amber">
+              {w}
+            </Alert>
+          ))}
+        </div>
+      )}
     </EditableRow>
   );
 }
@@ -104,7 +132,7 @@ function ProductRow({ p, units }: { p: Product; units: readonly Unit[] }) {
 const groupPrice = (v: bigint) => v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
 /** Yangi mahsulot (P-09n): "Tasdiqlanmagan" paneli; Saqlash bosilmaguncha hech narsa yozilmaydi */
-function NewProduct({ units, onClose }: { units: readonly Unit[]; onClose: () => void }) {
+function NewProduct({ units, products, onClose }: { units: readonly Unit[]; products: readonly Product[]; onClose: () => void }) {
   const { shopId, reload } = useShop();
   const toast = useToast();
   const fields = useMemo(() => productFields(units), [units]);
@@ -112,18 +140,42 @@ function NewProduct({ units, onClose }: { units: readonly Unit[]; onClose: () =>
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reactivate, setReactivate] = useState<Product | null>(null);
+  const dup = useMemo(() => checkProductDuplicate(products, { name: v.name, unit: v.unit as Unit }, { mode: 'create' }), [products, v.name, v.unit]);
 
   async function save() {
     if (busy) return;
     const errs = validateRow(fields, v);
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
+    // Takror: bir xil nom + birlik saqlanmaydi (klient tekshiruvi; bazada UNIQUE hali yo'q)
+    if (dup.error) {
+      setFormError(dup.error);
+      setReactivate(dup.reactivate);
+      return;
+    }
     setBusy(true);
     setFormError(null);
+    setReactivate(null);
     try {
       await createProduct(getSupabase(), shopId, valuesToInput(v, true));
       await reload();
       toast.success(`«${v.name.trim()}» qo'shildi.`);
+      onClose();
+    } catch (e) {
+      setFormError(errorMessage(e));
+      setBusy(false);
+    }
+  }
+
+  /** Arxivdagi aynan shu tovarni qaytarish (yangi takror yaratish o'rniga) */
+  async function activateArchived(p: Product) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await updateProduct(getSupabase(), shopId, p.id, { name: p.name, unit: p.unit, last_price: p.last_price, is_active: true });
+      await reload();
+      toast.success(`«${p.name}» arxivdan qaytarildi.`);
       onClose();
     } catch (e) {
       setFormError(errorMessage(e));
@@ -164,7 +216,25 @@ function NewProduct({ units, onClose }: { units: readonly Unit[]; onClose: () =>
         </div>
       </form>
       <p className="mt-2 text-xs text-muted">Tan narx kirim orqali tushadi. Sotuv narxi keyin ham kiritilishi mumkin.</p>
-      {formError && <Alert tone="red" className="mt-2">{formError}</Alert>}
+      {dup.warnings.length > 0 && (
+        <div className="mt-2 space-y-1" data-testid="product-duplicate-warning">
+          {dup.warnings.map((w) => (
+            <Alert key={w} tone="amber">
+              {w}
+            </Alert>
+          ))}
+        </div>
+      )}
+      {formError && (
+        <Alert tone="red" className="mt-2">
+          {formError}
+          {reactivate && (
+            <Button size="sm" variant="outline" className="ml-2 mt-1" loading={busy} onClick={() => void activateArchived(reactivate)}>
+              Arxivdagini faollashtirish
+            </Button>
+          )}
+        </Alert>
+      )}
     </Card>
   );
 }
@@ -221,7 +291,7 @@ function Products({ data }: { data: ShopData }) {
       </div>
       <SearchInput value={q} onChange={setQ} placeholder="Mahsulot qidirish" className="mb-3 md:hidden" />
 
-      {adding && <NewProduct units={units} onClose={() => setAdding(false)} />}
+      {adding && <NewProduct units={units} products={data.products} onClose={() => setAdding(false)} />}
 
       <Card>
         {data.products.length === 0 ? (
@@ -239,7 +309,7 @@ function Products({ data }: { data: ShopData }) {
             </div>
             <ul className="divide-y divide-line" aria-label="Mahsulotlar">
               {rows.map((p) => (
-                <ProductRow key={p.id} p={p} units={units} />
+                <ProductRow key={p.id} p={p} units={units} products={data.products} />
               ))}
             </ul>
             <p className="hidden border-t border-line px-4 py-2 text-xs text-muted md:block">Katakni ikki marta bosing yoki Enter: tuzatish. Enter saqlaydi, Esc bekor, Tab keyingi katakka.</p>

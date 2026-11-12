@@ -12,7 +12,7 @@ import type { Payment, PaymentMethod, SaleDoc } from './types';
 export type PartnerKind = 'customer' | 'supplier';
 
 /** Hujjat turi (bekor qilish va havola uchun) */
-export type EntryRef = 'sale' | 'customer_payment' | 'purchase' | 'opening' | 'supplier_payment';
+export type EntryRef = 'sale' | 'customer_payment' | 'purchase' | 'opening' | 'debt' | 'supplier_payment';
 
 export interface SheetEntry extends LedgerEntry {
   ref: EntryRef;
@@ -52,7 +52,8 @@ export function supplierEntries(supplierId: string, data: Pick<BooksData, 'purch
       .filter((p) => p.supplier_id === supplierId)
       .map<SheetEntry>((p) => ({
         id: p.id,
-        ref: p.kind === 'opening' ? 'opening' : 'purchase',
+        // 'debt' (013): tovarsiz qarz yozuvi — qarzga «Tovar» kabi qo'shiladi, lekin kirim emas (qatorsiz)
+        ref: p.kind === 'opening' ? 'opening' : p.kind === 'debt' ? 'debt' : 'purchase',
         kind: p.kind === 'opening' ? 'opening' : 'goods',
         date: p.doc_date,
         at: p.created_at,
