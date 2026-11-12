@@ -1,0 +1,28 @@
+{
+  "_izoh": "Core (packages/core/__tests__/pricing.test.ts) va SQL (supabase/tests/95_ombor_narxlar.test.sql) shu BIR xil kirishlarni tekshiradi. Natijalar qo'lda hisoblangan (formuladan emas). Miqdor milli (1000 = 1 birlik). null = yo'q.",
+  "resolve": [
+    { "name": "chegaradan oldin (9.999 kg)", "sale": 13000, "ws": 12000, "min": 10000, "qty": 9999, "expected": 13000 },
+    { "name": "aynan chegarada (10 kg)", "sale": 13000, "ws": 12000, "min": 10000, "qty": 10000, "expected": 12000 },
+    { "name": "chegaradan keyin (10.001 kg)", "sale": 13000, "ws": 12000, "min": 10000, "qty": 10001, "expected": 12000 },
+    { "name": "optom narx yo'q", "sale": 13000, "ws": null, "min": null, "qty": 99000, "expected": 13000 },
+    { "name": "bitta dona, optom 10 dona", "sale": 5000, "ws": 4500, "min": 10000, "qty": 1000, "expected": 5000 },
+    { "name": "100 dona, optom 10 dona", "sale": 5000, "ws": 4500, "min": 10000, "qty": 100000, "expected": 4500 },
+    { "name": "optom narx 0 so'm (sovg'a) chegarada", "sale": 5000, "ws": 0, "min": 1000, "qty": 1000, "expected": 0 },
+    { "name": "sotuv narxi yo'q, optom chegaraga yetmagan", "sale": null, "ws": 4500, "min": 10000, "qty": 1000, "expected": null },
+    { "name": "sotuv narxi yo'q, optom chegarada", "sale": null, "ws": 4500, "min": 10000, "qty": 10000, "expected": 4500 },
+    { "name": "kasr chegara (0.5 kg)", "sale": 20000, "ws": 18000, "min": 500, "qty": 500, "expected": 18000 }
+  ],
+  "suggest": [
+    { "name": "9 000 + 20%", "cost": 9000, "pct": 20, "expected": 10800 },
+    { "name": "7.7 yuqoriga", "cost": 7, "pct": 10, "expected": 8 },
+    { "name": "5.5 yarimdan yuqoriga (half-up)", "cost": 5, "pct": 10, "expected": 6 },
+    { "name": "1.49 pastga", "cost": 1, "pct": 49, "expected": 1 },
+    { "name": "1.5 yuqoriga", "cost": 1, "pct": 50, "expected": 2 },
+    { "name": "14196.75 -> 14197", "cost": 12345, "pct": 15, "expected": 14197 },
+    { "name": "ustama 0%", "cost": 10000, "pct": 0, "expected": 10000 },
+    { "name": "3.99 -> 4", "cost": 3, "pct": 33, "expected": 4 },
+    { "name": "tan narx 0", "cost": 0, "pct": 25, "expected": 0 },
+    { "name": "katta qiymat, 1000% = x11", "cost": 999999999999, "pct": 1000, "expected": 10999999999989 },
+    { "name": "manfiy tan narx", "cost": -1, "pct": 10, "expected": null }
+  ]
+}
