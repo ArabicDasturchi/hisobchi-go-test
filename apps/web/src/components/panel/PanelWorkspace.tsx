@@ -5,7 +5,7 @@
  * Hisob faqat mavjud yo'ldan (`buildSalePlan`, `settle`, server RPC). AI yo'q. Tasdiqlamaguncha hech narsa saqlanmaydi.
  */
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CustomerFormModal } from '@/components/forms/CustomerFormModal';
 import { SupplierFormModal } from '@/components/forms/SupplierFormModal';
 import { ConfirmSaleModal } from '@/components/sale/ConfirmSaleModal';
@@ -13,6 +13,7 @@ import { SaleComposer, type SaleComposerHandle } from '@/components/sale/SaleCom
 import { SaleLineCard } from '@/components/sale/SaleLineCard';
 import { SaleResultCard } from '@/components/sale/SaleResultCard';
 import { SaleSummaryBar } from '@/components/sale/SaleSummaryBar';
+import { SuggestionPanel } from '@/components/sale/SuggestionPanel';
 import { useKeyboardInset } from '@/components/sale/useKeyboardInset';
 import { usePaymentSubmit } from '@/components/sale/usePaymentSubmit';
 import { useSaleSubmit } from '@/components/sale/useSaleSubmit';
@@ -33,7 +34,7 @@ import { ACTION_INFO, panelHref, parsePanelParams, whoForAction, type PanelActio
 import { patchSaleLine } from '@/lib/productIdentity';
 import { addNewPurchaseLine, addNewSaleLine, applyPurchaseSelection, defaultNewUnit, purchaseAsDraft } from '@/lib/panelLines';
 import { topProducts } from '@/lib/productPicker';
-import { applySelection, sameName, searchProductsAll } from '@/lib/productSearch';
+import { applySelection, sameName, searchProductsAll, toggleSelection } from '@/lib/productSearch';
 import { lineUnit, resolveProduct, type PurchaseDraftLine } from '@/lib/purchaseForm';
 import { parseEnabledUnits, unitChoices } from '@/lib/units';
 import { buildSalePlan, DEFAULT_PAY_MODE, effectiveMode, type DraftLine, type PayMode } from '@/lib/saleForm';
@@ -54,6 +55,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const toast = useToast();
   const { balances, customerById, membership } = useShop();
   const books = useBooks();
+  const panelId = useId();
   const composer = useRef<SaleComposerHandle>(null);
   const kb = useKeyboardInset();
 
@@ -76,6 +78,9 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
 
   // ---- Kiritish holati ----
   const [query, setQuery] = useState('');
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [focusSignal, setFocusSignal] = useState(0);
+  const [selected, setSelected] = useState<string[]>([]);
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('naqd');
@@ -145,6 +150,9 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   // ---- Qatorlar ----
   function afterAdd() {
     setQuery('');
+    setSelected([]);
+    setPanelOpen(false);
+    setFocusSignal(0);
     composer.current?.focus();
   }
   function addProducts(ps: ReturnType<typeof productById.get>[]) {
@@ -154,6 +162,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     else setBuyLines((ls) => applyPurchaseSelection(ls, chosen, (id) => lastCost.get(id)));
     afterAdd();
   }
+  const addSelected = () => addProducts(selected.map((id) => productById.get(id)));
   function addNew(name: string) {
     if (action === 'savdo') setSaleLines((ls) => addNewSaleLine(ls, name));
     else setBuyLines((ls) => addNewPurchaseLine(ls, name, undefined, defaultNewUnit(buyUnits)));
@@ -187,6 +196,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     if (action === 'tolov' || action === 'ta-tolov') return void runPayment(action);
     if (action === 'daftar') return void runNote();
     if (!query.trim()) return;
+    if (selected.length > 0) return addSelected();
     if (items[0]) return addProducts([items[0]]);
     addNew(query);
   }
@@ -195,6 +205,8 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     setQuery('');
     setAmount('');
     setNote('');
+    setSelected([]);
+    setPanelOpen(false);
     go({ action: a });
   }
 
@@ -241,6 +253,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     ...(info.who !== 'customer' ? [{ label: "Yangi ta'minotchi", onClick: () => setNewPartner('supplier') }] : []),
   ];
 
+  const showPanel = searching && panelOpen && !dockLocked && (items.length > 0 || newName !== null);
   const textValue = action === 'tolov' || action === 'ta-tolov' ? amount : action === 'daftar' ? note : query;
   const money = action === 'tolov' || action === 'ta-tolov';
   const sendDisabled = money ? !who || !amount.trim() : action === 'daftar' ? !previewLedgerNote(partnerBalance, note).ok || !who : !query.trim();
@@ -392,6 +405,8 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
                 ledger.clearError();
               } else {
                 setQuery(v);
+                setPanelOpen(true);
+                setFocusSignal(0);
               }
             }}
             placeholder={info.placeholder}
@@ -399,8 +414,12 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
             inputMode={money ? 'numeric' : 'text'}
             sendLabel={info.sendLabel}
             confirmIcon={!searching}
-            panelOpen={false}
+            panelOpen={showPanel}
+            panelId={panelId}
             onSubmit={submitComposer}
+            onFocusPanel={() => setFocusSignal((n) => n + 1)}
+            onEscape={() => setPanelOpen(false)}
+            onFocus={() => searching && setPanelOpen(true)}
             plus={<PlusMenu onChoose={onPlus} />}
             action={<ActionMenu value={action} onChange={changeAction} />}
             who={
@@ -420,6 +439,23 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
             disabled={dockLocked}
             sendDisabled={sendDisabled}
           >
+            {showPanel && (
+              <SuggestionPanel
+                id={panelId}
+                query={query}
+                items={items}
+                lines={draftLines}
+                selected={selected}
+                newName={newName}
+                focusSignal={focusSignal}
+                onToggle={(id) => setSelected((s) => toggleSelection(s, id))}
+                onBump={(p) => addProducts([p])}
+                onAddSelected={addSelected}
+                onAddNew={addNew}
+                onClose={() => setPanelOpen(false)}
+                onReturnFocus={() => composer.current?.focus()}
+              />
+            )}
           </SaleComposer>
         </div>
       </div>
