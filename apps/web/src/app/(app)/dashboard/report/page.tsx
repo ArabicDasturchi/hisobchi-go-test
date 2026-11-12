@@ -8,7 +8,9 @@ import { DataGate, MethodBadge, Money, StatCard, StatusBadge } from '@/component
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Alert, Button, Card, CardHeader, EmptyState, Input, PageHeader, Segmented } from '@/components/ui/primitives';
 import { uz } from '@/i18n/uz';
+import { sumPaymentsByMethod } from '@hisobchi/core';
 import { downloadCsv, toCsv } from '@/lib/csv';
+import { methodBreakdown, toDayPayments } from '@/lib/dashboardModel';
 import { balanceOf, computeTotals, inRange, rangeSeries, sumActivePayments, sumPosted } from '@/lib/data/ledger';
 import { addDays, dayKey, dayRangeToIso, formatDate, formatDateTime, parseDayKey, shortNumber } from '@/lib/dates';
 
@@ -66,7 +68,9 @@ function Reports({ data }: { data: ShopData }) {
       .map(([id, r]) => ({ id, name: customerById.get(id)?.name ?? "Noma'lum", ...r, debt: balanceOf(balances, id).debt }))
       .sort((a, b) => (b.sales > a.sales ? 1 : b.sales < a.sales ? -1 : 0));
     const anonSales = sumPosted(posted.filter((s) => anon(s.customer_id)));
-    return { sales, payments, posted, reversed, series, customerRows, anonSales };
+    // Usul bo'yicha (W6): naqd, karta, o'tkazma aralashmasin. Yig'indi core'da
+    const paymentsByMethod = sumPaymentsByMethod(toDayPayments(payments));
+    return { sales, payments, posted, reversed, series, customerRows, anonSales, paymentsByMethod };
   }, [data, from, to, customerById, balances]);
 
   const totalsNow = useMemo(() => computeTotals(data.sales, data.payments), [data]);
@@ -202,7 +206,13 @@ function Reports({ data }: { data: ShopData }) {
           <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Savdo (davrda)" value={<Money value={sumPosted(view.posted)} />} hint={`${view.posted.length} ta savdo${view.anonSales > 0n ? ', mijozsiz qismi bilan' : ''}`} icon={CircleDollarSign} accent="blue" />
             <StatCard label="Bekor qilingan" value={<Money value={view.reversed.reduce((s, d) => s + d.subtotal, 0n)} />} hint={`${view.reversed.length} ta savdo`} icon={Ban} accent="slate" />
-            <StatCard label="To'lovlar (davrda)" value={<Money value={sumActivePayments(view.payments)} />} hint={`${view.payments.filter((p) => !p.void).length} ta faol to'lov`} icon={Wallet} accent="emerald" />
+            <StatCard
+              label="To'lovlar (davrda)"
+              value={<Money value={view.paymentsByMethod.total} />}
+              hint={methodBreakdown(view.paymentsByMethod) || `${view.payments.filter((p) => !p.void).length} ta faol to'lov`}
+              icon={Wallet}
+              accent="emerald"
+            />
             <StatCard label="Joriy qarzdorlik" value={<Money value={totalsNow.totalDebt} />} hint={`${totalsNow.debtorCount} ta qarzdor (bugungi holat)`} icon={HandCoins} accent="rose" />
           </div>
 

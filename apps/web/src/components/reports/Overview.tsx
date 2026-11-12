@@ -3,7 +3,7 @@
  * Hisobotlar: "Umumiy ko'rinish" (bugungi savdo/foyda/kassa, qarzlar, diqqat, so'nggi savdolar, grafik).
  * Bosh sahifadan ko'chirildi: kiritish oynasi bor panelda hisobot kartochkalari yo'q. Raqamlar `dashboardModel` dan.
  */
-import { AlertTriangle, ArrowRight, Banknote, Boxes, Receipt, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Banknote, Boxes, CreditCard, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { TrendChart, type ChartSeries } from '@/components/charts/TrendChart';
@@ -12,7 +12,7 @@ import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Avatar, Card, CardHeader, EmptyState, LinkButton, Segmented } from '@/components/ui/primitives';
 import { useBooks } from '@/components/useBooks';
 import { uz } from '@/i18n/uz';
-import { buildDashboard, chartSeries } from '@/lib/dashboardModel';
+import { buildDashboard, chartSeries, methodBreakdown } from '@/lib/dashboardModel';
 import { formatDateTime, shortNumber } from '@/lib/dates';
 import { formatQty } from '@/lib/money';
 
@@ -43,7 +43,7 @@ export function Overview({ data }: { data: ShopData }) {
     <div data-testid="overview">
           {/* 2. Bugun */}
           <h2 className="mb-2 mt-5 text-sm font-semibold text-muted">Bugun</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="today">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="today">
             <StatCard label="Savdo" value={<Money value={today.sales} />} hint={`${today.saleCount} ta savdo`} icon={Receipt} accent="emerald" />
             <StatCard
               label="Foyda"
@@ -60,7 +60,14 @@ export function Overview({ data }: { data: ShopData }) {
               icon={TrendingUp}
               accent="blue"
             />
-            <StatCard label="Kassa" value={<Money value={today.cash} />} hint="Naqd savdo + qabul qilingan to‘lovlar − naqd chiqim" icon={Wallet} accent="slate" />
+            <StatCard label="Kassa (naqd)" value={<Money value={today.cash} />} hint="Mijozsiz savdo + naqd to‘lovlar − naqd chiqim" icon={Wallet} accent="slate" />
+            <StatCard
+              label="Karta va o‘tkazma"
+              value={<Money value={today.paymentsInByMethod.karta + today.paymentsInByMethod.otkazma} />}
+              hint={`Mijozlardan; kassaga kirmaydi${methodBreakdown(today.paymentsInByMethod, ['karta', 'otkazma']) ? ` · ${methodBreakdown(today.paymentsInByMethod, ['karta', 'otkazma'])}` : ''}`}
+              icon={CreditCard}
+              accent="blue"
+            />
           </div>
 
           {/* 3. Qarzlar */}

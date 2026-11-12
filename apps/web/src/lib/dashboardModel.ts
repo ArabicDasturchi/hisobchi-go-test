@@ -14,11 +14,14 @@ import {
   type DayTotals,
   type DebtSummary,
   type LowStockItem,
+  type MethodTotals,
 } from '@hisobchi/core';
+import { uz } from '@/i18n/uz';
 import type { BooksData } from './data/books';
 import { supplierTotals } from './data/books';
 import type { CustomerBalance } from './data/ledger';
-import type { Customer, Payment, Product, SaleDoc, SaleLineCost } from './data/types';
+import { groupDigits } from './money';
+import { PAYMENT_METHODS, type Customer, type Payment, type Product, type SaleDoc, type SaleLineCost } from './data/types';
 
 const DAY_MS = 86_400_000;
 
@@ -28,11 +31,23 @@ export const toDaySales = (sales: readonly SaleDoc[]): DaySale[] =>
 export const toDayLines = (lines: readonly SaleLineCost[]): DaySaleLine[] =>
   lines.map((l) => ({ documentId: l.document_id, qtyMilli: l.qty_milli, unitPrice: l.unit_price, unitCost: l.unit_cost }));
 
+/** Usul uzatiladi: kassaga faqat naqd to'lov kiradi (W6) */
 export const toDayPayments = (payments: readonly Payment[]): DayPayment[] =>
-  payments.map((p) => ({ createdAt: p.created_at, amount: p.amount, voided: p.void !== null }));
+  payments.map((p) => ({ createdAt: p.created_at, amount: p.amount, method: p.method, voided: p.void !== null }));
 
 export const toDaySupplierPayments = (books: Pick<BooksData, 'payments'> | null): DaySupplierPayment[] =>
   (books?.payments ?? []).map((p) => ({ createdAt: p.created_at, amount: p.amount, method: p.method, voided: p.voided }));
+
+/**
+ * Usul bo'yicha qisqa matn (karta hint'lari uchun): "Naqd 100 000 · Karta 500 000". Nol usullar tushiriladi;
+ * hammasi nol bo'lsa bo'sh satr. Faqat ko'rsatish: summalar core `sumPaymentsByMethod`/`dayTotals` dan keladi.
+ */
+export function methodBreakdown(t: MethodTotals, only: readonly (keyof MethodTotals)[] = PAYMENT_METHODS): string {
+  return only
+    .filter((m) => t[m] !== 0n)
+    .map((m) => `${uz.methods[m]} ${groupDigits(t[m])}`)
+    .join(' · ');
+}
 
 /** `now` dan boshlab oxirgi `days` kun, Toshkent sanalari, eskidan yangiga */
 export function lastDays(now: Date, days: number): string[] {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CustomerBalance } from '@/lib/data/ledger';
 import type { Payment, Product, SaleDoc, SaleLineCost } from '@/lib/data/types';
-import { buildDashboard, chartSeries, lastDays } from '@/lib/dashboardModel';
+import { buildDashboard, chartSeries, lastDays, methodBreakdown, toDayPayments, toDaySupplierPayments } from '@/lib/dashboardModel';
 
 const NOW = new Date('2026-11-05T10:00:00Z'); // 15:00 Toshkent
 const S = (id: string, iso: string, total: number, customer: string | null, status: SaleDoc['status'] = 'posted'): SaleDoc => ({
@@ -14,8 +14,8 @@ const P = (id: string, name: string, cost: number | null | undefined, active = t
   id, name, unit: 'kg', last_price: 1000n, cost_price: cost === undefined ? undefined : cost === null ? null : BigInt(cost), is_active: active, source: 'app', created_at: '', updated_at: '',
 });
 const bal = (debt: number): CustomerBalance => ({ sales: 0n, paid: 0n, debt: BigInt(debt), saleCount: 0, lastActivity: null });
-const pay = (iso: string, amount: number, voided = false): Payment => ({
-  id: iso + amount, customer_id: 'c1', amount: BigInt(amount), method: 'naqd', note: null, created_by: 'u', created_at: iso,
+const pay = (iso: string, amount: number, voided = false, method: Payment['method'] = 'naqd'): Payment => ({
+  id: iso + amount, customer_id: 'c1', amount: BigInt(amount), method, note: null, created_by: 'u', created_at: iso,
   void: voided ? { id: 'v', payment_id: 'p', reason: 'r', created_by: 'u', created_at: iso } : null,
 });
 
@@ -69,5 +69,32 @@ describe('chartSeries', () => {
   });
   it('lastDays sana tartibi', () => {
     expect(lastDays(NOW, 3)).toEqual(['2026-11-03', '2026-11-04', '2026-11-05']);
+  });
+});
+
+// W6: usul core'ga yetib boradi, karta/o'tkazma kassaga kirmaydi
+describe("to'lov usuli (W6)", () => {
+  it("toDayPayments usulni uzatadi", () => {
+    const rows = toDayPayments([pay('2026-11-05T11:00:00Z', 1, false, 'naqd'), pay('2026-11-05T11:00:00Z', 2, false, 'karta'), pay('2026-11-05T11:00:00Z', 3, true, 'otkazma')]);
+    expect(rows.map((r) => [r.method, r.voided])).toEqual([['naqd', false], ['karta', false], ['otkazma', true]]);
+  });
+  it("toDaySupplierPayments usulni uzatadi", () => {
+    const rows = toDaySupplierPayments({ payments: [{ id: 'x', supplier_id: 's', amount: 5n, method: 'karta', note: null, created_at: '2026-11-05T11:00:00Z', voided: false }] } as never);
+    expect(rows).toEqual([{ createdAt: '2026-11-05T11:00:00Z', amount: 5n, method: 'karta', voided: false }]);
+  });
+  it("mijoz karta/o'tkazma bilan to'lasa kassa o'smaydi, alohida ko'rinadi", () => {
+    const m = buildDashboard({
+      ...base,
+      payments: [...base.payments, pay('2026-11-05T12:00:00Z', 500_000, false, 'karta'), pay('2026-11-05T12:30:00Z', 250_000, false, 'otkazma')],
+    });
+    expect(m.today.cash).toBe(385_000n + 100_000n);
+    expect(m.today.paymentsInByMethod).toEqual({ naqd: 100_000n, karta: 500_000n, otkazma: 250_000n });
+    expect(m.today.paymentsIn).toBe(850_000n);
+  });
+  it('methodBreakdown: nol usullar tushiriladi, hammasi nol bo‘lsa bo‘sh', () => {
+    const t = { naqd: 100_000n, karta: 0n, otkazma: 2_500_000n };
+    expect(methodBreakdown(t).replace(/ /g, ' ')).toBe("Naqd 100 000 · O'tkazma 2 500 000");
+    expect(methodBreakdown(t, ['karta', 'otkazma']).replace(/ /g, ' ')).toBe("O'tkazma 2 500 000");
+    expect(methodBreakdown({ naqd: 0n, karta: 0n, otkazma: 0n })).toBe('');
   });
 });
