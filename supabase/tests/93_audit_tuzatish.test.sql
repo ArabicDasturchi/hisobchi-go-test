@@ -1,5 +1,5 @@
--- 016: tuzatish va bekor qilish (F3) — audit izi, kirimni to'lovi bilan bekor qilish, qarz va ombor tiklanishi.
--- 001..013 va 016 qo'llangandan keyin (014/015 ixtiyoriy).
+-- 017: tuzatish va bekor qilish (F3) — audit izi, kirimni to'lovi bilan bekor qilish, qarz va ombor tiklanishi.
+-- 001..013 va 017 qo'llangandan keyin (015/016 ixtiyoriy).
 \set ON_ERROR_STOP 1
 
 CREATE OR REPLACE FUNCTION pg_temp.as_user(p_uid uuid) RETURNS void LANGUAGE plpgsql AS $$

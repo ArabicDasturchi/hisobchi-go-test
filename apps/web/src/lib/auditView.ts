@@ -1,5 +1,5 @@
 /**
- * F3: o'zgarishlar tarixi (audit_log, migratsiya 016) — o'qish va savdogarga tushunarli matn (UI'siz, testlanadi).
+ * F3: o'zgarishlar tarixi (audit_log, migratsiya 017) — o'qish va savdogarga tushunarli matn (UI'siz, testlanadi).
  * Yozuvni faqat server trigger'lari qo'shadi; web faqat o'qiydi (RLS: o'z do'koni). Telefon/izoh qiymati jurnalda yo'q.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';

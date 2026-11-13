@@ -1,7 +1,7 @@
 /**
  * Savat ombori (F2): bitta interfeys, ikki joy.
- *  - `server`: Supabase (migratsiya 015) — qurilmalar orasida, versiya to'qnashuvi serverda tekshiriladi.
- *  - `local`: shu brauzer (localStorage) — 015 hali qo'llanmagan server yoki demo rejim. Sahifa yangilansa ham,
+ *  - `server`: Supabase (migratsiya 016) — qurilmalar orasida, versiya to'qnashuvi serverda tekshiriladi.
+ *  - `local`: shu brauzer (localStorage) — 016 hali qo'llanmagan server yoki demo rejim. Sahifa yangilansa ham,
  *    boshqa bo'limga o'tib qaytsa ham saqlanadi; boshqa qurilmaga o'tmaydi (UI buni aytadi).
  * Ikkalasida ham: versiya (`expectedVersion`), takror yuborish idempotent (`clientOpId`), yopilgan savat o'zgarmaydi.
  * Savat pul yozuvi emas: jurnalga hech narsa yozilmaydi.
@@ -121,7 +121,7 @@ export function createLocalStore(storage: KeyValueStorage | null, shopId: string
 }
 
 /**
- * Server savatni qo'llab-quvvatlasa — server ombori, aks holda (015 yo'q, demo) — mahalliy. Tarmoq xatosi kabi
+ * Server savatni qo'llab-quvvatlasa — server ombori, aks holda (016 yo'q, demo) — mahalliy. Tarmoq xatosi kabi
  * boshqa xatolar yuqoriga uzatiladi (jim mahalliy rejimga o'tilmaydi: ma'lumot ikki joyga bo'linib ketmasin).
  */
 export async function resolveBasketStore(sb: SupabaseClient, shopId: string, storage: KeyValueStorage | null): Promise<{ store: BasketStore; baskets: StoredBasket[] }> {

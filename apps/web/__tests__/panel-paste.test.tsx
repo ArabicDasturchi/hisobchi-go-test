@@ -34,6 +34,8 @@ vi.mock('@/components/ShopDataProvider', () => ({
   useShop: () => ({
     balances: new Map(),
     customerById: new Map(),
+    // Sherik (#59): ombor narx sozlamalari; standart (optom o'chiq)
+    pricing: { wholesaleEnabled: false, stockEnabled: true, markupPercent: null },
     membership: { shop: { settings: { units: ['dona'] } }, role: 'owner' },
     shopId: 's1',
   }),

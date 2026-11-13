@@ -1,5 +1,5 @@
 -- ============================================================
--- HISOBCHI GO — 017: AI so'rovlari hisobi (sarf, kunlik limit, o'lchov)
+-- HISOBCHI GO — 018: AI so'rovlari hisobi (sarf, kunlik limit, o'lchov)
 -- ============================================================
 -- Maqsad: Edge Function `ai-parse` har bir AI chaqiruvini shu yerda ro'yxatdan o'tkazadi:
 --   1. ai_begin_request  — a'zolik (faqat birinchi tomon sessiyasi, OAuth rad) + do'kon bo'yicha

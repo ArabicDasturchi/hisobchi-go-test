@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * 018 rollar (web tomoni): sotuvchi (member) bekor qilish va ombor tuzatish tugmalarini ko'rmaydi; bazada ham
+ * 019 rollar (web tomoni): sotuvchi (member) bekor qilish va ombor tuzatish tugmalarini ko'rmaydi; bazada ham
  * majburiy (supabase/tests/94_rollar.test.sql). K3: harakati bor tovar birligi o'zgarmasligi haqida xabar.
  */
 import { describe, expect, it } from 'vitest';
@@ -8,7 +8,7 @@ import { toAppError } from '@/lib/errors';
 import { can } from '@/lib/permissions';
 import { unitLockedMessage } from '@/lib/productIdentity';
 
-describe('rollar (018)', () => {
+describe('rollar (019)', () => {
   it('bekor qilish va ombor tuzatish: owner/admin — ha, member — yo‘q', () => {
     for (const a of ['ledger.reverse', 'stock.adjust'] as const) {
       expect(can('owner', a)).toBe(true);

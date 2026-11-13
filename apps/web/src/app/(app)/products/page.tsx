@@ -38,7 +38,7 @@ function ProductRow({ p, units, products }: { p: Product; units: readonly Unit[]
   const { shopId, reload, data } = useShop();
   const toast = useToast();
   const fields = useMemo(() => productFields(units), [units]);
-  // K3 (014): ombor harakati bor tovarning birligi o'zgarmaydi (eski harakatlar yangi birlikda o'qilib qoldiq buziladi)
+  // K3 (015): ombor harakati bor tovarning birligi o'zgarmaydi (eski harakatlar yangi birlikda o'qilib qoldiq buziladi)
   const hasMovements = data?.stock?.has(p.id) ?? false;
   const initial = useMemo(() => productInitial(p), [p]);
   const row = useRowEdit({
@@ -221,7 +221,7 @@ function NewProduct({ units, products, onClose }: { units: readonly Unit[]; prod
           </Button>
         </div>
       </form>
-      <p className="mt-2 text-xs text-muted">Tan narx kirim orqali tushadi. Sotuv narxi keyin ham kiritilishi mumkin.</p>
+      <p className="mt-2 text-xs text-muted">Bu yerda faqat nom, birlik va sotuv narxi. Tan narx va optom narx Ombor sahifasida kiritiladi.</p>
       {dup.warnings.length > 0 && (
         <div className="mt-2 space-y-1" data-testid="product-duplicate-warning">
           {dup.warnings.map((w) => (

@@ -83,11 +83,11 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   [/target_not_found/, 'not_found', 'Mijoz yoki tovar topilmadi.'],
   [/oauth_client_forbidden/, 'forbidden', 'Bu amal faqat Hisobchi Go ilovasida bajariladi.'],
   [/draft_immutable|draft_invalid_transition/, 'conflict', "Qoralamani o'zgartirib bo'lmaydi."],
-  // --- Xavfsizlik (014) va rollar (018) ---
+  // --- Xavfsizlik (015) va rollar (019) ---
   [/unit_locked/, 'validation', "Bu tovar bo'yicha ombor harakati bor: birligini o'zgartirib bo'lmaydi. Boshqa birlik kerak bo'lsa, yangi tovar qo'shing va eskisini arxivlang."],
   [/role_forbidden/, 'forbidden', "Bu amalni faqat do'kon egasi yoki administrator bajaradi."],
   [/walkin_customer_id_forbidden/, 'validation', "Bir martalik mijozga qoralama alohida yaratilmaydi."],
-  // --- Savat (015) ---
+  // --- Savat (016) ---
   [/version_conflict/, 'conflict', "Bu savat boshqa qurilmada o'zgartirilgan. Oxirgi holat yuklandi: tekshirib, kerak bo'lsa o'zgarishingizni qayta qo'llang."],
   [/basket_closed/, 'conflict', 'Bu savat allaqachon yopilgan (tasdiqlangan yoki tashlangan).'],
   [/basket_not_found/, 'not_found', 'Savat topilmadi.'],

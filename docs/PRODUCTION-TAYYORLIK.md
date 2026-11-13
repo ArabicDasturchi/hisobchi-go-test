@@ -19,15 +19,15 @@ Narx va reja imkoniyatlari (kunlik zaxira, PITR) Supabase va Vercel saytida **te
 | Raqam | Mazmun | PR turi | Xavf |
 |---|---|---|---|
 | 013 | Savdoni to'lovi bilan bekor qilish, ta'minotchi qarz yozuvi | merge qilingan; production'da qo'llanganligi **tekshirilmagan** | past |
-| 014 | Xavfsizlik va barqarorlik (B2) | faqat SQL | K3 birlik qulfi saqlanadi (QARORLAR 13.11): web oldindan to'xtatadi, mobilga talab yozildi. 11 indeks qisqa yozish qulfi beradi |
-| 015 | Savat (F2) | faqat SQL | yangi jadval, mavjud ma'lumotga tegmaydi |
-| 016 | Audit va kirimni to'lovi bilan bekor qilish (F3) | faqat SQL | trigger'lar har tuzatishda bitta qator qo'shadi |
-| 017 | AI sarf jurnali va limit (F4/F5) | faqat SQL | yangi jadval |
-| 018 | Rollar: sotuvchi bekor qila olmaydi / ombor tuzata olmaydi | faqat SQL | trigger; hozir har do'konda faqat egasi bor — ta'sir yo'q |
+| 015 | Xavfsizlik va barqarorlik (B2) | faqat SQL | K3 birlik qulfi saqlanadi (QARORLAR 13.11): web oldindan to'xtatadi, mobilga talab yozildi. 11 indeks qisqa yozish qulfi beradi |
+| 016 | Savat (F2) | faqat SQL | yangi jadval, mavjud ma'lumotga tegmaydi |
+| 017 | Audit va kirimni to'lovi bilan bekor qilish (F3) | faqat SQL | trigger'lar har tuzatishda bitta qator qo'shadi |
+| 018 | AI sarf jurnali va limit (F4/F5) | faqat SQL | yangi jadval |
+| 019 | Rollar: sotuvchi bekor qila olmaydi / ombor tuzata olmaydi | faqat SQL | trigger; hozir har do'konda faqat egasi bor — ta'sir yo'q |
 
 Har migratsiya: avval **staging** → `bash supabase/tests/run_local.sh` (lokal: 889 PASS) → staging'da S1–S15 + quyidagi yangi oqimlar → asoschi so'zi → `main` ga merge → CI `migrate.yml` qo'llaydi.
 
-Web 015/016/017 qo'llanmagan serverda ham buzilmaydi:
+Web 016/017/018 qo'llanmagan serverda ham buzilmaydi:
 - savat shu brauzerda saqlanadi;
 - kirim avvalgi yo'l bilan bekor qilinadi va savdogarga aytiladi;
 - AI "ulanmagan" deydi.
@@ -37,7 +37,7 @@ Bu xatti-harakat testlar bilan tekshirilgan.
 ## 3. Staging (B1) — asoschi qiladi, keyin Claude Code sinaydi
 
 1. Asoschi: [STAGING-TEKSHIRUV.md](STAGING-TEKSHIRUV.md) 1-bo'lim (staging loyiha, GitHub `staging` muhiti sirlari, Vercel Preview env, Redirect URL'lar, leaked password protection).
-2. Claude Code: `migrate-staging.yml` bilan 001–018, keyin [STAGING-CHECKLIST.md](STAGING-CHECKLIST.md) S1–S15. Yangi oqimlar:
+2. Claude Code: `migrate-staging.yml` bilan 001–019, keyin [STAGING-CHECKLIST.md](STAGING-CHECKLIST.md) S1–S15. Yangi oqimlar:
    - **F1:** 10 qatorli ro'yxat joylash → tasdiq → `post_sale`. Jami serverda qayta hisoblanadi.
    - **F2:**
      - ikki mijoz savati;
@@ -120,7 +120,7 @@ Buni qilish uchun asoschi qarori kerak: sotuvchi nimani ko'radi va nimani bekor 
 
 ## 9. Chiqishdan oldingi tekshiruv ro'yxati
 
-- [ ] Staging'da 001–017 qo'llandi, S1–S15 va 3-bo'limdagi yangi oqimlar ✅
+- [ ] Staging'da 001–018 qo'llandi, S1–S15 va 3-bo'limdagi yangi oqimlar ✅
 - [ ] AI provayderi tanlandi, `AI_*` sirlari GitHub Environments'ga kiritildi, Actions → «Edge Function deploy (ai-parse)» (staging, keyin production)
 - [ ] Production zaxirasi olindi (`zaxira.sh`) va tiklash sinaldi (`tiklash-sinov.sh`)
 - [ ] Domen, TLS, Redirect URL'lar, `AI_ALLOWED_ORIGINS`

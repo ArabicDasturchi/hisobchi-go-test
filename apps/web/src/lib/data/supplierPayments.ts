@@ -55,8 +55,8 @@ export async function voidSupplierPayment(sb: SB, shopId: string, paymentId: str
 
 /** Kirimni (yoki boshlang'ich qarzni) bekor qilish: teskari yozuv, ombor harakati ham teskarilanadi */
 /**
- * Kirimni bekor qilish (F3, 016): kirim va U BILAN BERILGAN to'lov bitta tranzaksiyada bekor qilinadi
- * (`reverse_purchase_with_payments`), ta'minotchiga ortiqcha to'lov qolmaydi. 016 qo'llanmagan serverda avvalgi
+ * Kirimni bekor qilish (F3, 017): kirim va U BILAN BERILGAN to'lov bitta tranzaksiyada bekor qilinadi
+ * (`reverse_purchase_with_payments`), ta'minotchiga ortiqcha to'lov qolmaydi. 017 qo'llanmagan serverda avvalgi
  * `reverse_purchase` (to'lov qoladi) — natija `'legacy'`, chaqiruvchi savdogarga aytadi (jim emas).
  */
 export async function reversePurchase(sb: SB, shopId: string, documentId: string, clientOpId: string, reason: string): Promise<'with_payment' | 'legacy'> {

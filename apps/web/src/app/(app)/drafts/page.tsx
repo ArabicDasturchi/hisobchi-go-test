@@ -119,7 +119,7 @@ function Drafts({ data }: { data: ShopData }) {
     } catch (e) {
       setErrors((prev) => ({
         ...prev,
-        [d.id]: isBasketServerUnavailable(e) ? "Serverda savat hali yoqilmagan (015 migratsiya qo'llanmagan). Qoralamani odatdagidek tasdiqlang yoki rad eting." : errorMessage(e),
+        [d.id]: isBasketServerUnavailable(e) ? "Serverda savat hali yoqilmagan (016 migratsiya qo'llanmagan). Qoralamani odatdagidek tasdiqlang yoki rad eting." : errorMessage(e),
       }));
     } finally {
       inflight.current.delete(d.id);

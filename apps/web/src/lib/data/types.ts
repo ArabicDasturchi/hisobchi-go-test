@@ -48,6 +48,10 @@ export interface Product {
   last_price: bigint | null;
   /** Oxirgi kirim tan narxi (006); ustun yo'q yoki noma'lum bo'lsa null/undefined — foydaga kirmaydi */
   cost_price?: bigint | null;
+  /** Optom narx (014); ustun yo'q yoki optom belgilanmagan bo'lsa null/undefined */
+  wholesale_price?: bigint | null;
+  /** Optom boshlanadigan miqdor (1000 = 1 birlik); wholesale_price bilan birga null yoki birga to'liq */
+  wholesale_min_qty_milli?: bigint | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -129,7 +133,7 @@ export interface SaleDetail {
 // MCP agent qoralamalari (004_mcp_agent.sql: agent_drafts)
 // ---------------------------------------------------------------------------
 
-/** `converted` (015): savatga olingan — qatorlar savatda tahrirlanib odatdagidek tasdiqlanadi */
+/** `converted` (016): savatga olingan — qatorlar savatda tahrirlanib odatdagidek tasdiqlanadi */
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'converted';
 
 export interface AgentDraftLine {

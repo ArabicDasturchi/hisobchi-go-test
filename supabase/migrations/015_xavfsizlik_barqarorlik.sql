@@ -1,7 +1,7 @@
 -- ============================================================
--- HISOBCHI GO — 014: xavfsizlik va barqarorlik (BACKEND-AUDIT 4–6-bo'limlar, KEYINGI-BOSQICH K2/K3/A1)
+-- HISOBCHI GO — 015: xavfsizlik va barqarorlik (BACKEND-AUDIT 4–6-bo'limlar, KEYINGI-BOSQICH K2/K3/A1)
 -- ============================================================
--- Nima va nega (har band uchun test: supabase/tests/91_xavfsizlik_014.test.sql, eski kodda yiqiladi):
+-- Nima va nega (har band uchun test: supabase/tests/91_xavfsizlik_015.test.sql, eski kodda yiqiladi):
 --   B8   is_shop_member(uuid) PUBLIC orqali anon'ga ochiq edi -> faqat authenticated.
 --   B9   9 ta INVOKER funksiyada search_path yo'q edi -> SET search_path = public, pg_temp.
 --   B10  Yozish RPC'lari "tekshir, keyin yoz": bir xil client_op_id bilan parallel ikki chaqiruvda ikkinchisi xom 23505
@@ -26,7 +26,7 @@
 --        (overload qolmasin), eski chaqiruvlar (veb/mobil nomli argumentlar, accept_agent_draft) ishlayveradi.
 --        accept_agent_draft kirim qoralamasi izohini uzatadi.
 -- Kirmadi: S6 (payload hash + idempotency_conflict) — 6+ jadvalga ustun kerak; veb summani solishtiradi. Hisobot:
---   docs/reports/2026-11-12-B2-014-XAVFSIZLIK.md.
+--   docs/reports/2026-11-12-B2-015-XAVFSIZLIK.md.
 -- Mavjud ma'lumot o'zgartirilmaydi (faqat indeks, ustun, trigger, funksiya). Append-only buzilmaydi.
 -- Qayta ishga tushirish xavfsiz (IF NOT EXISTS, CREATE OR REPLACE, DROP ... IF EXISTS). Talab: 001..013.
 -- Qo'llash: main'ga merge bo'lganda CI (docs/MIGRATSIYA-CI.md), avval staging.
@@ -89,7 +89,7 @@ ALTER TABLE purchase_documents DROP CONSTRAINT IF EXISTS purchase_documents_note
 ALTER TABLE purchase_documents ADD CONSTRAINT purchase_documents_note_len CHECK (note IS NULL OR char_length(note) <= 500);
 
 -- ============================================================
--- Funksiyalar: tanalar oxirgi versiyadan aynan ko'chirilgan; o'zgarishlar "-- 014:" izohi bilan belgilangan.
+-- Funksiyalar: tanalar oxirgi versiyadan aynan ko'chirilgan; o'zgarishlar "-- 015:" izohi bilan belgilangan.
 -- ============================================================
 
 -- ---------- post_sale (006) + B10 ----------
@@ -122,7 +122,7 @@ DECLARE
   v_lt bigint;
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('documents', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('documents', p_shop_id, p_client_op_id); -- 015: B10
 
   SELECT id INTO v_existing FROM documents WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
   IF v_existing IS NOT NULL THEN
@@ -240,7 +240,7 @@ DECLARE
   v_kind text;
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('document_reversals', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('document_reversals', p_shop_id, p_client_op_id); -- 015: B10
   SELECT id INTO v_rev FROM document_reversals WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
   IF v_rev IS NOT NULL THEN
     RETURN v_rev;
@@ -301,7 +301,7 @@ DECLARE
   v_outstanding bigint;
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('payments', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('payments', p_shop_id, p_client_op_id); -- 015: B10
   SELECT id INTO v_existing FROM payments WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
   IF v_existing IS NOT NULL THEN
     RETURN v_existing;
@@ -334,16 +334,16 @@ DECLARE
   v_id uuid;
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  -- 014: B10 — mavjudlik tekshiruvi qatorni qulflaydi: parallel ikkinchi bekor qilish birinchisini kutib, o'sha natijani oladi
-  PERFORM 1 FROM payments WHERE id = p_payment_id AND shop_id = p_shop_id FOR UPDATE; -- 014: B10
-  IF NOT FOUND THEN -- 014: B10
+  -- 015: B10 — mavjudlik tekshiruvi qatorni qulflaydi: parallel ikkinchi bekor qilish birinchisini kutib, o'sha natijani oladi
+  PERFORM 1 FROM payments WHERE id = p_payment_id AND shop_id = p_shop_id FOR UPDATE; -- 015: B10
+  IF NOT FOUND THEN -- 015: B10
     RAISE EXCEPTION 'payment_not_found' USING ERRCODE = 'P0002';
   END IF;
   SELECT id INTO v_id FROM payment_voids WHERE payment_id = p_payment_id;
   IF v_id IS NOT NULL THEN
     RETURN v_id; -- idempotent: allaqachon bekor qilingan
   END IF;
-  -- 014: S5 — bir martalik mijoz to'lovi faqat savdo bilan birga bekor qilinadi (reverse_sale / reverse_sale_with_payments).
+  -- 015: S5 — bir martalik mijoz to'lovi faqat savdo bilan birga bekor qilinadi (reverse_sale / reverse_sale_with_payments).
   -- Idempotent qaytishdan keyin: reverse_sale avto-void qilgan to'lovni reverse_sale_with_payments qayta so'rasa xato emas.
   IF EXISTS (SELECT 1 FROM payments p JOIN customers c ON c.id = p.customer_id
              WHERE p.id = p_payment_id AND c.kind = 'one_time') THEN
@@ -371,7 +371,7 @@ BEGIN
   IF p_client_op_id IS NULL OR char_length(p_client_op_id) NOT BETWEEN 1 AND 100 THEN
     RAISE EXCEPTION 'invalid_client_op_id' USING ERRCODE = '22023';
   END IF;
-  PERFORM _op_lock('stock_movements', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('stock_movements', p_shop_id, p_client_op_id); -- 015: B10
   SELECT id INTO v_id FROM stock_movements WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
   IF v_id IS NOT NULL THEN
     RETURN v_id;
@@ -407,7 +407,7 @@ CREATE OR REPLACE FUNCTION post_purchase(
   p_created_at timestamptz DEFAULT now(),
   p_payment_method text DEFAULT NULL,
   p_paid bigint DEFAULT NULL,
-  p_note text DEFAULT NULL -- 014: B7
+  p_note text DEFAULT NULL -- 015: B7
 ) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -424,7 +424,7 @@ DECLARE
   v_date date := coalesce(p_doc_date, (now() AT TIME ZONE 'Asia/Tashkent')::date);
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('purchase_documents', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('purchase_documents', p_shop_id, p_client_op_id); -- 015: B10
 
   SELECT id INTO v_existing FROM purchase_documents WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
   IF v_existing IS NOT NULL THEN
@@ -447,7 +447,7 @@ BEGIN
   IF p_paid IS NOT NULL AND p_paid > 0 AND (p_payment_method IS NULL OR p_payment_method NOT IN ('naqd', 'karta', 'otkazma')) THEN
     RAISE EXCEPTION 'invalid_method' USING ERRCODE = '22023';
   END IF;
-  -- 014: B7 — izoh (agent qoralamasi bilan bir xil chegara: 500 belgi)
+  -- 015: B7 — izoh (agent qoralamasi bilan bir xil chegara: 500 belgi)
   IF char_length(coalesce(p_note, '')) > 500 THEN
     RAISE EXCEPTION 'note_too_long' USING ERRCODE = '22023';
   END IF;
@@ -457,7 +457,7 @@ BEGIN
 
   INSERT INTO purchase_documents (id, shop_id, supplier_id, doc_date, status, subtotal, ts_total, client_op_id, created_by, created_at, note)
   VALUES (p_purchase_id, p_shop_id, p_supplier_id, v_date, 'draft', 0, p_client_total, p_client_op_id, auth.uid(), p_created_at,
-          nullif(trim(p_note), '')); -- 014: B7
+          nullif(trim(p_note), '')); -- 015: B7
 
   FOR v_line IN SELECT * FROM jsonb_array_elements(p_lines) LOOP
     v_qty := (v_line->>'qty_milli')::bigint;
@@ -518,7 +518,7 @@ DECLARE
   v_pid uuid;
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('purchase_reversals', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('purchase_reversals', p_shop_id, p_client_op_id); -- 015: B10
   SELECT id INTO v_rev FROM purchase_reversals WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
   IF v_rev IS NOT NULL THEN
     RETURN v_rev;
@@ -573,7 +573,7 @@ DECLARE
   v_outstanding bigint;
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('supplier_payments', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('supplier_payments', p_shop_id, p_client_op_id); -- 015: B10
   SELECT id INTO v_existing FROM supplier_payments WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
   IF v_existing IS NOT NULL THEN
     RETURN v_existing;
@@ -608,9 +608,9 @@ DECLARE
   v_id uuid;
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  -- 014: B10 — mavjudlik tekshiruvi qatorni qulflaydi (parallel ikkinchi bekor qilish o'sha natijani oladi)
-  PERFORM 1 FROM supplier_payments WHERE id = p_payment_id AND shop_id = p_shop_id FOR UPDATE; -- 014: B10
-  IF NOT FOUND THEN -- 014: B10
+  -- 015: B10 — mavjudlik tekshiruvi qatorni qulflaydi (parallel ikkinchi bekor qilish o'sha natijani oladi)
+  PERFORM 1 FROM supplier_payments WHERE id = p_payment_id AND shop_id = p_shop_id FOR UPDATE; -- 015: B10
+  IF NOT FOUND THEN -- 015: B10
     RAISE EXCEPTION 'payment_not_found' USING ERRCODE = 'P0002';
   END IF;
   SELECT id INTO v_id FROM supplier_payment_voids WHERE payment_id = p_payment_id;
@@ -643,7 +643,7 @@ DECLARE
   v_date date := coalesce(p_doc_date, (now() AT TIME ZONE 'Asia/Tashkent')::date);
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('purchase_documents', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('purchase_documents', p_shop_id, p_client_op_id); -- 015: B10
 
   -- Idempotent: o'sha client_op_id bilan qayta yuborilsa mavjud yozuv qaytadi
   SELECT id INTO v_existing FROM purchase_documents WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
@@ -693,7 +693,7 @@ DECLARE
   v_pid uuid;
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('document_reversals', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('document_reversals', p_shop_id, p_client_op_id); -- 015: B10
 
   -- Idempotent: birinchi chaqiruv atomik tugagan (savdo + to'lovlar), qayta hech narsa qilinmaydi
   SELECT id INTO v_rev FROM document_reversals WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
@@ -761,7 +761,7 @@ DECLARE
   v_date date := coalesce(p_doc_date, (now() AT TIME ZONE 'Asia/Tashkent')::date);
 BEGIN
   PERFORM require_shop_member(p_shop_id);
-  PERFORM _op_lock('purchase_documents', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('purchase_documents', p_shop_id, p_client_op_id); -- 015: B10
 
   -- Idempotent: o'sha client_op_id bilan qayta yuborilsa mavjud yozuv qaytadi
   SELECT id INTO v_existing FROM purchase_documents WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
@@ -818,7 +818,7 @@ BEGIN
   IF p_client_op_id IS NULL OR char_length(p_client_op_id) NOT BETWEEN 1 AND 100 THEN
     RAISE EXCEPTION 'invalid_client_op_id' USING ERRCODE = '22023';
   END IF;
-  PERFORM _op_lock('agent_drafts', p_shop_id, p_client_op_id); -- 014: B10
+  PERFORM _op_lock('agent_drafts', p_shop_id, p_client_op_id); -- 015: B10
   SELECT id INTO v_id FROM agent_drafts WHERE shop_id = p_shop_id AND client_op_id = p_client_op_id;
   IF v_id IS NOT NULL THEN
     RETURN v_id; -- idempotent
@@ -829,7 +829,7 @@ BEGIN
   IF p_customer_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM customers WHERE id = p_customer_id AND shop_id = p_shop_id) THEN
     RAISE EXCEPTION 'customer_not_in_shop' USING ERRCODE = '42501';
   END IF;
-  -- 014: S1 — bir martalik mijoz id'si to'g'ridan-to'g'ri berilmaydi (p_walkin = true ishlatiladi); aks holda qoralama
+  -- 015: S1 — bir martalik mijoz id'si to'g'ridan-to'g'ri berilmaydi (p_walkin = true ishlatiladi); aks holda qoralama
   -- tasdiqda doim walkin_requires_full_payment bilan yiqilib, qoralamalar limitini band qilardi
   IF p_customer_id IS NOT NULL AND EXISTS (SELECT 1 FROM customers WHERE id = p_customer_id AND shop_id = p_shop_id AND kind = 'one_time') THEN
     RAISE EXCEPTION 'walkin_customer_id_forbidden: p_walkin ishlating' USING ERRCODE = '22023';
@@ -946,7 +946,7 @@ BEGIN
       INTO v_lines
       FROM jsonb_array_elements(v_d.payload->'lines') WITH ORDINALITY AS e(value, ord);
     v_customer := v_d.customer_id;
-    -- 014: S3 — qoralama va tasdiq orasida mijoz arxivlangan bo'lsa jim yozilmaydi
+    -- 015: S3 — qoralama va tasdiq orasida mijoz arxivlangan bo'lsa jim yozilmaydi
     IF v_customer IS NOT NULL AND NOT EXISTS (SELECT 1 FROM customers WHERE id = v_customer AND shop_id = v_d.shop_id AND is_active) THEN
       RAISE EXCEPTION 'draft_stale' USING ERRCODE = '40001';
     END IF;
@@ -977,9 +977,9 @@ BEGIN
     PERFORM post_purchase(v_d.shop_id, v_d.id, 'agent-draft:' || v_d.id::text, v_d.target_id,
                           (v_d.payload->>'doc_date')::date, v_lines, v_d.total, now(),
                           CASE WHEN v_paid IS NOT NULL THEN v_d.payload->>'payment_method' END, v_paid,
-                          v_d.payload->>'note'); -- 014: B7
+                          v_d.payload->>'note'); -- 015: B7
   ELSIF v_d.kind = 'payment' THEN
-    -- 014: S3
+    -- 015: S3
     IF NOT EXISTS (SELECT 1 FROM customers WHERE id = v_d.customer_id AND shop_id = v_d.shop_id AND is_active) THEN
       RAISE EXCEPTION 'draft_stale' USING ERRCODE = '40001';
     END IF;
@@ -998,13 +998,13 @@ $$;
 -- _admin_gate admin_audit ga yozadi, shuning uchun funksiya endi VOLATILE (STABLE funksiyada yozish bo'lmasin).
 CREATE OR REPLACE FUNCTION admin_shop_stage(p_shop_id uuid)
 RETURNS int
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER -- 014: S10 (011 da STABLE edi)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER -- 015: S10 (011 da STABLE edi)
 SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_stage int;
 BEGIN
-  PERFORM _admin_gate('admin_shop_stage', p_shop_id::text); -- 014: S10 (admin emas -> not_platform_admin, audit yozilmaydi)
+  PERFORM _admin_gate('admin_shop_stage', p_shop_id::text); -- 015: S10 (admin emas -> not_platform_admin, audit yozilmaydi)
   SELECT f.stage INTO v_stage FROM _admin_shop_facts() f WHERE f.shop_id = p_shop_id;
   IF v_stage IS NULL THEN
     RAISE EXCEPTION 'shop_not_found' USING ERRCODE = 'P0002';

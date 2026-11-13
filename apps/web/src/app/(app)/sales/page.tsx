@@ -36,7 +36,7 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
   const router = useRouter();
   const toast = useToast();
   const { shopId, reload, data, membership } = useShop();
-  // 018: bekor qilish faqat owner/admin (bazada ham majburiy)
+  // 019: bekor qilish faqat owner/admin (bazada ham majburiy)
   const canReverse = can(membership.role, 'ledger.reverse');
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<string>(CANCEL_REASONS[0]);

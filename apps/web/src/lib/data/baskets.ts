@@ -1,8 +1,8 @@
 /**
- * Savat (F2, migratsiya 015) — server qatlami. Savat pul yozuvi EMAS: tasdiqlanmagan ish holati. Jurnalga faqat
+ * Savat (F2, migratsiya 016) — server qatlami. Savat pul yozuvi EMAS: tasdiqlanmagan ish holati. Jurnalga faqat
  * odatdagi `post_sale` / `post_purchase` yozadi, shundan keyin savat `done` bo'ladi (`closeBasket`).
  *
- * 015 hali qo'llanmagan server yoki demo rejim (yozish o'chirilgan): `isBasketServerUnavailable` → web savatni shu
+ * 016 hali qo'llanmagan server yoki demo rejim (yozish o'chirilgan): `isBasketServerUnavailable` → web savatni shu
  * qurilmada (localStorage) saqlaydi (`basketStore.ts`).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -37,7 +37,7 @@ export class BasketConflictError extends AppError {
 
 type PgErr = { code?: string; message?: string; details?: string | null };
 
-/** Server savatni qo'llab-quvvatlamaydi: 015 qo'llanmagan (jadval/RPC yo'q) yoki demo (yozish o'chirilgan) */
+/** Server savatni qo'llab-quvvatlamaydi: 016 qo'llanmagan (jadval/RPC yo'q) yoki demo (yozish o'chirilgan) */
 export function isBasketServerUnavailable(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as PgErr;

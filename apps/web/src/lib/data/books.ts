@@ -60,6 +60,9 @@ export interface StockItem {
   qty_milli: bigint;
   cost_price: bigint | null;
   sale_price: bigint | null;
+  /** Optom narx va boshlanadigan miqdor (014); belgilanmagan yoki ustun yo'q bo'lsa null */
+  wholesale_price?: bigint | null;
+  wholesale_min_qty_milli?: bigint | null;
 }
 
 export interface BooksData {
@@ -76,7 +79,14 @@ async function hasPurchaseKind(sb: SB, shopId: string): Promise<boolean> {
   return !error;
 }
 
+/** 014 (products.wholesale_price) qo'llanganmi; yo'q bo'lsa ilova avvalgidek ishlaydi */
+async function hasWholesale(sb: SB, shopId: string): Promise<boolean> {
+  const { error } = await sb.from('products').select('wholesale_price').eq('shop_id', shopId).limit(1);
+  return !error;
+}
+
 export async function loadBooks(sb: SB, shopId: string): Promise<BooksData> {
+  const productCols = (await hasWholesale(sb, shopId)) ? 'id, name, unit, is_active, cost_price::text, sale_price::text, wholesale_price::text, wholesale_min_qty_milli::text' : 'id, name, unit, is_active, cost_price::text, sale_price::text';
   const purchaseCols = (await hasPurchaseKind(sb, shopId)) ? 'id, supplier_id, doc_date, status, kind, subtotal::text, created_at' : 'id, supplier_id, doc_date, status, subtotal::text, created_at';
   const [suppliers, purchases, lines, payments, voids, stockRows, products] = await Promise.all([
     fetchAll<Supplier>((from, to) => sb.from('suppliers').select('id, name, phone, notes, is_active, created_at').eq('shop_id', shopId).order('name').order('id').range(from, to)),
@@ -91,8 +101,8 @@ export async function loadBooks(sb: SB, shopId: string): Promise<BooksData> {
     ),
     fetchAll<{ payment_id: string }>((from, to) => sb.from('supplier_payment_voids').select('payment_id').eq('shop_id', shopId).order('id').range(from, to)),
     fetchAll<{ product_id: string; qty_milli: string }>((from, to) => sb.from('product_stock').select('product_id, qty_milli::text').eq('shop_id', shopId).order('product_id').range(from, to) as never),
-    fetchAll<{ id: string; name: string; unit: Unit; is_active: boolean; cost_price: string | null; sale_price: string | null }>((from, to) =>
-      sb.from('products').select('id, name, unit, is_active, cost_price::text, sale_price::text').eq('shop_id', shopId).order('name').order('id').range(from, to) as never,
+    fetchAll<{ id: string; name: string; unit: Unit; is_active: boolean; cost_price: string | null; sale_price: string | null; wholesale_price?: string | null; wholesale_min_qty_milli?: string | null }>((from, to) =>
+      sb.from('products').select(productCols).eq('shop_id', shopId).order('name').order('id').range(from, to) as never,
     ),
   ]);
   return buildBooks({ suppliers, purchases, lines, payments, voids, stockRows, products });
@@ -106,7 +116,7 @@ export function buildBooks(raw: {
   payments: { id: string; supplier_id: string; amount: string; method: string; note: string | null; created_at: string }[];
   voids: { payment_id: string }[];
   stockRows: { product_id: string; qty_milli: string }[];
-  products: { id: string; name: string; unit: Unit; is_active: boolean; cost_price: string | null; sale_price: string | null }[];
+  products: { id: string; name: string; unit: Unit; is_active: boolean; cost_price: string | null; sale_price: string | null; wholesale_price?: string | null; wholesale_min_qty_milli?: string | null }[];
 }): BooksData {
   const voided = new Set(raw.voids.map((v) => v.payment_id));
   const qty = new Map(raw.stockRows.map((r) => [r.product_id, toBig(r.qty_milli)]));
@@ -123,6 +133,8 @@ export function buildBooks(raw: {
       qty_milli: qty.get(p.id) ?? 0n,
       cost_price: p.cost_price === null ? null : toBig(p.cost_price),
       sale_price: p.sale_price === null ? null : toBig(p.sale_price),
+      wholesale_price: p.wholesale_price == null ? null : toBig(p.wholesale_price),
+      wholesale_min_qty_milli: p.wholesale_min_qty_milli == null ? null : toBig(p.wholesale_min_qty_milli),
     })),
   };
 }

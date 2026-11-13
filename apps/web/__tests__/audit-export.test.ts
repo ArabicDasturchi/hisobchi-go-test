@@ -1,5 +1,5 @@
 /**
- * F3: o'zgarishlar tarixi matni, kirimni to'lovi bilan bekor qilish (016 va eski server).
+ * F3: o'zgarishlar tarixi matni, kirimni to'lovi bilan bekor qilish (017 va eski server).
  * B5: to'liq CSV eksport. Kutilgan qiymatlar qo'lda yozilgan.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -45,12 +45,12 @@ function fakeSb(firstError: unknown) {
 }
 
 describe('kirimni bekor qilish (F3)', () => {
-  it('016 bor: bitta RPC, to‘lov ham bekor', async () => {
+  it('017 bor: bitta RPC, to‘lov ham bekor', async () => {
     const { sb, calls } = fakeSb(null);
     expect(await reversePurchase(sb, 's', 'd', 'op', 'qaytarildi')).toBe('with_payment');
     expect(calls).toEqual(['reverse_purchase_with_payments']);
   });
-  it('016 yo‘q (RPC topilmadi): eski yo‘l, natija «legacy» (savdogarga aytiladi)', async () => {
+  it('017 yo‘q (RPC topilmadi): eski yo‘l, natija «legacy» (savdogarga aytiladi)', async () => {
     const { sb, calls } = fakeSb({ code: 'PGRST202', message: 'Could not find the function public.reverse_purchase_with_payments' });
     expect(await reversePurchase(sb, 's', 'd', 'op', 'qaytarildi')).toBe('legacy');
     expect(calls).toEqual(['reverse_purchase_with_payments', 'reverse_purchase']);

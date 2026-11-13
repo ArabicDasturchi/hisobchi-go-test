@@ -1,5 +1,5 @@
--- 014: xavfsizlik va barqarorlik (B7, B8, B9, B10, S1, S3, S4, S5, S10, H2, K3). 001..014 qo'llangandan keyin.
--- Har band eski kodda (001..013) yiqiladi: tekshiruv hisobotda (docs/reports/2026-11-12-B2-014-XAVFSIZLIK.md).
+-- 015: xavfsizlik va barqarorlik (B7, B8, B9, B10, S1, S3, S4, S5, S10, H2, K3). 001..014 qo'llangandan keyin.
+-- Har band eski kodda (001..013) yiqiladi: tekshiruv hisobotda (docs/reports/2026-11-12-B2-015-XAVFSIZLIK.md).
 -- B10 parallel testi dblink orqali ikkita haqiqiy sessiya ochadi (lokal/CI PostgreSQL, superuser).
 \set ON_ERROR_STOP 1
 \set pgpass ''
@@ -346,4 +346,4 @@ SELECT pg_temp.assert_eq(adjust_stock((SELECT v FROM t WHERE k = 'shopA'), 'a140
   adjust_stock((SELECT v FROM t WHERE k = 'shopA'), 'a1400000-0000-0000-0000-0000000000f2', 'op14-adj', 1000, 'inventarizatsiya'), 'B10: adjust_stock takror o''sha id');
 RESET ROLE;
 
-\echo '=== BARCHA 91_xavfsizlik_014 TESTLARI O''TDI ==='
+\echo '=== BARCHA 91_xavfsizlik_015 TESTLARI O''TDI ==='

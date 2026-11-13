@@ -1,5 +1,5 @@
 -- ============================================================
--- HISOBCHI GO — 015: Savat (F2) va AI qoralamasini savatga olib tahrirlash (B3)
+-- HISOBCHI GO — 016: Savat (F2) va AI qoralamasini savatga olib tahrirlash (B3)
 -- ============================================================
 -- Muammo (F2): bozorda bir vaqtda bir nechta mijozga savdo yuritiladi; yarim qolgan savdo faqat ekranda turardi
 --   (sahifa yangilansa yoki boshqa bo'limga o'tilsa yo'qolardi). AI qoralamasi (agent_drafts) qatorlarini tahrirlab
@@ -19,7 +19,7 @@
 --   holat mashinasi qat'iy, savat esa o'zgaruvchan ish holati).
 -- Xavfsizlik: har jadvalda shop_id, RLS (a'zo o'qiydi), to'g'ridan-to'g'ri yozish yopiq, OAuth token yozolmaydi
 --   (RESTRICTIVE), RPC'lar SECURITY DEFINER + search_path + require_shop_member (birinchi tomon sessiyasi).
--- Qayta ishga tushirish xavfsiz. Talab: 001..013 (014 ga bog'liq emas).
+-- Qayta ishga tushirish xavfsiz. Talab: 001..013 (015 ga bog'liq emas).
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS baskets (

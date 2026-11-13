@@ -14,7 +14,7 @@ Ish joyi:
 - **B3** qoralamani savatga olish
 - **F3** audit va kirimni to'lovi bilan bekor qilish
 - **F4/F5**: provayderdan mustaqil `ai-parse` + web oynasi
-- **B2** 014
+- **B2** 015
 - **B5** eksport, zaxira va tiklash skriptlari, production hujjati
 
 Hisobotlar: `docs/reports/2026-11-12-*.md`.
@@ -25,16 +25,16 @@ Oxirgi natijalar:
 |---|---|
 | `npm test` | core 288, mobile 182, web 576, admin 38, mcp 76, functions 84, ci 23 |
 | typecheck, lint, build | OK |
-| `run_local.sh` (001–018) | 910 PASS |
+| `run_local.sh` (001–019) | 910 PASS |
 
 ## Qolgan (asoschi kerak)
 
 1. Commit va PR'lar: reja `docs/reports/2026-11-12-F2-F5-BACKEND.md` 6-bo'limda.
 2. ~~AI provayder~~ — 13.11: Gemini (adapter tayyor). Kerak: Gemini kaliti (pullik daraja) staging/production sirlariga.
 3. ~~K3 qarori~~ — 13.11 da hal qilindi (qulf saqlanadi, web himoyasi).
-4. Staging loyihasi va sirlar, keyin 014–018 staging, keyin production.
+4. Staging loyihasi va sirlar, keyin 015–019 staging, keyin production.
 5. Narxda nuqta qarori (F1).
-6. ~~Rollar~~ — 13.11: 018 (sotuvchi bekor qila olmaydi), bazada majburiy.
+6. ~~Rollar~~ — 13.11: 019 (sotuvchi bekor qila olmaydi), bazada majburiy.
 
 ## Keyingi aniq qadam
 
@@ -48,7 +48,7 @@ Staging tayyor bo'lsa: `docs/PRODUCTION-TAYYORLIK.md` 3-bo'lim ro'yxati.
 ## 13.11.2026 bosqichi
 
 - K3: qulf saqlanadi, web oldindan to'xtatadi (products sahifasi), mobilga talab.
-- Rollar: `018_rollar.sql` + `94_rollar.test.sql`; web bekor qilish tugmalari rolga bog'landi.
+- Rollar: `019_rollar.sql` + `94_rollar.test.sql`; web bekor qilish tugmalari rolga bog'landi.
 - K4: rad etilgan kirimdan keyin yangi tovarlar arxivlanadi.
 - AI deploy: `.github/workflows/deploy-functions.yml` (qo'lda, sirlar GitHub'da).
 - Qolgan yagona to'siq (asoschi): AI provayder nomi va kaliti; staging loyihasi sirlari; commit/PR ruxsati.

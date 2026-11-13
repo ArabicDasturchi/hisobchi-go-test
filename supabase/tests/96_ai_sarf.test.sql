@@ -1,4 +1,4 @@
--- 017: AI so'rovlari hisobi (a'zolik, OAuth rad, kunlik limit, finish faqat bir marta). 001..013 + 017 qo'llangandan keyin.
+-- 018: AI so'rovlari hisobi (a'zolik, OAuth rad, kunlik limit, finish faqat bir marta). 001..013 + 018 qo'llangandan keyin.
 \set ON_ERROR_STOP 1
 
 CREATE OR REPLACE FUNCTION pg_temp.as_user(p_uid uuid) RETURNS void LANGUAGE plpgsql AS $$

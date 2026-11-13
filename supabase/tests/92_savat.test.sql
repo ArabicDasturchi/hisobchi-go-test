@@ -1,4 +1,4 @@
--- 015: Savat (F2) va AI qoralamasini savatga olish (B3). 001..013 (+014 bo'lsa ham) va 015 qo'llangandan keyin.
+-- 016: Savat (F2) va AI qoralamasini savatga olish (B3). 001..013 (+015 bo'lsa ham) va 016 qo'llangandan keyin.
 \set ON_ERROR_STOP 1
 
 CREATE OR REPLACE FUNCTION pg_temp.as_user(p_uid uuid) RETURNS void LANGUAGE plpgsql AS $$

@@ -1,6 +1,6 @@
 'use client';
 /**
- * F3: o'zgarishlar tarixi — kim, qachon, nima tuzatdi yoki bekor qildi (audit_log, migratsiya 016).
+ * F3: o'zgarishlar tarixi — kim, qachon, nima tuzatdi yoki bekor qildi (audit_log, migratsiya 017).
  * Faqat o'qiladi; yozuvni server trigger'lari qo'shadi. Telefon va izoh qiymati ko'rsatilmaydi (jurnalda ham yo'q).
  */
 import { History } from 'lucide-react';
@@ -42,7 +42,7 @@ export default function HistoryPage() {
       )}
       {state.status === 'ok' && state.rows.length === 0 && (
         <Card>
-          <EmptyState icon={<History className="h-6 w-6" />} title="Hali yozuv yo'q" description="Tovar, mijoz yoki ta'minotchi tuzatilsa, savdo yoki to'lov bekor qilinsa shu yerda ko'rinadi (serverda 016 yangilanishi kerak)." />
+          <EmptyState icon={<History className="h-6 w-6" />} title="Hali yozuv yo'q" description="Tovar, mijoz yoki ta'minotchi tuzatilsa, savdo yoki to'lov bekor qilinsa shu yerda ko'rinadi (serverda 017 yangilanishi kerak)." />
         </Card>
       )}
       {state.status === 'ok' && state.rows.length > 0 && (

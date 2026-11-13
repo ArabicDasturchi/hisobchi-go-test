@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { fetchSqlBalance } from '../src/lib/data/partnerLedger';
 import { recordSupplierPayment, reversePurchase, voidSupplierPayment } from '../src/lib/data/supplierPayments';
 
-// 007 (daftar RPC'lari) + 016 (F3: reverse_purchase_with_payments)
-const SQL = ['007_purchases.sql', '016_audit_tuzatish.sql'].map((f) => readFileSync(path.resolve(__dirname, '../../../supabase/migrations', f), 'utf8')).join('\n');
+// 007 (daftar RPC'lari) + 017 (F3: reverse_purchase_with_payments)
+const SQL = ['007_purchases.sql', '017_audit_tuzatish.sql'].map((f) => readFileSync(path.resolve(__dirname, '../../../supabase/migrations', f), 'utf8')).join('\n');
 
 function signature(fn: string): { all: string[]; required: string[] } {
   const m = new RegExp(`CREATE OR REPLACE FUNCTION ${fn}\\(([\\s\\S]*?)\\)\\s*(?:RETURNS|LANGUAGE)`, 'i').exec(SQL);
@@ -61,7 +61,7 @@ describe('daftar RPC imzolari (007)', () => {
     expectMatches('void_supplier_payment', a.calls[0]!.args);
     expect(a.calls[0]!.args.p_reason).toBe('xato kiritilgan');
     const b = fake({ purchase_documents: { status: 'reversed' } });
-    // F3 (016): kirim va uning to'lovi bitta RPC'da bekor qilinadi
+    // F3 (017): kirim va uning to'lovi bitta RPC'da bekor qilinadi
     expect(await reversePurchase(b.sb, 's', 'd', 'op', 'xato')).toBe('with_payment');
     expect(b.calls[0]!.fn).toBe('reverse_purchase_with_payments');
     expectMatches('reverse_purchase_with_payments', b.calls[0]!.args);

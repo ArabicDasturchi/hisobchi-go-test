@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * F2 integratsiya: panel savati (mahalliy rejim — test muhitida Supabase yo'q, 015 yo'q serverdagi kabi).
+ * F2 integratsiya: panel savati (mahalliy rejim — test muhitida Supabase yo'q, 016 yo'q serverdagi kabi).
  * Qabul mezoni: ikki mijozga savdo ochiq turganda sahifalar orasida yurib qaytsa ham ikkalasi saqlanadi; sahifa
  * yangilansa ham yo'qolmaydi; tasdiqlangan savdodan keyin savat yopiladi; boshqa qurilma (tab) o'zgartirsa ustiga
  * yozilmaydi. Server, Supabase va submit hooklari almashtirilgan: hech narsa jurnalga yozilmaydi.
@@ -34,6 +34,8 @@ vi.mock('@/components/ShopDataProvider', () => ({
   useShop: () => ({
     balances: new Map(),
     customerById: new Map([[ALI, { id: ALI, name: 'Ali aka', kind: 'regular', is_active: true }]]),
+    // Sherik (#59): ombor narx sozlamalari; standart (optom o'chiq)
+    pricing: { wholesaleEnabled: false, stockEnabled: true, markupPercent: null },
     membership: { shop: { settings: { units: ['dona'] }, name: 'Test' }, role: 'owner' },
     shopId: SHOP,
   }),

@@ -135,7 +135,7 @@ export function checkProductDuplicate(
 }
 
 /**
- * K3 (014): ombor harakati bor tovarda birlik o'zgarmaydi — server `unit_locked` bilan rad etadi, web oldindan aytadi.
+ * K3 (015): ombor harakati bor tovarda birlik o'zgarmaydi — server `unit_locked` bilan rad etadi, web oldindan aytadi.
  * Boshqa birlikda sotish kerak bo'lsa: yangi tovar (masalan «Un (kg)») qo'shiladi, eskisi arxivlanadi.
  */
 export function unitLockedMessage(name: string): string {

@@ -1,4 +1,4 @@
--- 018: rollar — sotuvchi (member) bekor qila olmaydi va ombor tuzata olmaydi; owner/admin mumkin. 001..013 + 018 (014–017 ixtiyoriy).
+-- 019: rollar — sotuvchi (member) bekor qila olmaydi va ombor tuzata olmaydi; owner/admin mumkin. 001..013 + 019 (015–018 ixtiyoriy).
 \set ON_ERROR_STOP 1
 
 CREATE OR REPLACE FUNCTION pg_temp.as_user(p_uid uuid) RETURNS void LANGUAGE plpgsql AS $$

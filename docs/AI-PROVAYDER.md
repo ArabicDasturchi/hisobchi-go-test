@@ -38,7 +38,7 @@ web ◀── {request_id, lines[], model, usage, warnings} ── (jami YO'Q)
 | `_shared/ai/request.ts` | so'rov tanasi tekshiruvi (matn ≤ 4000, rasm ≤ 4 MB, jpeg/png/webp + sehrli baytlar) |
 | `_shared/ai/handler.ts` | butun oqim (bog'liqliklar inyeksiya qilinadi, Node'da testlanadi) |
 | `supabase/functions/ai-parse/index.ts` | yupqa Deno o'rami: `Deno.serve` + supabase-js (esm.sh, faqat shu faylda) |
-| `supabase/migrations/017_ai_sarf.sql` | `ai_requests` jadvali, `ai_begin_request`, `ai_finish_request`, `ai_usage_summary` |
+| `supabase/migrations/018_ai_sarf.sql` | `ai_requests` jadvali, `ai_begin_request`, `ai_finish_request`, `ai_usage_summary` |
 
 `_shared/ai` sof TypeScript: tashqi import yo'q (faqat `fetch`, `AbortController`, `atob`, `TextDecoder`), Deno va Node'da bir xil ishlaydi.
 
@@ -90,7 +90,7 @@ supabase secrets unset AI_PROVIDER
 
 ## 4. Deploy (asoschi bajaradi)
 
-1. Migratsiya: `017_ai_sarf.sql` `main` ga merge bo'lganda CI qo'llaydi ([MIGRATSIYA-CI.md](MIGRATSIYA-CI.md)). Qo'lda production'ga qo'llanmaydi.
+1. Migratsiya: `018_ai_sarf.sql` `main` ga merge bo'lganda CI qo'llaydi ([MIGRATSIYA-CI.md](MIGRATSIYA-CI.md)). Qo'lda production'ga qo'llanmaydi.
 2. Secret'lar: yuqoridagi `supabase secrets set ...`. Production'da `AI_ALLOWED_ORIGINS` ni ham qo'ying (veb panel domeni), masalan `supabase secrets set AI_ALLOWED_ORIGINS=https://<panel-domen>`; bo'sh qolsa `*` (Bearer token bilan xavfsiz, lekin tavsiya etilmaydi).
 3. Funksiya:
    ```bash
@@ -179,4 +179,4 @@ npx vitest run --root supabase/functions   # _shared/ai unit testlari
 npx tsc -p supabase/functions              # _shared tip tekshiruvi (index.ts Deno'ga bog'liq, kirmaydi)
 ```
 
-SQL: `supabase/tests/95_ai_sarf.test.sql` (`run_local.sh` ga 017 va 95 hali qo'shilmagan — boshqa agent tahrirlayapti).
+SQL: `supabase/tests/95_ai_sarf.test.sql` (`run_local.sh` ga 018 va 95 hali qo'shilmagan — boshqa agent tahrirlayapti).

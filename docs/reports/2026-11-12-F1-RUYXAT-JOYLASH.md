@@ -156,5 +156,5 @@ Qo'shimcha:
 
 1. Asoschi bilan: narxdagi nuqta qarorini tasdiqlash, keyin PR ochish («Humoyun/Abdulloh tasdiqlasin», core o'zgarishi sababli merge faqat asoschi so'zi bilan).
 2. Staging loyihasi tayyor bo'lgach: joylangan ro'yxat bilan haqiqiy `post_sale` / `post_purchase` (jumladan yangi tovarli kirim) sinovi.
-3. F2 (Savat): joylangan qatorlar va ularning `reviews` holati shu `DraftLine` shaklida saqlanishi mumkin. Bazaga saqlash migratsiya talab qiladi (014/015), asoschi qarori kerak.
+3. F2 (Savat): joylangan qatorlar va ularning `reviews` holati shu `DraftLine` shaklida saqlanishi mumkin. Bazaga saqlash migratsiya talab qiladi (015/016), asoschi qarori kerak.
 4. F5: kod tushunmagan («Xato») va moslashmagan («Yangi tovar») qatorlar AI yordamchiga yuboriladigan aniq nomzodlar. Interfeys tayyor: savol → tanlov.

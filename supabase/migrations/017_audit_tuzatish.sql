@@ -1,5 +1,5 @@
 -- ============================================================
--- HISOBCHI GO — 016: tuzatish va bekor qilish (F3) — audit izi va kirimni to'lovi bilan bekor qilish
+-- HISOBCHI GO — 017: tuzatish va bekor qilish (F3) — audit izi va kirimni to'lovi bilan bekor qilish
 -- ============================================================
 -- Muammo:
 --   1. `audit_log` jadvali 001 dan beri bor, lekin unga hech kim yozmaydi (BACKEND-AUDIT S11): katalog tuzatishlari
@@ -14,7 +14,7 @@
 --      tranzaksiyada bekor qilinadi. Mavjud `reverse_purchase` va `void_supplier_payment` qayta ishlatiladi (mantiq
 --      takrorlanmaydi, ularning imzosi o'zgarmaydi — mobil va MCP buzilmaydi). Append-only: faqat teskari yozuvlar.
 -- Pul hisobi o'zgarmaydi: qarz = hujjatlar − to'lovlar (bekor qilinganlarsiz), ikki yo'l (TS va SQL) avvalgidek.
--- Qayta ishga tushirish xavfsiz. Talab: 001..013 (014/015 ixtiyoriy: 015 bo'lsa savat yopilishi ham yoziladi).
+-- Qayta ishga tushirish xavfsiz. Talab: 001..013 (015/016 ixtiyoriy: 016 bo'lsa savat yopilishi ham yoziladi).
 -- ============================================================
 
 -- ---------- 1. Audit yozuvchi ----------
@@ -149,7 +149,7 @@ $$;
 DROP TRIGGER IF EXISTS trg_audit_agent_drafts ON agent_drafts;
 CREATE TRIGGER trg_audit_agent_drafts AFTER UPDATE ON agent_drafts FOR EACH ROW EXECUTE FUNCTION audit_draft_decision();
 
--- Savat yopilishi (015 qo'llangan bo'lsa)
+-- Savat yopilishi (016 qo'llangan bo'lsa)
 CREATE OR REPLACE FUNCTION audit_basket_close()
 RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER

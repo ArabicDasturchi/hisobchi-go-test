@@ -69,3 +69,7 @@ export { LOW_STOCK_MILLI, stockCheck, soldBelowCost, topSellingProducts } from '
 export type { LedgerEntry, LedgerEntryKind, LedgerRow } from './ledger.js';
 export { ledgerRows, ledgerBalance, assertLedgerChain, assertLedgerMatches } from './ledger.js';
 export { agedDebt, isoMinusDays } from './aged-debt.js';
+
+// Narx qoidalari (optom narx, ustama) — SQL ikkinchi yo'li: 014_ombor_narxlar.sql
+export type { UnitPriceInput } from './pricing.js';
+export { resolveUnitPrice, isWholesaleApplied, suggestSalePrice, isValidMarkupPercent, MAX_MARKUP_PERCENT } from './pricing.js';

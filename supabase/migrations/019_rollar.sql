@@ -1,5 +1,5 @@
 -- ============================================================
--- HISOBCHI GO — 018: rollar (B5) — sotuvchi (member) pul yozuvini bekor qila olmaydi
+-- HISOBCHI GO — 019: rollar (B5) — sotuvchi (member) pul yozuvini bekor qila olmaydi
 -- ============================================================
 -- Muammo: `shop_members.role` (owner/admin/member) 001 dan beri bor, lekin RPC'lar faqat a'zolikni tekshiradi:
 --   har qanday a'zo savdo/kirimni bekor qilishi, to'lovni bekor qilishi va ombor qoldig'ini tuzatishi mumkin
@@ -12,7 +12,7 @@
 --   Savdo, to'lov olish, kirim yozish (ledger.write) hamma rolga ochiq qoladi.
 -- auth.uid() bo'lmasa (migratsiya, xizmat skripti) tekshiruv o'tkazib yuboriladi: rol faqat foydalanuvchi
 --   sessiyasiga taalluqli. Hozir har do'konda faqat egasi bor (create_shop owner yaratadi) — mavjud ishga ta'sir yo'q.
--- Qayta ishga tushirish xavfsiz. Talab: 001..013 (014–017 ga bog'liq emas).
+-- Qayta ishga tushirish xavfsiz. Talab: 001..013 (015–018 ga bog'liq emas).
 -- ============================================================
 
 -- Chaqiruvchining shu do'kondagi roli (a'zo bo'lmasa NULL)

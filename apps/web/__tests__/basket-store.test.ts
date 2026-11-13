@@ -1,5 +1,5 @@
 /**
- * F2 Savat: qatorlarni saqlash/o'qish, mahalliy va server ombori, versiya to'qnashuvi, idempotentlik, 015 yo'q serverda
+ * F2 Savat: qatorlarni saqlash/o'qish, mahalliy va server ombori, versiya to'qnashuvi, idempotentlik, 016 yo'q serverda
  * mahalliy rejimga o'tish. Kutilgan qiymatlar qo'lda yozilgan.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -60,7 +60,7 @@ describe('basketLines', () => {
   });
 });
 
-describe('mahalliy ombor (015 yo‘q / demo)', () => {
+describe('mahalliy ombor (016 yo‘q / demo)', () => {
   it('yaratish, versiya, takror op idempotent, to‘qnashuv, yopish', async () => {
     const st = mem();
     const s = createLocalStore(st, 'shop1', () => '2026-11-12T10:00:00Z');
@@ -101,7 +101,7 @@ function fakeSb(opts: { rpcError?: unknown; selectError?: unknown; rows?: unknow
   return { sb, calls };
 }
 
-describe('server ombori (015)', () => {
+describe('server ombori (016)', () => {
   it('basket_save parametrlari va natija', async () => {
     const { sb, calls } = fakeSb();
     const s = createServerStore(sb, 'shop1');
@@ -127,7 +127,7 @@ describe('server ombori (015)', () => {
     ]);
   });
 
-  it('015 yo‘q (jadval/RPC topilmadi) yoki demo → mahalliy; tarmoq xatosi → xato (jim o‘tilmaydi)', async () => {
+  it('016 yo‘q (jadval/RPC topilmadi) yoki demo → mahalliy; tarmoq xatosi → xato (jim o‘tilmaydi)', async () => {
     for (const e of [{ code: '42P01', message: 'relation "baskets" does not exist' }, { code: 'PGRST205', message: "Could not find the table 'public.baskets'" }, { code: 'DEMO', message: 'demo_read_only' }]) {
       expect(isBasketServerUnavailable(e)).toBe(true);
       const { sb } = fakeSb({ selectError: e });

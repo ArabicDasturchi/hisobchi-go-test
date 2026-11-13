@@ -42,7 +42,7 @@ export interface LedgerSheetProps {
   verification: Verification | 'checking';
   /** can() natijasi: yozish ruxsati */
   canWrite: boolean;
-  /** 018: yozuvni bekor qilish faqat owner/admin (berilmasa canWrite bo'yicha) */
+  /** 019: yozuvni bekor qilish faqat owner/admin (berilmasa canWrite bo'yicha) */
   canReverse?: boolean;
   /** "Panelda yozish" manzili: `/dashboard?amal=daftar&kimga=<id>` (daftar faqat o'qiladi, yozuv panelda) */
   writeHref: string;
