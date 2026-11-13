@@ -31,7 +31,7 @@ Xulosa: Q1 ning yarmi bor (qat'iy format, ishonchsiz ovoz), Q2 umuman yo'q. Pitc
 
 ```
 [Mikrofon] → audio (m4a, ≤ 60 s) → Edge Function `parse-list`
-   → Gemini (audio + do'kon katalogi nomlari) → JSON qatorlar (matn ko'rinishida, jami YO'Q)
+   → Gemini (13.11 qarori; provayderdan mustaqil adapter, [AI-PROVAYDER.md](AI-PROVAYDER.md); matn + do'kon katalogi nomlari) → JSON qatorlar (matn ko'rinishida, jami YO'Q)
    → telefonda core: son va narxni o'qiydi (parseQtyMilli, parseUnitPriceText), katalog bilan moslaydi
    → Tasdiqlash ekrani (sariq: noaniq) → savdogar tasdiqlaydi → to'lov usuli → post_sale (ikki hisob)
 ```
@@ -40,7 +40,7 @@ Xulosa: Q1 ning yarmi bor (qat'iy format, ishonchsiz ovoz), Q2 umuman yo'q. Pitc
 - **Kirish:** `{ shop_id, text? | audio_base64?, mime? }`. Bittasi majburiy. Audio ≤ 2 MB.
 - **Ruxsat:** foydalanuvchi JWT; do'kon a'zoligi tekshiriladi. OAuth (MCP) tokenlari rad etiladi (004 dagi `client_id` qoidasi).
 - **Katalog:** do'konning faol tovarlari (≤ 500: `id`, nom, sinonimlar, birlik, sotuv narxi) promptga nomzod sifatida beriladi.
-- **Model:** Gemini, `AI_MODEL` env bilan almashtiriladi. Kalit `GEMINI_API_KEY` faqat Supabase secret'da. Haqiqiy savdogar ma'lumoti bilan **faqat pullik daraja** ([GEMINI-LLM.md](GEMINI-LLM.md)).
+- **Model:** Gemini (13.11.2026; OpenRouter tayyor, yoqilmagan). Provayderdan mustaqil: `AI_PROVIDER`, `AI_MODEL` env bilan almashtiriladi, kalit `AI_API_KEY` faqat Supabase secret'da ([AI-PROVAYDER.md](AI-PROVAYDER.md)). Amalda funksiya nomi `ai-parse`. Haqiqiy savdogar ma'lumoti bilan **faqat pullik daraja** ([AI-PROVAYDER.md](AI-PROVAYDER.md) 6-bo'lim; GEMINI-LLM.md eskirgan).
 - **Chiqish (JSON schema, majburiy):**
   ```json
   { "transcript": "…", "customer_text": "Karim aka" ,
@@ -76,7 +76,7 @@ Bog'liqlik: kirim, ombor, ta'minotchi modeli (`PROMPT-3` S2-S3: `post_purchase`)
 
 ```
 [Kamera] → rasm (siqilgan, ≤ 4 MB) → Edge Function `parse-invoice`
-   → Gemini vision + katalog → JSON qatorlar (nom, son, tan narx, yuk xatidagi qator summasi matn sifatida)
+   → Gemini vision (13.11) + katalog → JSON qatorlar (nom, son, tan narx, yuk xatidagi qator summasi matn sifatida)
    → core: son × narx hisoblaydi va yuk xatidagi summa bilan solishtiradi
    → Kirim tasdiqlash ekrani (ta'minotchi, sariq qatorlar) → post_purchase (ikki hisob) → ombor qoldig'i +
 ```

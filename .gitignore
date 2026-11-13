@@ -58,3 +58,8 @@ Thumbs.db
 supabase/.temp/
 supabase/.branches/
 apps/web/AGENTS.md
+
+# Qo'lda zaxira nusxalari (scripts/zaxira): mijoz ma'lumoti, repoga tushmasin
+/zaxira/
+*.dump
+*.dump.sha256

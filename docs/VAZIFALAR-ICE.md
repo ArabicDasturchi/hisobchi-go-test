@@ -16,11 +16,11 @@ Sana: 03.11.2026. Manba: HADI darsi (IT Park, 31.10), Sardor akaning MVP savoli 
 | T3 | **Android APK** (EAS `preview`): savdogar telefoniga o'rnatiladi, mikrofon ishlaydi | 8 | 9 | 7 | **8.0** | Humoyun | — | navbatda |
 | T4 | **Haqiqiy tovarlar bazasi**: Sheets "Tovarlar" dan aniq qatorlarni kiritish; noaniq narxlarni asoschi tasdiqlaydi | 6 | 9 | 9 | **8.0** | arxitektor-Claude | PR #3, #4 merge | navbatda |
 | T11 | PR'larda testlar (`ci.yml`), migratsiya CI ni yoqish | 5 | 9 | 9 | **7.7** | Abdulloh Claude Code | CI PR merge | qisman tayyor |
-| T1 | **AI tushunish (Q1):** `parse-list` Edge Function, matndan qatorlar | 8 | 7 | 7 | **7.3** | Humoyun | — | navbatda |
+| T1 | **AI tushunish (Q1):** `ai-parse` Edge Function (12.11: `parse-list` o'rniga), matndan qatorlar | 8 | 7 | 7 | **7.3** | Humoyun | — | navbatda |
 | T5 | Tezkor savdo, bir martalik mijoz, ixcham tovar kartochkasi | 7 | 8 | 7 | **7.3** | Abdulloh Claude Code | — | `PROMPT-3` S4 |
-| T2 | **Ovozli xabar (Q1):** audio → `parse-list` (server tushunadi) | 8 | 5 | 6 | **6.3** | Humoyun | T1 | navbatda |
+| T2 | **Ovozli xabar (Q1):** brauzer nutqni tanish → matn → `ai-parse` (12.11) | 8 | 5 | 6 | **6.3** | Humoyun | T1 | navbatda |
 | T6 | Kirim, ombor, ta'minotchi modeli (`post_purchase`) | 7 | 7 | 5 | **6.3** | Abdulloh Claude Code | — | `PROMPT-3` S2-S3 |
-| T7 | **Suratdan kirim (Q2):** `parse-invoice`, yuk xati → kirim qoralamasi | 9 | 6 | 4 | **6.3** | Humoyun | T1, T6 | G1 natijasidan keyin |
+| T7 | **Suratdan kirim (Q2):** `ai-parse` `purchase_image` (12.11: `parse-invoice` o'rniga), yuk xati → savatga kirim qoralamasi | 9 | 6 | 4 | **6.3** | Humoyun | T1, T6 | G1 natijasidan keyin |
 | T8 | Qarz eslatmasi (Telegram) | 5 | 4 | 6 | 5.0 | — | — | keyin |
 | T9 | Chek chop etish (Bluetooth) | 4 | 4 | 4 | 4.0 | — | — | keyin |
 | T10 | Ommaviy MCP (mijoz o'z Claude/ChatGPT'si bilan) | 3 | 3 | 6 | 4.0 | — | — | to'xtatilgan |
@@ -53,7 +53,7 @@ Claude Code'ga bering: [prompts/HUMOYUN-1.md](prompts/HUMOYUN-1.md). Tartib: T3 
 
 Siz qiladigan (Claude Code qila olmaydigan) ishlar:
 1. Expo akkaunt va `eas login` (EAS build uchun).
-2. Gemini API kaliti: Google AI Studio, billing ulangan (pullik daraja). Kalitni chatga yoki repoga yozmang; `supabase secrets set GEMINI_API_KEY=...` ni o'zingiz terminalda bajaring.
-3. Edge Function deploy: `supabase functions deploy parse-list` (yo'riqnoma PR'da bo'ladi).
+2. AI provayder kaliti: **Gemini** (AI Studio, pullik daraja; QARORLAR 13.11.2026). OpenRouter keyin almashtirish uchun tayyor, hozir yoqilmagan. Kalitni chatga yoki repoga yozmang; `supabase secrets set AI_PROVIDER=gemini AI_MODEL=gemini-2.5-flash AI_API_KEY=...` (yoki GitHub Actions «Edge Function deploy») ni o'zingiz terminalda bajaring ([AI-PROVAYDER.md](AI-PROVAYDER.md)).
+3. Edge Function deploy: `supabase functions deploy ai-parse` (bitta funksiya: matn, ovoz matni va rasm; [AI-PROVAYDER.md](AI-PROVAYDER.md) 4-bo'lim).
 
 Supabase loyihasida (`kfrnlkwocwpezwgytcmz`) a'zo bo'lmasangiz, 2- va 3-qadamni Abdulloh bajaradi yoki sizni tashkilotga qo'shadi.
