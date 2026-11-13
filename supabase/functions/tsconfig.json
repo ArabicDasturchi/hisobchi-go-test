@@ -1,0 +1,17 @@
+{
+  "//": "Faqat _shared (sof TS, Deno + Node). ai-parse/index.ts Deno'ga bog'liq (esm.sh import, Deno global) — bu yerda tekshirilmaydi. Ishga tushirish: npx tsc -p supabase/functions",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true
+  },
+  "include": ["_shared/**/*.ts", "vitest.config.ts"]
+}

@@ -1,0 +1,86 @@
+# AI Edge Function (`ai-parse`, F4/F5) ni Supabase'ga deploy qilish — FAQAT QO'LDA (workflow_dispatch).
+# Avtomatik ishga tushmaydi: production'ga deploy faqat asoschi qarori bilan (docs/ISH-SHARTNOMASI.md).
+#
+# Sirlar (GitHub > Settings > Environments > staging / production):
+#   staging:    STAGING_SUPABASE_ACCESS_TOKEN, STAGING_SUPABASE_PROJECT_REF
+#   production: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF
+#   ikkalasida: AI_API_KEY (Gemini kaliti — shuning o'zi yetadi: gemini va gemini-2.5-flash standart);
+#   ixtiyoriy: AI_PROVIDER, AI_MODEL, AI_BASE_URL,
+#   AI_ALLOWED_ORIGINS. Berilmasa funksiya `ai_not_configured` qaytaradi va ilova qo'lda kiritishga qaytadi.
+# Kalitlar logga chiqmaydi (GitHub maskalaydi, qiymatlar echo qilinmaydi). Hozir: AI_PROVIDER=gemini (QARORLAR 13.11);
+# OpenRouter tayyor, faqat AI_PROVIDER=openrouter va uning kaliti bilan yoqiladi.
+# Batafsil: docs/AI-PROVAYDER.md 4-bo'lim.
+name: Edge Function deploy (ai-parse)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Qayerga: staging yoki production'
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+concurrency:
+  group: deploy-functions-${{ inputs.target }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: ai-parse → ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.target }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ inputs.target == 'production' && secrets.SUPABASE_ACCESS_TOKEN || secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ inputs.target == 'production' && secrets.SUPABASE_PROJECT_REF || secrets.STAGING_SUPABASE_PROJECT_REF }}
+      AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+      AI_MODEL: ${{ secrets.AI_MODEL }}
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
+      AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+      AI_ALLOWED_ORIGINS: ${{ secrets.AI_ALLOWED_ORIGINS }}
+      SUPABASE_CLI_VERSION: '3.0.0'
+    steps:
+      - name: Sirlar mavjudligini tekshirish (qiymatlar chop etilmaydi)
+        run: |
+          for n in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF; do
+            if [ -z "${!n}" ]; then echo "::error::$n kiritilmagan (${{ inputs.target }} muhiti)."; exit 1; fi
+          done
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Deploy'dan oldin funksiya mantig'i testlari (provayder mock bilan) va tip tekshiruvi
+      - name: Funksiya testlari
+        run: npm run test:functions && npm run typecheck:functions
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: AI sozlamalarini Supabase secrets'ga yozish (berilganlari)
+        run: |
+          args=()
+          for n in AI_PROVIDER AI_MODEL AI_API_KEY AI_BASE_URL AI_ALLOWED_ORIGINS; do
+            if [ -n "${!n}" ]; then args+=("$n=${!n}"); fi
+          done
+          if [ "${#args[@]}" -gt 0 ]; then
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_REF" "${args[@]}" >/dev/null
+            echo "AI sozlamalari yozildi: ${#args[@]} ta o'zgaruvchi (qiymatlar ko'rsatilmaydi)."
+          else
+            echo "::notice::AI_* sirlari berilmagan: funksiya 'ai_not_configured' qaytaradi (ilova qo'lda kiritishga qaytadi)."
+          fi
+      # JWT tekshiruvi yoqiq (--no-verify-jwt YO'Q): faqat tizimga kirgan foydalanuvchi chaqira oladi
+      - name: Deploy
+        run: supabase functions deploy ai-parse --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Tekshiruv — tokensiz so'rov rad etilishi kerak
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/ai-parse" -H 'Content-Type: application/json' -d '{}')
+          echo "Tokensiz so'rov: HTTP $code"
+          if [ "$code" != "401" ]; then echo "::error::Kutilgan 401, olingan $code"; exit 1; fi
