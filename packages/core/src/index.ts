@@ -42,8 +42,8 @@ export { validateLine, validateDocument } from './validation.js';
 export { normalizeProductName } from './normalize.js';
 
 // Ro'yxat tahlili
-export type { ParsedListRow, ParsedList, ParseQtyResult, ParsePriceResult } from './parse-list.js';
-export { parseProductList, parseQtyMilli, parseUnitPriceText } from './parse-list.js';
+export type { ParsedListRow, ParsedList, ParseQtyResult, ParsePriceResult, PastedListRow, PastedListOptions, PastedRowStatus } from './parse-list.js';
+export { parseProductList, parseQtyMilli, parseUnitPriceText, parsePastedList, isMultiLineList } from './parse-list.js';
 
 // Kirim, oldi-berdi, ombor, foyda, to'lov qoidalari (Vazifa 3, S3)
 export type { PurchaseLineInput, PurchaseLineResult, PurchaseResult, Settlement, PurchasePaymentCheck } from './purchase.js';

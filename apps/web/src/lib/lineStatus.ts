@@ -7,13 +7,14 @@ import { resolveSaleProduct } from './productIdentity';
 import { findProductByName } from './productPicker';
 import { buildSalePlan, isBlank, type DraftLine } from './saleForm';
 
-export type YellowReason = 'name' | 'qty' | 'price';
+export type YellowReason = 'review' | 'name' | 'qty' | 'price';
 
 export type LineStatus =
   | { status: 'ok'; isNew: boolean }
   | { status: 'yellow'; reason: YellowReason; message: string; isNew: boolean };
 
 const MESSAGES: Record<YellowReason, string> = {
+  review: 'Tekshiring',
   name: "Tovar nomi yo'q",
   qty: "Soni yo'q yoki noto'g'ri",
   price: "Narxi yo'q, kiriting",
@@ -29,6 +30,9 @@ export function lineStatus(line: DraftLine, products: readonly Product[]): LineS
   // Tanlangan tovar (productId) birinchi; aks holda nom bo'yicha (avvalgi xatti-harakat)
   const isNew = name !== '' && resolveSaleProduct(products, line) === undefined && findProductByName(products, name) === undefined;
   const yellow = (reason: YellowReason): LineStatus => ({ status: 'yellow', reason, message: MESSAGES[reason], isNew });
+  // F1: joylangan qatorda hal qilinmagan savol (variant, yangi tovar, tekshirish, tushunilmagan) — birinchi
+  const review = line.reviews?.[0];
+  if (review) return { status: 'yellow', reason: 'review', message: review.message, isNew };
   if (!name) return yellow('name');
   if (!parseQtyInput(line.qty).ok) return yellow('qty');
   if (line.price.trim() === '' || !parseMoneyInput(line.price, { allowZero: true }).ok) return yellow('price');

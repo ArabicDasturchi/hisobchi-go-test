@@ -104,10 +104,16 @@ describe('parseProductList — noaniq va to\'liqsiz kiritish', () => {
     expect(rows[0].issues.find((i) => i.code === 'AMBIGUOUS_NUMBERS')?.severity).toBe('error');
   });
 
-  it("nuqtali narx 13.000 — noaniq, rad etiladi", () => {
+  it("nuqtali narx 13.000 so'm — narx o'rnida ming ajratuvchi = 13000 (asoschi qarori 11.11.2026)", () => {
     const { rows } = parseProductList("non 3 ta 13.000 so'm");
-    expect(rows[0].unitPrice).toBeUndefined();
-    expect(codes(rows[0].issues)).toContain('PRICE_PARSE_ERROR');
+    expect(rows[0].unitPrice).toBe(13000n);
+    expect(rows[0].issues).toEqual([]);
+  });
+
+  it("nuqtali MIQDOR 1.500 kg — avvalgidek noaniq (1,5 yoki 1500), rad etiladi", () => {
+    const { rows } = parseProductList("guruch 1.500 kg 12000 so'm");
+    expect(rows[0].qtyMilli).toBeUndefined();
+    expect(codes(rows[0].issues)).toContain('QTY_PARSE_ERROR');
   });
 
   it("kasrli narx 4000.5 so'm — butun so'm emas, rad etiladi", () => {
@@ -175,7 +181,11 @@ describe('parseUnitPriceText', () => {
     expect(parseUnitPriceText(input)).toEqual({ ok: true, unitPrice: expected });
   });
 
-  it.each(['', '   ', 'abc', '13.000', '4000.5', '-5', '1.2345 ming'])('rad etiladi: "%s"', (input) => {
+  it.each([['13.000', 13000n], ['15.000', 15000n], ['1.500.000', 1500000n]])('nuqta ming ajratuvchi: "%s" → %s', (input, expected) => {
+    expect(parseUnitPriceText(input)).toEqual({ ok: true, unitPrice: expected });
+  });
+
+  it.each(['', '   ', 'abc', '13.00', '15.0000', '4000.5', '-5', '1.2345 ming'])('rad etiladi: "%s"', (input) => {
     expect(parseUnitPriceText(input).ok).toBe(false);
   });
 });

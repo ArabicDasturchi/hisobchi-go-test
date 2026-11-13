@@ -4,9 +4,14 @@
  * Takliflar paneli (`children`) matn maydoni ustida ochiladi. Hamma tugma ≥44px.
  */
 import { ArrowUp, Check } from 'lucide-react';
-import { forwardRef, useEffect, useImperativeHandle, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, type ClipboardEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { cn } from '@/components/ui/primitives';
 import { uz } from '@/i18n/uz';
+
+/** Bitta qatorli yozuv chegarasi (tovar nomi/summa/izoh). Avval textarea `maxLength` edi: u joylangan ro'yxatni ham kesardi */
+export const COMPOSER_MAX = 120;
+const NEWLINE = /[\r\n]/;
+const NEWLINES = /[\r\n]+/g;
 
 export interface SaleComposerHandle {
   focus: () => void;
@@ -38,10 +43,15 @@ export interface SaleComposerProps {
   confirmIcon?: boolean;
   /** Matn maydoni ustidagi panel */
   children?: ReactNode;
+  /**
+   * F1: ko'p qatorli matn joylanganda (yoki klaviatura uni yangi qatorlar bilan kiritganda) chaqiriladi.
+   * true qaytarsa matn ro'yxat sifatida qabul qilingan: oynaga yozilmaydi. false — odatdagi bitta qator.
+   */
+  onPasteText?: (text: string) => boolean;
 }
 
 export const SaleComposer = forwardRef<SaleComposerHandle, SaleComposerProps>(function SaleComposer(
-  { value, onChange, placeholder, panelOpen, panelId, onSubmit, onFocusPanel, onEscape, onFocus, plus, action, who, sendDisabled, disabled, inputMode, sendLabel, inputLabel, confirmIcon, children },
+  { value, onChange, placeholder, panelOpen, panelId, onSubmit, onFocusPanel, onEscape, onFocus, plus, action, who, sendDisabled, disabled, inputMode, sendLabel, inputLabel, confirmIcon, children, onPasteText },
   ref,
 ) {
   const area = useRef<HTMLTextAreaElement>(null);
@@ -67,6 +77,17 @@ export const SaleComposer = forwardRef<SaleComposerHandle, SaleComposerProps>(fu
     }
   }
 
+  function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const text = e.clipboardData?.getData('text/plain') ?? '';
+    if (text && NEWLINE.test(text) && onPasteText?.(text)) e.preventDefault();
+  }
+
+  function onTextChange(raw: string) {
+    // Zaxira yo'l: ba'zi telefon klaviaturalari joylashni paste hodisasisiz, yangi qatorlar bilan kiritadi
+    if (NEWLINE.test(raw) && onPasteText?.(raw)) return;
+    onChange(raw.replace(NEWLINES, ' ').slice(0, COMPOSER_MAX));
+  }
+
   return (
     <div>
       {children}
@@ -85,8 +106,8 @@ export const SaleComposer = forwardRef<SaleComposerHandle, SaleComposerProps>(fu
           value={value}
           disabled={disabled}
           placeholder={placeholder ?? uz.composer.placeholder}
-          maxLength={120}
-          onChange={(e) => onChange(e.target.value.replace(/\n/g, ' '))}
+          onChange={(e) => onTextChange(e.target.value)}
+          onPaste={onPaste}
           onFocus={onFocus}
           onKeyDown={onKeyDown}
           style={{ outline: 'none' }}

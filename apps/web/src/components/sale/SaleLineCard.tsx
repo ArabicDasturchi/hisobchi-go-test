@@ -8,9 +8,12 @@ import { useState } from 'react';
 import { Money } from '@/components/shared';
 import { cn } from '@/components/ui/primitives';
 import { uz } from '@/i18n/uz';
+import type { Product } from '@/lib/data/types';
 import type { LineStatus } from '@/lib/lineStatus';
 import { formatMoneyInput, formatSom, lineTotal, parseMoneyInput, parseQtyInput } from '@/lib/money';
+import { currentReview, pasteStatus } from '@/lib/pasteList';
 import type { DraftLine } from '@/lib/saleForm';
+import { ReviewActions, PasteBadge } from './ReviewActions';
 
 export interface SaleLineCardProps {
   line: DraftLine;
@@ -20,12 +23,17 @@ export interface SaleLineCardProps {
   disabled?: boolean;
   onChange: (patch: Partial<DraftLine>) => void;
   onRemove: () => void;
+  /** F1: joylangan qator savoliga javob (variant tanlash, yangi tovar, "To'g'ri") */
+  candidates?: readonly Product[];
+  onChoose?: (p: Product) => void;
+  onKeepNew?: () => void;
+  onAccept?: () => void;
 }
 
 const field =
   'h-11 rounded-xl border bg-surface px-3 text-center text-base font-semibold text-fg tabular-nums outline-none transition-colors placeholder:font-normal placeholder:text-muted focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/25 disabled:opacity-60';
 
-export function SaleLineCard({ line, status, warnings = [], disabled, onChange, onRemove }: SaleLineCardProps) {
+export function SaleLineCard({ line, status, warnings = [], disabled, onChange, onRemove, candidates = [], onChoose, onKeepNew, onAccept }: SaleLineCardProps) {
   const yellow = status.status === 'yellow';
   const reason = yellow ? status.reason : null;
   const qty = parseQtyInput(line.qty);
@@ -33,12 +41,16 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
   const total = qty.ok && price.ok ? lineTotal({ qtyMilli: qty.value, unitPrice: price.value }) : null;
   const unitText = price.ok ? formatSom(price.value).replace(/ /g, ' ') : null;
   const [editingPrice, setEditingPrice] = useState(false);
-  const priceEditable = reason === 'price' || editingPrice;
+  const review = currentReview(line);
+  // Tushunilmagan yoki tekshiriladigan joylangan qatorda narx ham qo'lda tuzatiladi
+  const priceEditable = reason === 'price' || editingPrice || review?.kind === 'xato' || review?.kind === 'check';
+  const paste = line.pasted ? pasteStatus(line, yellow) : null;
 
   return (
     <li
       data-testid="sale-line"
       data-status={status.status}
+      data-paste-status={paste ?? undefined}
       className={cn(
         'rounded-2xl border p-3.5',
         yellow ? 'border-amber-400 bg-amber-50 dark:border-amber-500/60 dark:bg-amber-500/10' : 'border-line bg-surface',
@@ -47,8 +59,9 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 sm:flex sm:gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold text-fg">
+            {paste && <PasteBadge status={paste} />}
             {line.productName.trim() || '—'}
-            {status.isNew && (
+            {status.isNew && review?.kind !== 'choose' && (
               <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-sky-100 px-1.5 py-0.5 align-middle text-[11px] font-medium text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">
                 <Sparkles className="h-3 w-3" aria-hidden />
                 {uz.composer.newProduct}
@@ -106,6 +119,7 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
             disabled={disabled}
             placeholder={uz.composer.price}
             aria-invalid={reason === 'price' || undefined}
+            onFocus={() => setEditingPrice(true)}
             onBlur={() => setEditingPrice(false)}
             autoFocus={editingPrice}
             className={cn(field, 'min-w-0 flex-1 sm:w-32 sm:flex-none', reason === 'price' ? 'border-2 border-amber-500' : 'border-line')}
@@ -118,6 +132,9 @@ export function SaleLineCard({ line, status, warnings = [], disabled, onChange, 
 
         </div>
       </div>
+      {review && line.pasted && (
+        <ReviewActions review={review} raw={line.pasted.raw} lineNo={line.pasted.lineNo} candidates={candidates} disabled={disabled} onChoose={onChoose} onKeepNew={onKeepNew} onAccept={onAccept} />
+      )}
       {warnings.length > 0 && (
         <ul className="mt-2 space-y-1">
           {warnings.map((w) => (
