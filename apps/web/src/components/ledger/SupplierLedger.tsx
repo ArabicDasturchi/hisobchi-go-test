@@ -33,7 +33,10 @@ export function SupplierLedger({ supplier, books, loadedAt, reload }: { supplier
   async function onCancel(entry: SheetEntry, reason: string) {
     const sb = getSupabase();
     if (entry.ref === 'supplier_payment') await voidSupplierPayment(sb, shopId, entry.id, reason);
-    else await reversePurchase(sb, shopId, entry.id, newId(), reason);
+    else {
+      const mode = await reversePurchase(sb, shopId, entry.id, newId(), reason);
+      if (mode === 'legacy') toast.info("Kirim bekor qilindi. Server hali yangilanmagan: kirim bilan berilgan to'lov bekor qilinmadi — kerak bo'lsa uni daftarda alohida bekor qiling.");
+    }
     await reload();
   }
 
@@ -58,6 +61,7 @@ export function SupplierLedger({ supplier, books, loadedAt, reload }: { supplier
         rows={rows}
         verification={verification}
         canWrite={canWrite}
+        canReverse={can(membership.role, 'ledger.reverse')}
         writeHref={`/dashboard?amal=daftar&kimga=${supplier.id}`}
         onCancel={onCancel}
         renderDetail={(e) =>

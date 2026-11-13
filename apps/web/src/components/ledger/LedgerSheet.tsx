@@ -42,6 +42,8 @@ export interface LedgerSheetProps {
   verification: Verification | 'checking';
   /** can() natijasi: yozish ruxsati */
   canWrite: boolean;
+  /** 018: yozuvni bekor qilish faqat owner/admin (berilmasa canWrite bo'yicha) */
+  canReverse?: boolean;
   /** "Panelda yozish" manzili: `/dashboard?amal=daftar&kimga=<id>` (daftar faqat o'qiladi, yozuv panelda) */
   writeHref: string;
   /** Yozuvni bekor qilish (teskari yozuv) */
@@ -245,7 +247,7 @@ export function LedgerSheet(p: LedgerSheetProps) {
                       {rowNote(r) && <span className="mt-0.5 block truncate text-xs">{rowNote(r)}</span>}
                     </span>
                   </button>
-                  {open === r.key && <RowDetail row={r} writable={writable && p.canWrite} onCancel={setCancelling} renderDetail={p.renderDetail} />}
+                  {open === r.key && <RowDetail row={r} writable={writable && p.canWrite && (p.canReverse ?? true)} onCancel={setCancelling} renderDetail={p.renderDetail} />}
                 </li>
               ))}
             </ul>
@@ -266,7 +268,7 @@ export function LedgerSheet(p: LedgerSheetProps) {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {shown.map((r) => (
-                    <SheetTableRow key={r.key} row={r} isOpen={open === r.key} onToggle={() => setOpen(open === r.key ? null : r.key)} writable={writable && p.canWrite} onCancel={setCancelling} renderDetail={p.renderDetail} />
+                    <SheetTableRow key={r.key} row={r} isOpen={open === r.key} onToggle={() => setOpen(open === r.key ? null : r.key)} writable={writable && p.canWrite && (p.canReverse ?? true)} onCancel={setCancelling} renderDetail={p.renderDetail} />
                   ))}
                 </tbody>
               </table>

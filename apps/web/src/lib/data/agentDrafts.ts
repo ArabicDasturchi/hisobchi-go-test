@@ -177,7 +177,7 @@ export function parseDetail(kind: string, payload: unknown, targetId: string | n
 }
 
 export function toAgentDraft(r: AgentDraftRow): AgentDraft {
-  const status = r.status === 'accepted' || r.status === 'rejected' ? r.status : 'draft';
+  const status = r.status === 'accepted' || r.status === 'rejected' || r.status === 'converted' ? r.status : 'draft';
   return {
     id: r.id,
     status,

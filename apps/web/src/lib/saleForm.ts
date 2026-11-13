@@ -5,6 +5,7 @@
 import { lineTotal, parseMoneyInput, parseQtyInput } from './money';
 import type { PostSaleLine } from './data/api';
 import type { Unit } from './data/types';
+import type { LineReview, PastedOrigin } from './pasteList';
 
 export interface DraftLine {
   key: string;
@@ -18,12 +19,16 @@ export interface DraftLine {
   qty: string;
   unit: Unit;
   price: string;
+  /** F1: ro'yxatdan joylangan qator (asl matn) */
+  pasted?: PastedOrigin;
+  /** F1: hal qilinmagan savollar (variant tanlash, yangi tovar, tekshirish, tushunilmagan qator). Bo'sh emas — sariq, tasdiqlanmaydi */
+  reviews?: LineReview[];
 }
 
 export interface LineCheck {
   ok: boolean;
   total: bigint | null;
-  errors: { name?: string; qty?: string; price?: string };
+  errors: { name?: string; qty?: string; price?: string; review?: string };
 }
 
 export function checkLine(l: DraftLine): LineCheck {
@@ -35,6 +40,9 @@ export function checkLine(l: DraftLine): LineCheck {
   if (!qty.ok) errors.qty = qty.message;
   const price = parseMoneyInput(l.price, { allowZero: true });
   if (!price.ok) errors.price = price.message;
+  // Joylangan qatorda hal qilinmagan savol bo'lsa saqlanmaydi (UI "Tasdiqlash" ni ham yopadi; bu ikkinchi himoya)
+  const review = l.reviews?.[0];
+  if (review) errors.review = review.message;
   const total = qty.ok && price.ok ? lineTotal({ qtyMilli: qty.value, unitPrice: price.value }) : null;
   return { ok: Object.keys(errors).length === 0, total, errors };
 }

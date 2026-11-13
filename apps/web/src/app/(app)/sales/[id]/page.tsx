@@ -1,4 +1,5 @@
 'use client';
+import { can } from '@/lib/permissions';
 import { ArrowLeft, Ban, Printer, User } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -101,7 +102,7 @@ export default function SaleDetailPage() {
           <Button variant="outline" onClick={() => window.print()} icon={<Printer className="h-4 w-4" />}>
             Chop etish
           </Button>
-          {doc.status === 'posted' && (
+          {doc.status === 'posted' && can(membership.role, 'ledger.reverse') && (
             <Button variant="danger" onClick={() => { setAttempted(false); setReversing({ opId: crypto.randomUUID() }); }} icon={<Ban className="h-4 w-4" />}>
               Bekor qilish
             </Button>

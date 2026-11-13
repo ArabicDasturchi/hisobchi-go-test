@@ -4,6 +4,7 @@
  * "Qayta yozish": shu qatorlar bilan yangi savdo panelda oldindan to'ldirib ochiladi. Ikki qadam alohida tasdiqlanadi:
  * bekor qilish o'tib, yangi savdo xato bersa, savdo bekor holida qoladi va panelda qatorlar saqlanib turadi.
  */
+import { can } from '@/lib/permissions';
 import { Plus, Receipt } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -34,7 +35,9 @@ const GRID = 'grid items-center gap-x-3 gap-y-1 grid-cols-[minmax(0,1fr)_auto] m
 function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null }) {
   const router = useRouter();
   const toast = useToast();
-  const { shopId, reload, data } = useShop();
+  const { shopId, reload, data, membership } = useShop();
+  // 018: bekor qilish faqat owner/admin (bazada ham majburiy)
+  const canReverse = can(membership.role, 'ledger.reverse');
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<string>(CANCEL_REASONS[0]);
   const [custom, setCustom] = useState('');
@@ -111,7 +114,7 @@ function SaleRow({ s, customerName }: { s: SaleDoc; customerName: string | null 
         <span className="mr-auto md:hidden">
           <StatusBadge status={s.status} />
         </span>
-        {!reversed && (
+        {!reversed && canReverse && (
           <Button variant="outline" size="lg" className="h-11" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`Savdo ${shortNumber(s.id)}: bekor qilish`}>
             Bekor qilish
           </Button>

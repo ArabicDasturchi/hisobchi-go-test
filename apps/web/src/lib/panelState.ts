@@ -80,5 +80,9 @@ export const PLUS_ITEMS = [
   { key: 'product', label: 'Yangi mahsulot', hint: '', href: '/products?yangi=1' },
   { key: 'customer', label: 'Yangi mijoz', hint: '', href: null },
   { key: 'supplier', label: "Yangi ta'minotchi", hint: '', href: null },
+  // F5/F4: AI yordamchisi (natija savatga qoralama bo'lib tushadi)
+  { key: 'ai', label: 'AI bilan yozish', hint: 'erkin gap yoki ovoz', href: null },
+  { key: 'photo', label: 'Rasmdan kirim', hint: "yuk xati yoki ro'yxat surati", href: null },
 ] as const;
-export const PLUS_SOON = ["Ro'yxat yopishtirish", 'Rasm yoki fayl', 'Agentlar'] as const;
+// Ro'yxat yopishtirish (F1), AI va rasm (F4/F5) endi ishlaydi: "Tez orada" bandlari qolmadi
+export const PLUS_SOON: readonly string[] = [];

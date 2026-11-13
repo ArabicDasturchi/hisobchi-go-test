@@ -8,7 +8,7 @@
 import { useRef, useState } from 'react';
 import { QUICK_SALE_LINE } from '@/components/ledger/CustomerLedger';
 import { useShop } from '@/components/ShopDataProvider';
-import { createProduct, postSale, recordPayment } from '@/lib/data/api';
+import { createProduct, postSale, recordPayment, updateProduct } from '@/lib/data/api';
 import { postPurchase, postSupplierDebt, postSupplierOpeningBalance } from '@/lib/data/purchases';
 import { recordSupplierPayment } from '@/lib/data/supplierPayments';
 import type { PaymentMethod, Product } from '@/lib/data/types';
@@ -70,13 +70,25 @@ export function useSupplierPaymentSubmit(input: { supplierId: string; amount: st
 // ---------------------------------------------------------------------------
 
 export interface PurchaseDone {
+  /** Saqlangan kirim hujjati id si (savatni yopish uchun) */
+  purchaseId: string;
   supplierId: string;
   subtotal: bigint;
   paid: bigint;
   balanceAfter: bigint;
 }
 
-export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDraftLine[]; products: readonly Product[]; balanceBefore: bigint; paid: string; method: PaymentMethod; reloadBooks: () => Promise<void> }) {
+export function usePurchaseSubmit(input: {
+  supplierId: string;
+  lines: PurchaseDraftLine[];
+  products: readonly Product[];
+  balanceBefore: bigint;
+  paid: string;
+  method: PaymentMethod;
+  reloadBooks: () => Promise<void>;
+  /** F2: savat kalitlari (kirim id = savat id, client_op_id = `basket:<id>`); berilmasa tasodifiy */
+  keys?: { purchaseId: string; op: string };
+}) {
   const { shopId, reload } = useShop();
   const [keys, setKeys] = useState(() => ({ purchaseId: id(), op: id() }));
   const st = useAttemptState();
@@ -121,20 +133,39 @@ export function usePurchaseSubmit(input: { supplierId: string; lines: PurchaseDr
       }
       // 3) Kirim (server `post_purchase` jamini qayta hisoblaydi). Eslatma: 2 va 3 bitta tranzaksiya emas, hisobotga qarang
       const lines = bindNewProducts(plan.lines, ids);
-      await postPurchase(sb, { shopId, purchaseId: keys.purchaseId, clientOpId: keys.op, supplierId: input.supplierId, docDate: null, lines, clientTotal: plan.subtotal, paid: plan.paid, method: plan.method });
+      const k = input.keys ?? keys;
+      await postPurchase(sb, { shopId, purchaseId: k.purchaseId, clientOpId: k.op, supplierId: input.supplierId, docDate: null, lines, clientTotal: plan.subtotal, paid: plan.paid, method: plan.method });
       await Promise.all([reload(), input.reloadBooks()]);
       setKeys({ purchaseId: id(), op: id() });
       created.current.clear();
       st.setLocked(false);
-      return { supplierId: input.supplierId, subtotal: plan.subtotal, paid: plan.paid, balanceAfter: plan.balanceAfter };
+      return { purchaseId: k.purchaseId, supplierId: input.supplierId, subtotal: plan.subtotal, paid: plan.paid, balanceAfter: plan.balanceAfter };
     } catch (e) {
       const err = toAppError(e);
       if (!isFinalError(err.kind)) st.setLocked(true);
+      else await archiveOrphans();
       st.setError(err.message);
       return null;
     } finally {
       st.setBusy(false);
     }
+  }
+  /**
+   * K4: server kirimni RAD etdi (yakuniy xato, hech narsa yozilmagan) — shu urinishda yaratilgan yangi tovarlar
+   * katalogda "yetim" qolmasin: arxivlanadi (o'chirilmaydi). Tarmoq xatosida esa qoladi: kirim saqlangan bo'lishi
+   * mumkin va qayta urinish o'sha tovarlarni ishlatadi.
+   */
+  async function archiveOrphans() {
+    const sb = getSupabase();
+    for (const p of created.current.values()) {
+      try {
+        await updateProduct(sb, shopId, p.id, { name: p.name, unit: p.unit, last_price: p.last_price, is_active: false });
+      } catch {
+        // arxivlab bo'lmasa ham asosiy xato ko'rsatiladi; tovar Mahsulotlar'da qo'lda arxivlanadi
+      }
+    }
+    if (created.current.size > 0) await reload();
+    created.current.clear();
   }
   /** Qator o'zgarganda uning eski xatosi (masalan birlik mos emas) olib tashlanadi */
   function clearLineError(key: string) {

@@ -129,7 +129,8 @@ export interface SaleDetail {
 // MCP agent qoralamalari (004_mcp_agent.sql: agent_drafts)
 // ---------------------------------------------------------------------------
 
-export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected';
+/** `converted` (015): savatga olingan — qatorlar savatda tahrirlanib odatdagidek tasdiqlanadi */
+export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'converted';
 
 export interface AgentDraftLine {
   product_name: string;

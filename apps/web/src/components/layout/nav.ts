@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Boxes, LayoutDashboard, MoreHorizontal, Package, Receipt, Settings, Sparkles, Truck, Users, Warehouse, type LucideIcon } from 'lucide-react';
+import { BarChart3, BookOpen, Boxes, LayoutDashboard, MoreHorizontal, Package, Receipt, Settings, ShoppingBasket, Truck, Users, Warehouse, type LucideIcon } from 'lucide-react';
 import { uz } from '@/i18n/uz';
 
 export interface NavItem {
@@ -22,7 +22,8 @@ const I = {
   dashboard: { href: '/dashboard', label: uz.nav.dashboard, icon: LayoutDashboard, exact: true, short: 'Panel' },
   report: { href: '/dashboard/report', label: uz.nav.reports, icon: BarChart3 },
   sales: { href: '/sales', label: uz.nav.sales, icon: Receipt },
-  drafts: { href: '/drafts', label: uz.nav.drafts, icon: Sparkles },
+  // F2: "Qoralamalar" → "Savat" (yarim qolgan savdolar + AI qoralamalari)
+  drafts: { href: '/drafts', label: uz.nav.drafts, icon: ShoppingBasket },
   suppliers: { href: '/suppliers', label: uz.nav.suppliers, icon: Truck },
   customers: { href: '/customers', label: uz.nav.customers, icon: Users },
   products: { href: '/products', label: uz.nav.products, icon: Package },
@@ -47,7 +48,7 @@ export const NAV_ITEMS: readonly NavItem[] = [...NAV_GROUPS.flatMap((g) => g.ite
 /**
  * Telefonda pastki menyu (boshqa sahifalarda; panelda pastki menyu yo'q, tepada hamburger):
  * Panel, Savdolar, Daftarlar, Baza, Yana. Moslik: Mijozlar/Ta'minotchilar -> Daftarlar, Mahsulotlar/Ombor -> Baza,
- * Qoralamalar/Hisobotlar/Sozlamalar -> Yana.
+ * Savat/Hisobotlar/Sozlamalar -> Yana.
  */
 export const LEDGERS_ITEM: NavItem = { href: '/customers', label: uz.nav.ledgers, icon: BookOpen, also: ['/suppliers'] };
 export const BASE_ITEM: NavItem = { href: '/products', label: uz.nav.groupBase, icon: Boxes, also: ['/warehouse'] };
@@ -85,6 +86,7 @@ export function pageTitle(pathname: string): string {
   if (/^\/sales\/[^/]+$/.test(pathname)) return 'Savdo tafsiloti';
   if (pathname === '/purchases/new') return 'Kirim yozish';
   if (pathname === '/dashboard/report') return uz.nav.reports;
+  if (pathname === '/settings/history') return "O'zgarishlar tarixi";
   if (/^\/customers\/[^/]+$/.test(pathname)) return 'Mijoz daftari';
   if (/^\/suppliers\/[^/]+$/.test(pathname)) return "Ta'minotchi daftari";
   return NAV_ITEMS.find((i) => isItemActive(pathname, i))?.label ?? uz.app.name;

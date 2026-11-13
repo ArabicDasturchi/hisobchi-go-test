@@ -26,6 +26,7 @@ import { formatMoneyInput } from '@/lib/money';
 import { checkProductDuplicate, identityChanged } from '@/lib/productIdentity';
 import { filterProducts, productFields, productInitial, valuesToInput, type ProductFilter } from '@/lib/productsView';
 import { validateRow } from '@/lib/rowEdit';
+import { unitLockedMessage } from '@/lib/productIdentity';
 import { getSupabase } from '@/lib/supabase/client';
 import { parseEnabledUnits, unitChoices } from '@/lib/units';
 
@@ -34,15 +35,20 @@ const GRID = 'grid items-center gap-x-3 gap-y-0 grid-cols-[minmax(0,1fr)_auto_au
 const place = (editing: boolean, mobile: string) => (editing ? 'col-span-full' : `${mobile} md:col-auto md:row-auto md:row-span-1`);
 
 function ProductRow({ p, units, products }: { p: Product; units: readonly Unit[]; products: readonly Product[] }) {
-  const { shopId, reload } = useShop();
+  const { shopId, reload, data } = useShop();
   const toast = useToast();
   const fields = useMemo(() => productFields(units), [units]);
+  // K3 (014): ombor harakati bor tovarning birligi o'zgarmaydi (eski harakatlar yangi birlikda o'qilib qoldiq buziladi)
+  const hasMovements = data?.stock?.has(p.id) ?? false;
   const initial = useMemo(() => productInitial(p), [p]);
   const row = useRowEdit({
     fields,
     initial,
     onSave: async (v) => {
       const input = valuesToInput(v, p.is_active);
+      if (input.unit !== p.unit && hasMovements) {
+        throw new Error(unitLockedMessage(p.name));
+      }
       if (identityChanged(p, input)) {
         const dup = checkProductDuplicate(products, input, { selfId: p.id, mode: 'edit' });
         if (dup.error) throw new Error(dup.error);

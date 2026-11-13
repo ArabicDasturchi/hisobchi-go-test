@@ -7,7 +7,7 @@ export const uz = {
   nav: {
     dashboard: 'Boshqaruv paneli',
     sales: 'Savdolar',
-    drafts: 'Qoralamalar',
+    drafts: 'Savat',
     newSale: 'Yangi savdo',
     customers: 'Mijozlar',
     products: 'Mahsulotlar',

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { BOTTOM_ITEMS, hasComposer, isActive, isItemActive, LEDGERS_ITEM, MORE_ITEM, NAV_GROUPS, NAV_ITEMS, pageTitle, parentSection, searchPlaceholder, SETTINGS_ITEM } from '../src/components/layout/nav';
 
-describe('menyu: Qoralamalar', () => {
+describe('menyu: Savat (avval Qoralamalar)', () => {
   it('"Asosiy" bo\'limida, sarlavha va faol holat to\'g\'ri', () => {
     const group = NAV_GROUPS.find((g) => g.items.some((i) => i.href === '/drafts'));
     expect(group?.label).toBe('Asosiy');
     expect(NAV_ITEMS.filter((i) => i.href === '/drafts')).toHaveLength(1);
-    expect(pageTitle('/drafts')).toBe('Qoralamalar');
+    expect(pageTitle('/drafts')).toBe('Savat');
     expect(isActive('/drafts', '/drafts')).toBe(true);
     expect(isActive('/sales', '/drafts')).toBe(false);
   });

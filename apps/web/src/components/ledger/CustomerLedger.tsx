@@ -101,6 +101,7 @@ export function CustomerLedger({ customer, data }: { customer: Customer; data: S
         rows={rows}
         verification={verification}
         canWrite={canWrite}
+        canReverse={can(membership.role, 'ledger.reverse')}
         writeHref={`/dashboard?amal=daftar&kimga=${customer.id}`}
         onCancel={onCancel}
         renderDetail={(e) => (e.ref === 'sale' && !e.cancelled ? <SaleLines id={e.id} /> : null)}

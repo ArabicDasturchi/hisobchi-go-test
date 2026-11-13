@@ -22,6 +22,8 @@ vi.mock('@/components/ui/Toast', () => ({ useToast: () => ({ success: vi.fn(), e
 vi.mock('@/components/ShopDataProvider', () => ({
   useShop: () => ({
     shopId: 'shop',
+    // 018: bekor qilish owner/admin uchun
+    membership: { role: 'owner', user_id: 'u', shop: { id: 'shop', name: 'D' } },
     reload: async () => {},
     loading: false,
     error: null,

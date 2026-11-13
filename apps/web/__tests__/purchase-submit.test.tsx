@@ -10,12 +10,13 @@ import type { PurchaseDraftLine } from '@/lib/purchaseForm';
 
 const createProduct = vi.fn();
 const postPurchase = vi.fn();
+const updateProduct = vi.fn();
 const reload = vi.fn(async () => {});
 
 vi.mock('@/components/ShopDataProvider', () => ({ useShop: () => ({ shopId: 'shop1', reload }) }));
 vi.mock('@/components/ledger/CustomerLedger', () => ({ QUICK_SALE_LINE: 'Tez savdo' }));
 vi.mock('@/lib/supabase/client', () => ({ getSupabase: () => ({}) }));
-vi.mock('@/lib/data/api', () => ({ createProduct: (...a: unknown[]) => createProduct(...a), postSale: vi.fn(), recordPayment: vi.fn() }));
+vi.mock('@/lib/data/api', () => ({ createProduct: (...a: unknown[]) => createProduct(...a), updateProduct: (...a: unknown[]) => updateProduct(...a), postSale: vi.fn(), recordPayment: vi.fn() }));
 vi.mock('@/lib/data/purchases', () => ({ postPurchase: (...a: unknown[]) => postPurchase(...a), postSupplierOpeningBalance: vi.fn() }));
 vi.mock('@/lib/data/supplierPayments', () => ({ recordSupplierPayment: vi.fn() }));
 
@@ -34,6 +35,8 @@ beforeEach(() => {
   seq = 0;
   createProduct.mockReset();
   postPurchase.mockReset();
+  updateProduct.mockReset();
+  updateProduct.mockResolvedValue({});
   createProduct.mockImplementation(async (_sb: unknown, _shop: string, input: { name: string; unit: Unit }) => P(`new-${++seq}`, input.name, input.unit));
   postPurchase.mockResolvedValue(undefined);
 });
@@ -161,5 +164,32 @@ describe('usePurchaseSubmit: qayta urinish', () => {
     const second = postPurchase.mock.calls[1]![1] as { purchaseId: string; lines: { product_id: string }[] };
     expect(second.purchaseId).toBe(first.purchaseId);
     expect(second.lines.map((l) => l.product_id)).toEqual(['new-1', 'new-1']);
+  });
+});
+
+describe('K4: rad etilgan kirimdan keyin yangi tovar yetim qolmaydi', () => {
+  it('server rad etsa (validation) — shu urinishda yaratilgan tovar arxivlanadi', async () => {
+    postPurchase.mockRejectedValue({ code: '22000', message: 'calc_mismatch: server=1, client=2' });
+    const { result } = setup([L('a', 'Shakar', '10', '12 000', 'kg')]);
+    await act(async () => {
+      await result.current.submit();
+    });
+    expect(createProduct).toHaveBeenCalledTimes(1);
+    expect(updateProduct).toHaveBeenCalledWith(expect.anything(), 'shop1', 'new-1', expect.objectContaining({ name: 'Shakar', is_active: false }));
+    expect(result.current.locked).toBe(false);
+  });
+
+  it('tarmoq xatosi — tovar qoladi (kirim saqlangan bo‘lishi mumkin), qayta urinish uni qayta ishlatadi', async () => {
+    postPurchase.mockRejectedValueOnce({ message: 'Failed to fetch' });
+    const { result } = setup([L('a', 'Shakar', '10', '12 000', 'kg')]);
+    await act(async () => {
+      await result.current.submit();
+    });
+    expect(updateProduct).not.toHaveBeenCalled();
+    expect(result.current.locked).toBe(true);
+    await act(async () => {
+      await result.current.submit();
+    });
+    expect(createProduct).toHaveBeenCalledTimes(1);
   });
 });

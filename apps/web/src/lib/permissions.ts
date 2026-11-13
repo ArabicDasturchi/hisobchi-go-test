@@ -19,8 +19,9 @@ const ALL: readonly Role[] = ['owner', 'admin', 'member'];
 export const PERMISSIONS: Readonly<Record<Action, readonly Role[]>> = {
   'settings.manage': ['owner'],
   'ledger.write': ALL,
-  'ledger.reverse': ALL,
-  'stock.adjust': ALL,
+  // 018: bazada majburiy — sotuvchi (member) pul yozuvini bekor qila olmaydi va ombor qoldig'ini tuzata olmaydi
+  'ledger.reverse': ['owner', 'admin'],
+  'stock.adjust': ['owner', 'admin'],
   'partner.manage': ALL,
 };
 

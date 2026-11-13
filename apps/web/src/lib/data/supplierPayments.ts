@@ -3,7 +3,7 @@
  * to'lov `void_supplier_payment` bilan, kirim/boshlang'ich qarz `reverse_purchase` bilan bekor qilinadi (o'chirilmaydi).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { AppError, toAppError } from '../errors';
+import { AppError, isRpcMissing, toAppError } from '../errors';
 import { toBig } from '../money';
 import type { PaymentMethod } from './types';
 
@@ -54,8 +54,20 @@ export async function voidSupplierPayment(sb: SB, shopId: string, paymentId: str
 }
 
 /** Kirimni (yoki boshlang'ich qarzni) bekor qilish: teskari yozuv, ombor harakati ham teskarilanadi */
-export async function reversePurchase(sb: SB, shopId: string, documentId: string, clientOpId: string, reason: string): Promise<void> {
-  check(await sb.rpc('reverse_purchase', { p_shop_id: shopId, p_document_id: documentId, p_client_op_id: clientOpId, p_reason: reason.trim() }));
+/**
+ * Kirimni bekor qilish (F3, 016): kirim va U BILAN BERILGAN to'lov bitta tranzaksiyada bekor qilinadi
+ * (`reverse_purchase_with_payments`), ta'minotchiga ortiqcha to'lov qolmaydi. 016 qo'llanmagan serverda avvalgi
+ * `reverse_purchase` (to'lov qoladi) — natija `'legacy'`, chaqiruvchi savdogarga aytadi (jim emas).
+ */
+export async function reversePurchase(sb: SB, shopId: string, documentId: string, clientOpId: string, reason: string): Promise<'with_payment' | 'legacy'> {
+  const args = { p_shop_id: shopId, p_document_id: documentId, p_client_op_id: clientOpId, p_reason: reason.trim() };
+  let mode: 'with_payment' | 'legacy' = 'with_payment';
+  const res = await sb.rpc('reverse_purchase_with_payments', { ...args, p_void_payment: true });
+  if (res.error && isRpcMissing(res.error, 'reverse_purchase_with_payments')) {
+    mode = 'legacy';
+    check(await sb.rpc('reverse_purchase', args));
+  } else check(res);
   const doc = check(await sb.from('purchase_documents').select('status').eq('shop_id', shopId).eq('id', documentId).maybeSingle()) as { status: string } | null;
   if (doc?.status !== 'reversed') throw new AppError('unknown', 'Server kirim bekor qilinishini tasdiqlamadi.');
+  return mode;
 }

@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, X } from 'lucide-react';
+import { AlertTriangle, Check, ShoppingBasket, X } from 'lucide-react';
 import Link from 'next/link';
 import { draftTitle, integrityError, isCatalogDraft } from '@/lib/data/agentDrafts';
 import type { AgentDraft, Change } from '@/lib/data/types';
@@ -34,6 +34,7 @@ export function DraftCard({
   error,
   onAccept,
   onReject,
+  onToBasket,
 }: {
   draft: AgentDraft;
   customerName: string | null;
@@ -45,6 +46,8 @@ export function DraftCard({
   error: string | null;
   onAccept: () => void;
   onReject: () => void;
+  /** B3: savdo/kirim qoralamasini savatga olib tahrirlash (berilmasa tugma yo'q) */
+  onToBasket?: () => void;
 }) {
   const open = d.status === 'draft';
   const problem = integrityError(d);
@@ -56,7 +59,7 @@ export function DraftCard({
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            {open ? <Badge tone="amber">Tasdiqlanmagan</Badge> : d.status === 'accepted' ? <Badge tone="green">Tasdiqlangan</Badge> : <Badge tone="neutral">Rad etilgan</Badge>}
+            {open ? <Badge tone="amber">Tasdiqlanmagan</Badge> : d.status === 'accepted' ? <Badge tone="green">Tasdiqlangan</Badge> : d.status === 'converted' ? <Badge tone="blue">Savatga olingan</Badge> : <Badge tone="neutral">Rad etilgan</Badge>}
             <span className="text-sm font-semibold text-fg">{draftTitle(d)}</span>
           </div>
           <p className="mt-1 text-xs text-muted">
@@ -257,6 +260,11 @@ export function DraftCard({
           <Button className="w-full sm:w-auto" onClick={onAccept} loading={busy} disabled={anyBusy || problem !== null} icon={!busy ? <Check className="h-4 w-4" /> : undefined}>
             {catalog ? 'Tasdiqlash' : `Tasdiqlash (${formatSom(d.total)})`}
           </Button>
+          {onToBasket && (d.detail.kind === 'sale' || d.detail.kind === 'purchase') && (
+            <Button className="w-full sm:w-auto" variant="outline" onClick={onToBasket} disabled={anyBusy} icon={<ShoppingBasket className="h-4 w-4" />}>
+              Savatga olib tahrirlash
+            </Button>
+          )}
           <Button className="w-full sm:w-auto" variant="outline" onClick={onReject} disabled={anyBusy} icon={<X className="h-4 w-4" />}>
             Rad etish
           </Button>

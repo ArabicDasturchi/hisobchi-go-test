@@ -3,6 +3,10 @@ import { Sparkles } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { usePageQuery } from '@/components/layout/pageQuery';
 import { DraftCard } from '@/components/DraftCard';
+import { basketHref, OpenBaskets } from '@/components/basket/OpenBaskets';
+import { draftPurchaseToBasketLines, draftSaleToBasketLines, serializePurchaseLines, serializeSaleLines } from '@/lib/basketLines';
+import { draftToBasket, isBasketServerUnavailable } from '@/lib/data/baskets';
+import { useRouter } from 'next/navigation';
 import { DataGate } from '@/components/shared';
 import { useShop, type ShopData } from '@/components/ShopDataProvider';
 import { Modal } from '@/components/ui/Modal';
@@ -45,6 +49,8 @@ function Drafts({ data }: { data: ShopData }) {
   const [rejecting, setRejecting] = useState<AgentDraft | null>(null);
   // Ikki marta bosishdan himoya: state yangilanishini kutmasdan darhol bloklaydi
   const inflight = useRef(new Set<string>());
+  const router = useRouter();
+  const [basketKey, setBasketKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -96,6 +102,33 @@ function Drafts({ data }: { data: ShopData }) {
     }
   }
 
+  /** B3: qoralamani savatga olib tahrirlash (bitta tranzaksiya: savat yaratiladi, qoralama `converted`) */
+  async function onToBasket(d: AgentDraft) {
+    if (inflight.current.has(d.id)) return;
+    if (d.detail.kind !== 'sale' && d.detail.kind !== 'purchase') return;
+    inflight.current.add(d.id);
+    setBusyId(d.id);
+    setErrors((prev) => ({ ...prev, [d.id]: '' }));
+    const basketId = crypto.randomUUID();
+    try {
+      const lines = d.detail.kind === 'sale' ? serializeSaleLines(draftSaleToBasketLines(d.detail.lines)) : serializePurchaseLines(draftPurchaseToBasketLines(d.detail.lines));
+      await draftToBasket(getSupabase(), { shopId, draftId: d.id, basketId, lines });
+      toast.success('Qoralama savatga olindi: qatorlarni tekshirib tasdiqlang.');
+      const partnerId = d.detail.kind === 'sale' ? (d.detail.walkin ? null : d.customer_id) : d.detail.supplier_id;
+      router.push(basketHref({ id: basketId, kind: d.detail.kind, partnerId }));
+    } catch (e) {
+      setErrors((prev) => ({
+        ...prev,
+        [d.id]: isBasketServerUnavailable(e) ? "Serverda savat hali yoqilmagan (015 migratsiya qo'llanmagan). Qoralamani odatdagidek tasdiqlang yoki rad eting." : errorMessage(e),
+      }));
+    } finally {
+      inflight.current.delete(d.id);
+      setBusyId(null);
+      setBasketKey((k) => k + 1);
+      await afterAction();
+    }
+  }
+
   async function onReject(d: AgentDraft, reason: string) {
     if (inflight.current.has(d.id)) return;
     inflight.current.add(d.id);
@@ -127,8 +160,8 @@ function Drafts({ data }: { data: ShopData }) {
   return (
     <>
       <PageHeader
-        title="Qoralamalar"
-        description="Tashqi AI (Claude, ChatGPT) yuborgan qoralamalar va o'zgartirish/arxiv so'rovlari. Siz tasdiqlamaguncha hech narsa yozilmaydi yoki o'zgarmaydi."
+        title="Savat"
+        description="Yarim qolgan savdo va kirimlar hamda AI qoralamalari. Siz tasdiqlamaguncha daftarga hech narsa yozilmaydi."
         actions={
           <Segmented
             ariaLabel="Holat"
@@ -138,11 +171,19 @@ function Drafts({ data }: { data: ShopData }) {
               { value: 'draft', label: `Tasdiqlanmagan${pending && pending.length > 0 ? ` (${pending.length})` : ''}` },
               { value: 'accepted', label: 'Tasdiqlangan' },
               { value: 'rejected', label: 'Rad etilgan' },
+              { value: 'converted', label: 'Savatga olingan' },
             ]}
           />
         }
       />
 
+      {filter === 'draft' && (
+        <div className="mb-6">
+          <OpenBaskets supplierNames={suppliers} refreshKey={basketKey} />
+        </div>
+      )}
+
+      <h2 className="mb-2 text-base font-semibold text-fg">AI qoralamalari</h2>
       <SearchInput value={q} onChange={setQ} placeholder="Qoralama qidirish" className="mb-3 md:hidden" />
 
       {filter === 'draft' && pending === null && (
@@ -161,7 +202,7 @@ function Drafts({ data }: { data: ShopData }) {
         <Card>
           <EmptyState
             icon={<Sparkles className="h-6 w-6" />}
-            title={filter === 'draft' ? "Tasdiqlanmagan qoralama yo'q" : filter === 'accepted' ? "Tasdiqlangan qoralama yo'q" : "Rad etilgan qoralama yo'q"}
+            title={filter === 'draft' ? "Tasdiqlanmagan qoralama yo'q" : filter === 'accepted' ? "Tasdiqlangan qoralama yo'q" : filter === 'converted' ? "Savatga olingan qoralama yo'q" : "Rad etilgan qoralama yo'q"}
             description={filter === 'draft' ? 'AI orqali yaratilgan savdo, to\'lov va kirim qoralamalari shu yerda paydo bo\'ladi.' : undefined}
           />
         </Card>
@@ -180,6 +221,7 @@ function Drafts({ data }: { data: ShopData }) {
             error={errors[d.id] || null}
             onAccept={() => void onAccept(d)}
             onReject={() => setRejecting(d)}
+            onToBasket={() => void onToBasket(d)}
           />
         ))}
       </div>

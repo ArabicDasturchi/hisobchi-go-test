@@ -1,5 +1,5 @@
 'use client';
-import { CheckCircle2, CloudCog, KeyRound, Monitor, Moon, Palette, RefreshCw, Ruler, Store, Sun, UserRound, Wifi, WifiOff } from 'lucide-react';
+import { CheckCircle2, CloudCog, Download, History, KeyRound, Monitor, Moon, Palette, RefreshCw, Ruler, Store, Sun, UserRound, Wifi, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
@@ -15,6 +15,9 @@ import { uz } from '@/i18n/uz';
 import { formatDateTime } from '@/lib/dates';
 import { errorMessage } from '@/lib/errors';
 import { getSupabase } from '@/lib/supabase/client';
+import { downloadCsv } from '@/lib/csv';
+import { buildExports } from '@/lib/exportAll';
+import { useBooks } from '@/components/useBooks';
 import { can } from '@/lib/permissions';
 import { firstError, profileNameSchema, shopNameSchema } from '@/lib/validation';
 
@@ -314,6 +317,35 @@ function SyncCard() {
   );
 }
 
+/** F3/B5: o'zgarishlar tarixi va ma'lumotni to'liq yuklab olish (CSV) */
+function DataCard() {
+  const { data } = useShop();
+  const books = useBooks();
+  const toast = useToast();
+  function exportAll() {
+    if (!data) return;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const files = buildExports({ sales: data.sales, payments: data.payments, customers: data.customers, products: data.products, books: books.data }, stamp);
+    for (const f of files) downloadCsv(f.name, f.csv);
+    toast.success(`${files.length} ta fayl yuklab olindi.${books.data ? '' : " Kirim/ta'minotchi ma'lumotlari hali yuklanmagan: birozdan keyin qayta bosing."}`);
+  }
+  return (
+    <Card className="p-4 sm:p-5" data-testid="data-card">
+      <h2 className="text-base font-semibold text-fg">Ma&apos;lumotlar</h2>
+      <p className="mt-1 text-sm text-muted">Hamma ma&apos;lumotingiz sizniki: istalgan vaqt Excel (CSV) ko&apos;rinishida yuklab oling. Tuzatish va bekor qilishlar tarixda saqlanadi.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant="outline" onClick={exportAll} disabled={!data} icon={<Download className="h-4 w-4" />}>
+          Hammasini yuklab olish (CSV)
+        </Button>
+        <Link href="/settings/history" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line px-4 text-sm font-semibold text-fg hover:bg-subtle">
+          <History className="h-4 w-4" aria-hidden />
+          O&apos;zgarishlar tarixi
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
   return (
@@ -326,6 +358,7 @@ export default function SettingsPage() {
         <UnitsCard />
         <AppearanceCard />
         <SyncCard />
+        <DataCard />
       </div>
     </div>
   );

@@ -33,6 +33,10 @@ import { formatQty, formatSom } from '@/lib/money';
 import { ACTION_INFO, panelHref, parsePanelParams, whoForAction, type PanelAction } from '@/lib/panelState';
 import { patchSaleLine } from '@/lib/productIdentity';
 import { addNewPurchaseLine, addNewSaleLine, applyPurchaseSelection, defaultNewUnit, purchaseAsDraft } from '@/lib/panelLines';
+import { isMultiLineList } from '@hisobchi/core';
+import { acceptCheck, choosePurchaseProduct, chooseSaleProduct, keepAsNew, pastedPurchaseLines, pastedSaleLines, pasteStatus, pasteSummaryText, reviewsAfterEdit, summarizePaste } from '@/lib/pasteList';
+import { isBlankPurchaseLine } from '@/lib/purchaseForm';
+import { isBlank } from '@/lib/saleForm';
 import { topProducts } from '@/lib/productPicker';
 import { applySelection, sameName, searchProductsAll, toggleSelection } from '@/lib/productSearch';
 import { lineUnit, resolveProduct, type PurchaseDraftLine } from '@/lib/purchaseForm';
@@ -45,6 +49,14 @@ import { PartnerChip, type PartnerOption } from './PartnerChip';
 import { PayView } from './PayView';
 import { PurchaseView } from './PurchaseView';
 import { useLedgerNoteSubmit, usePurchaseSubmit, useSupplierPaymentSubmit } from './usePanelActions';
+import { BasketChips } from './BasketChips';
+import { AiAssist } from './AiAssist';
+import { aiPurchaseLines, aiSaleLines, type AiMode, type AiResult } from '@/lib/aiLines';
+import { useBasketSession } from './useBasketSession';
+import { parsePurchaseLines, parseSaleLines, serializePurchaseLines, serializeSaleLines } from '@/lib/basketLines';
+import { createLocalStore, resolveBasketStore, type BasketStore, type StoredBasket } from '@/lib/basketStore';
+import { errorMessage } from '@/lib/errors';
+import { getSupabase } from '@/lib/supabase/client';
 
 const TOP_LIMIT = 50;
 const HEADER_REM = 3.5;
@@ -53,7 +65,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
-  const { balances, customerById, membership } = useShop();
+  const { balances, customerById, membership, shopId } = useShop();
   const books = useBooks();
   const panelId = useId();
   const composer = useRef<SaleComposerHandle>(null);
@@ -100,6 +112,8 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const [partial, setPartial] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [newPartner, setNewPartner] = useState<'customer' | 'supplier' | null>(null);
+  /** F5/F4: AI yordamchisi oynasi */
+  const [ai, setAi] = useState<'text' | 'photo' | null>(null);
 
   const products = data.products;
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -127,13 +141,70 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat birinchi ochilishda
   }, []);
 
+  // ---- Savat (F2): ochiq savdo/kirimlar saqlanadi, chiplar bilan almashiladi ----
+  const [basketStore, setBasketStore] = useState<BasketStore | null>(null);
+  const [basketList, setBasketList] = useState<StoredBasket[]>([]);
+  const [basketLoadError, setBasketLoadError] = useState<string | null>(null);
+  const [basketAttempt, setBasketAttempt] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    let storage: Storage | null = null;
+    try {
+      storage = typeof window === 'undefined' ? null : window.localStorage;
+    } catch {
+      storage = null;
+    }
+    let sb: ReturnType<typeof getSupabase> | null = null;
+    try {
+      sb = getSupabase();
+    } catch {
+      sb = null; // Supabase sozlanmagan (test muhiti): savat shu qurilmada
+    }
+    const load = sb ? resolveBasketStore(sb, shopId, storage) : (async () => {
+      const store = createLocalStore(storage, shopId);
+      return { store, baskets: await store.list() };
+    })();
+    load.then(
+      (r) => {
+        if (!alive) return;
+        setBasketStore(r.store);
+        setBasketList(r.baskets);
+        setBasketLoadError(null);
+      },
+      (e: unknown) => {
+        if (alive) setBasketLoadError(errorMessage(e));
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [shopId, basketAttempt]);
+  const saleBasket = useBasketSession({
+    store: basketStore,
+    kind: 'sale',
+    active: action === 'savdo',
+    lines: saleLines,
+    partnerId: action === 'savdo' ? who || null : null,
+    serialize: serializeSaleLines,
+    onListChange: setBasketList,
+  });
+  const buyBasket = useBasketSession({
+    store: basketStore,
+    kind: 'purchase',
+    active: action === 'kirim',
+    lines: buyLines,
+    partnerId: action === 'kirim' ? who || null : null,
+    serialize: serializePurchaseLines,
+    onListChange: setBasketList,
+  });
+
   // ---- Hooklar ----
   const mode = effectiveMode(pickedMode, who || null);
-  const sale = useSaleSubmit({ lines: saleLines, customerId: action === 'savdo' ? who : '', mode, partial, method });
+  const sale = useSaleSubmit({ lines: saleLines, customerId: action === 'savdo' ? who : '', mode, partial, method, keys: { saleId: saleBasket.keys.documentId, saleOp: saleBasket.keys.clientOpId } });
   const collect = usePaymentSubmit({ customerId: action === 'tolov' ? who : '', amount, method });
   const supplierDebt: bigint = who && whoKind === 'supplier' ? (totals.get(who)?.outstanding ?? 0n) : 0n;
   const payOut = useSupplierPaymentSubmit({ supplierId: action === 'ta-tolov' ? who : '', amount, method, debt: supplierDebt });
-  const buy = usePurchaseSubmit({ supplierId: action === 'kirim' ? who : '', lines: buyLines, products, balanceBefore: supplierDebt, paid: buyPaid, method, reloadBooks: books.reload });
+  const buy = usePurchaseSubmit({ supplierId: action === 'kirim' ? who : '', lines: buyLines, products, balanceBefore: supplierDebt, paid: buyPaid, method, reloadBooks: books.reload, keys: { purchaseId: buyBasket.keys.documentId, op: buyBasket.keys.clientOpId } });
   const partnerBalance: bigint = whoKind === 'supplier' ? supplierDebt : whoKind === 'customer' && who ? balanceOf(balances, who).debt : 0n;
   const ledger = useLedgerNoteSubmit({ kind: whoKind ?? 'customer', partnerId: action === 'daftar' ? who : '', text: note, balance: partnerBalance, reloadBooks: books.reload });
 
@@ -169,6 +240,36 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     afterAdd();
   }
 
+  /**
+   * F1: ko'p qatorli ro'yxat joylandi — har qator alohida tahlil qilinib karta bo'ladi (mavjud qatorlar oxiriga).
+   * Faqat Savdo/Kirim amalida va oyna qulflanmaganda. Hech narsa saqlanmaydi: tasdiq odatdagidek.
+   */
+  function pasteList(text: string): boolean {
+    if (!searching || dockLocked || !isMultiLineList(text)) return false;
+    let statuses: ReturnType<typeof pasteStatus>[] = [];
+    if (action === 'savdo') {
+      const added = pastedSaleLines(text, products);
+      statuses = added.map((l) => pasteStatus(l, lineStatus(l, products).status === 'yellow'));
+      setSaleLines((ls) => [...ls.filter((l) => !isBlank(l)), ...added]);
+    } else {
+      const added = pastedPurchaseLines(text, products, { costOf: (id) => lastCost.get(id), newUnit: defaultNewUnit(buyUnits) });
+      statuses = added.map((l) => pasteStatus(l, !!l.reviews?.length || !l.qty.trim() || !l.unitCost.trim() || (!l.productId && !l.unit)));
+      setBuyLines((ls) => [...ls.filter((l) => !isBlankPurchaseLine(l)), ...added]);
+    }
+    if (statuses.length === 0) return false;
+    const s = summarizePaste(statuses);
+    if (s.noaniq + s.xato > 0) toast.info(pasteSummaryText(s));
+    else toast.success(pasteSummaryText(s));
+    afterAdd();
+    return true;
+  }
+  const saleLine = (key: string, f: (l: DraftLine) => DraftLine) => setSaleLines((ls) => ls.map((x) => (x.key === key ? f(x) : x)));
+  const buyLine = (key: string, f: (l: PurchaseDraftLine) => PurchaseDraftLine) => {
+    setBuyLines((ls) => ls.map((x) => (x.key === key ? f(x) : x)));
+    buy.clearLineError(key);
+  };
+  const candidatesOf = (ids: readonly string[] | undefined) => (ids ?? []).flatMap((id) => productById.get(id) ?? []);
+
   async function runPayment(kind: 'tolov' | 'ta-tolov') {
     const paid = kind === 'tolov' ? await collect.submit() : await payOut.submit();
     if (paid !== null) {
@@ -180,6 +281,8 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     const done = await buy.submit();
     if (done) {
       toast.success(`Kirim saqlandi: ${formatSom(done.subtotal).replace(/ /g, ' ')}`);
+      const warn = await buyBasket.finish(done.purchaseId);
+      if (warn) toast.error(warn);
       setBuyLines([]);
       setBuyPaid('');
     }
@@ -207,13 +310,129 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
     setNote('');
     setSelected([]);
     setPanelOpen(false);
-    go({ action: a });
+    // Savdo/Kirim savatining hamkori tiklanadi (amal almashganda URL'dagi "Kimga" boshqa turdagi bo'ladi)
+    const restore = a === 'savdo' ? saleBasket.partnerId : a === 'kirim' ? buyBasket.partnerId : null;
+    go({ action: a, who: restore ?? '' });
   }
+
+  /** AI natijasi savatga qoralama qatorlari bo'lib tushadi (har biri "tekshiring" bilan); hech narsa saqlanmaydi */
+  function onAiResult(r: AiResult, mode: AiMode) {
+    setAi(null);
+    const added = mode === 'sale_text' ? aiSaleLines(r.lines, products) : aiPurchaseLines(r.lines, products, { costOf: (id) => lastCost.get(id), newUnit: defaultNewUnit(buyUnits) });
+    if (mode === 'sale_text') {
+      if (action !== 'savdo') changeAction('savdo');
+      setSaleLines((ls) => [...ls.filter((l) => !isBlank(l)), ...(added as DraftLine[])]);
+    } else {
+      if (action !== 'kirim') changeAction('kirim');
+      setBuyLines((ls) => [...ls.filter((l) => !isBlankPurchaseLine(l)), ...(added as PurchaseDraftLine[])]);
+    }
+    toast.info(`AI ${added.length} ta qator tayyorladi: har birini tekshirib «To'g'ri» deng, keyin tasdiqlang.${r.warnings?.length ? ' Ayrim qatorlar tushunilmadi.' : ''}`);
+  }
+
+  /** Savatni ochish: joriysi saqlanadi, tanlanganining qatorlari va hamkori yuklanadi */
+  async function openBasket(b: StoredBasket) {
+    if (b.kind === 'sale') {
+      await saleBasket.open(b);
+      setSaleLines(parseSaleLines(b.lines));
+      setResale(null);
+      sale.clearErrors();
+      router.push(panelHref({ action: 'savdo', who: b.partnerId ?? '' }), { scroll: false });
+    } else {
+      await buyBasket.open(b);
+      setBuyLines(parsePurchaseLines(b.lines));
+      setBuyPaid('');
+      router.push(panelHref({ action: 'kirim', who: b.partnerId ?? '' }), { scroll: false });
+    }
+  }
+  async function newBasket() {
+    if (action === 'savdo') {
+      await saleBasket.startNew();
+      setSaleLines([]);
+      setResale(null);
+    } else {
+      await buyBasket.startNew();
+      setBuyLines([]);
+      setBuyPaid('');
+    }
+    go({ who: '' });
+  }
+  async function discardBasket() {
+    if (typeof window !== 'undefined' && !window.confirm("Joriy savatdagi hamma qator o'chiriladi. Davom etasizmi?")) return;
+    try {
+      if (action === 'savdo') {
+        await saleBasket.discard();
+        setSaleLines([]);
+        setResale(null);
+      } else {
+        await buyBasket.discard();
+        setBuyLines([]);
+        setBuyPaid('');
+      }
+      go({ who: '' });
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }
+  function resolveConflict(choice: 'server' | 'mine') {
+    const session = action === 'savdo' ? saleBasket : buyBasket;
+    if (choice === 'mine') return void session.keepMine();
+    const srv = session.takeServer();
+    if (action === 'savdo') setSaleLines(srv ? parseSaleLines(srv.lines) : []);
+    else setBuyLines(srv ? parsePurchaseLines(srv.lines) : []);
+    go({ who: srv?.partnerId ?? '' });
+  }
+
+  // "Savat" bo'limidan havola: /dashboard?savat=<id> — o'sha savat ochiladi (bir marta)
+  const wantBasket = params.get('savat');
+  const [openedFromLink, setOpenedFromLink] = useState<string | null>(null);
+  useEffect(() => {
+    if (!basketStore || !wantBasket || openedFromLink === wantBasket) return;
+    // Bir martalik: havola o'qilgach qayta ochilmaydi (holat promise callback'ida yangilanadi, effect ichida sinxron emas)
+    const b = basketList.find((x) => x.id === wantBasket);
+    void Promise.resolve().then(async () => {
+      setOpenedFromLink(wantBasket);
+      if (b) await openBasket(b);
+      else toast.error("Savat topilmadi: u boshqa qurilmada yopilgan bo'lishi mumkin.");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat savat ombori yuklanganda va havola o'zgarganda
+  }, [basketStore, wantBasket]);
+
+  // Panelga qaytilganda (havolasiz): oxirgi ochiq savat o'z-o'zidan ochiladi — yig'ilgan mahsulotlar joyida turadi.
+  // "Kimga" URL'da bo'lsa (masalan mijoz varag'idan) — o'sha hamkorning savati, bo'lmasa yangi savat. Bir marta.
+  const [autoOpened, setAutoOpened] = useState(false);
+  useEffect(() => {
+    if (!basketStore || autoOpened || wantBasket || resale) return;
+    const kind = action === 'savdo' ? 'sale' : action === 'kirim' ? 'purchase' : null;
+    const hasLines = kind === 'sale' ? saleLines.some((l) => !isBlank(l)) : kind === 'purchase' ? buyLines.some((l) => !isBlankPurchaseLine(l)) : true;
+    void Promise.resolve().then(async () => {
+      setAutoOpened(true);
+      if (!kind || hasLines) return;
+      const mine = basketList.filter((b) => b.kind === kind);
+      const target = who ? mine.find((b) => b.partnerId === who) : mine[0];
+      if (target) await openBasket(target);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat savat ombori birinchi yuklanganda
+  }, [basketStore]);
+
+  // Savdo tasdiqlandi: savat yopiladi (done, hujjat bilan); keyingi savdo yangi savatda
+  const doneSaleId = sale.phase.kind === 'done' ? sale.phase.done.saleId : null;
+  useEffect(() => {
+    if (!doneSaleId) return;
+    void saleBasket.finish(doneSaleId).then((warn) => {
+      if (warn) toast.error(warn);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat yangi tasdiqlangan savdo uchun bir marta
+  }, [doneSaleId]);
 
   function onPlus(c: PlusChoice) {
     if (c === 'report') router.push('/dashboard/report');
     else if (c === 'product') router.push('/products?yangi=1');
-    else setNewPartner(c);
+    else if (c === 'ai') setAi('text');
+    else if (c === 'photo') {
+      // Rasmdan kirim: Kirim amaliga o'tiladi (savat hamkori tiklanadi)
+      if (action !== 'kirim') changeAction('kirim');
+      setAi('photo');
+    } else setNewPartner(c);
   }
 
   function newSale() {
@@ -261,6 +480,54 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
   const lockedRetry = sale.locked && sale.phase.kind === 'editing';
   const modalOpen = confirmOpen && (sale.phase.kind === 'editing' || sale.phase.kind === 'saving');
 
+  const activeBasket = action === 'savdo' ? saleBasket : buyBasket;
+  const supplierNameById = (id: string | null) => (id ? (suppliers.find((x) => x.id === id)?.name ?? books.data?.suppliers.find((x) => x.id === id)?.name ?? "Ta'minotchi") : "Ta'minotchi tanlanmagan");
+  const customerNameById = (id: string | null) => (id ? (customerById.get(id)?.name ?? 'Mijoz') : 'Mijozsiz');
+  const basketChips = (kind: 'sale' | 'purchase') => (
+    <>
+      <BasketChips
+        baskets={basketList.filter((b) => b.kind === kind)}
+        currentId={activeBasket.currentId}
+        currentHasLines={kind === 'sale' ? saleLines.some((l) => !isBlank(l)) : buyLines.some((l) => !isBlankPurchaseLine(l))}
+        nameOf={(b) => (kind === 'sale' ? customerNameById(b.partnerId) : supplierNameById(b.partnerId))}
+        currentName={kind === 'sale' ? customerNameById(who || null) : supplierNameById(who || null)}
+        mode={basketStore?.mode ?? null}
+        saving={activeBasket.saving}
+        disabled={dockLocked}
+        onOpen={(b) => void openBasket(b)}
+        onNew={() => void newBasket()}
+        onDiscard={() => void discardBasket()}
+        newLabel={kind === 'sale' ? 'Yangi savdo' : 'Yangi kirim'}
+      />
+      {basketLoadError && (
+        <Alert tone="amber" title="Savatlar yuklanmadi" data-testid="basket-load-error">
+          {basketLoadError}{' '}
+          <button type="button" className="font-semibold underline" onClick={() => setBasketAttempt((n) => n + 1)}>
+            Qayta urinish
+          </button>
+        </Alert>
+      )}
+      {activeBasket.conflict && (
+        <Alert tone="amber" title="Savat boshqa qurilmada o'zgartirilgan" data-testid="basket-conflict">
+          <p>Avtomatik saqlash to&apos;xtatildi: hech narsa ustiga yozilmadi. Qaysi holat qolsin?</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className="min-h-11 rounded-xl border border-line bg-surface px-4 text-sm font-semibold" onClick={() => resolveConflict('server')}>
+              Serverdagini olish
+            </button>
+            <button type="button" className="min-h-11 rounded-xl border border-line bg-surface px-4 text-sm font-semibold" onClick={() => resolveConflict('mine')}>
+              Meniki qolsin
+            </button>
+          </div>
+        </Alert>
+      )}
+      {!activeBasket.conflict && activeBasket.error && (
+        <Alert tone="amber" data-testid="basket-save-error">
+          Savat saqlanmadi: {activeBasket.error} Keyingi o&apos;zgarishda qayta uriniladi.
+        </Alert>
+      )}
+    </>
+  );
+
   const quick = !searching ? [] : searchProductsAll(products, '', popular).filter((p) => p.last_price !== null).slice(0, 5);
 
   return (
@@ -271,6 +538,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
 
           {action === 'savdo' && (
             <section aria-label="Savdo" className="space-y-3" data-testid="sale-view">
+              {basketChips('sale')}
               <div>
                 <h2 className="text-2xl font-semibold tracking-tight text-fg">Savdo</h2>
                 <p className="text-sm text-muted">{customerName ? `${customerName} · yangi savdo` : 'Mijozsiz (naqd) · yangi savdo'}</p>
@@ -284,6 +552,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
                 <div className="rounded-2xl border border-dashed border-line px-4 py-8 text-center" data-testid="sale-empty">
                   <p className="font-semibold text-fg">Savdoni boshlang</p>
                   <p className="mt-1 text-sm text-muted">Pastdagi oynaga tovar nomini yozing. Takliflar chiqadi, bir nechtasini belgilang.</p>
+                  <p className="mt-1 text-sm text-muted">Yoki tayyor ro&apos;yxatni joylang: har qator bitta tovar, masalan «Chirmoq 10x13 000» yoki «Chirmoq 13».</p>
                   {quick.length > 0 && (
                     <>
                       <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -306,15 +575,19 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
                       status={lineStatus(l, products)}
                       warnings={lineWarnings(l, insights.perLine.get(l.key))}
                       disabled={frozenSale}
-                      onChange={(patch) => setSaleLines((ls) => ls.map((x) => (x.key === l.key ? patchSaleLine(x, patch) : x)))}
+                      onChange={(patch) => saleLine(l.key, (x) => ({ ...patchSaleLine(x, patch), reviews: reviewsAfterEdit(x.reviews, patch) }))}
                       onRemove={() => setSaleLines((ls) => ls.filter((x) => x.key !== l.key))}
+                      candidates={candidatesOf(l.reviews?.[0]?.candidates)}
+                      onChoose={(p) => saleLine(l.key, (x) => chooseSaleProduct(x, p))}
+                      onKeepNew={() => saleLine(l.key, keepAsNew)}
+                      onAccept={() => saleLine(l.key, acceptCheck)}
                     />
                   ))}
                 </ul>
               )}
               {sale.phase.kind === 'editing' && sale.formError && !modalOpen && <Alert tone="red">{sale.formError}</Alert>}
               {saleLines.length > 0 && (
-                <div className="sticky bottom-0 bg-bg pt-1">
+                <div className={kb > 0 ? 'bg-bg pt-1' : 'sticky bottom-0 bg-bg pt-1'}>
                   <SaleSummaryBar summary={summary} retry={lockedRetry} busy={sale.busy} onConfirm={() => setConfirmOpen(true)} />
                 </div>
               )}
@@ -361,14 +634,16 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
               needPartnerText="«Kimga» da ta'minotchini tanlang"
             />
           )}
+          {action === 'kirim' && basketChips('purchase')}
           {action === 'kirim' && (
             <PurchaseView
               supplierName={supplierName}
               lines={buyLines}
-              onLine={(key, patch) => {
-                setBuyLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-                buy.clearLineError(key);
-              }}
+              onLine={(key, patch) => buyLine(key, (l) => ({ ...l, ...patch, reviews: reviewsAfterEdit(l.reviews, patch) }))}
+              candidatesOf={(l) => candidatesOf(l.reviews?.[0]?.candidates)}
+              onChoose={(key, p) => buyLine(key, (l) => choosePurchaseProduct(l, p, lastCost.get(p.id)))}
+              onKeepNew={(key) => buyLine(key, keepAsNew)}
+              onAccept={(key) => buyLine(key, acceptCheck)}
               onRemove={(key) => setBuyLines((ls) => ls.filter((l) => l.key !== key))}
               balanceBefore={supplierDebt}
               paid={buyPaid}
@@ -417,6 +692,7 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
             panelOpen={showPanel}
             panelId={panelId}
             onSubmit={submitComposer}
+            onPasteText={pasteList}
             onFocusPanel={() => setFocusSignal((n) => n + 1)}
             onEscape={() => setPanelOpen(false)}
             plus={<PlusMenu onChoose={onPlus} />}
@@ -482,6 +758,14 @@ export function PanelWorkspace({ data }: { data: ShopData }) {
         locked={sale.locked}
         busy={sale.busy}
         onSave={() => void sale.submit()}
+      />
+      <AiAssist
+        open={ai !== null}
+        variant={ai ?? 'text'}
+        kind={action === 'kirim' ? 'purchase' : 'sale'}
+        shopId={shopId}
+        onClose={() => setAi(null)}
+        onResult={onAiResult}
       />
       <CustomerFormModal open={newPartner === 'customer'} onClose={() => setNewPartner(null)} onSaved={(c) => go({ action: action === 'kirim' || action === 'ta-tolov' ? 'savdo' : action, who: c.id })} />
       <SupplierFormModal

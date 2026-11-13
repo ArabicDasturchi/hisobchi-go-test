@@ -9,7 +9,9 @@ import { Money } from '@/components/shared';
 import { Alert, Button, cn } from '@/components/ui/primitives';
 import { uz } from '@/i18n/uz';
 import { formatMoneyInput, lineTotal, parseMoneyInput, parseQtyInput } from '@/lib/money';
-import type { Unit } from '@/lib/data/types';
+import type { Product, Unit } from '@/lib/data/types';
+import { currentReview, pasteStatus } from '@/lib/pasteList';
+import { PasteBadge, ReviewActions } from '@/components/sale/ReviewActions';
 import type { PurchaseDraftLine, PurchaseLineErrors } from '@/lib/purchaseForm';
 import { unitChoices } from '@/lib/units';
 
@@ -35,6 +37,11 @@ export interface PurchaseViewProps {
   locked: boolean;
   busy: boolean;
   onConfirm: () => void;
+  /** F1: joylangan qator savoliga javob */
+  candidatesOf?: (l: PurchaseDraftLine) => readonly Product[];
+  onChoose?: (key: string, p: Product) => void;
+  onKeepNew?: (key: string) => void;
+  onAccept?: (key: string) => void;
 }
 
 export function PurchaseView(p: PurchaseViewProps) {
@@ -44,9 +51,10 @@ export function PurchaseView(p: PurchaseViewProps) {
     const c = parseMoneyInput(l.unitCost, { allowZero: true });
     const isNew = p.isNew(l);
     const unit = p.unitOf(l);
-    return { l, isNew, unit, needUnit: isNew && !unit, total: q.ok && c.ok ? lineTotal({ qtyMilli: q.value, unitPrice: c.value }) : null };
+    return { l, isNew, unit, needUnit: isNew && !unit, review: currentReview(l), total: q.ok && c.ok ? lineTotal({ qtyMilli: q.value, unitPrice: c.value }) : null };
   });
-  const incomplete = rows.filter((r) => r.total === null || r.needUnit).length;
+  // Hal qilinmagan joylangan qator ham to'liq emas: kirim tasdiqlanmaydi
+  const incomplete = rows.filter((r) => r.total === null || r.needUnit || r.review !== null).length;
   const goods = rows.reduce((s, r) => s + (r.total ?? 0n), 0n);
   const paidParsed = p.paid.trim() ? parseMoneyInput(p.paid, { allowZero: true }) : null;
   const paidNow = paidParsed?.ok ? paidParsed.value : 0n;
@@ -62,26 +70,28 @@ export function PurchaseView(p: PurchaseViewProps) {
       </div>
 
       {rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">Pastdagi oynaga tovar nomini yozing: qator qo&apos;shiladi.</p>
+        <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">Pastdagi oynaga tovar nomini yozing: qator qo&apos;shiladi. Tayyor ro&apos;yxatni ham joylash mumkin: «Chirmoq 10x13 000» (soni x narxi).</p>
       ) : (
         <ul className="space-y-2" aria-label="Kirim qatorlari">
-          {rows.map(({ l, isNew, unit, needUnit, total }) => {
+          {rows.map(({ l, isNew, unit, needUnit, review, total }) => {
             const errs = p.lineErrors.get(l.key) ?? {};
-            const yellow = total === null || needUnit || !!errs.unit || !!errs.product;
+            const yellow = total === null || needUnit || review !== null || !!errs.unit || !!errs.product;
+            const paste = l.pasted ? pasteStatus(l, yellow) : null;
             const unitLabel = unit ? uz.units[unit] : 'birlik';
             return (
-              <li key={l.key} data-status={yellow ? 'yellow' : 'ok'} className={cn('rounded-2xl border p-3.5', yellow ? 'border-amber-400 bg-amber-50 dark:border-amber-500/60 dark:bg-amber-500/10' : 'border-line bg-surface')}>
+              <li key={l.key} data-testid="purchase-line" data-status={yellow ? 'yellow' : 'ok'} data-paste-status={paste ?? undefined} className={cn('rounded-2xl border p-3.5', yellow ? 'border-amber-400 bg-amber-50 dark:border-amber-500/60 dark:bg-amber-500/10' : 'border-line bg-surface')}>
                 {/* Telefonda: nom birinchi qatorda to'liq, maydonlar ikkinchi qatorda cho'ziladi (375px da toshmaydi) */}
                 <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                   <div className="w-full min-w-0 sm:w-auto sm:flex-1">
                     <p className="truncate text-[15px] font-semibold text-fg">
+                      {paste && <PasteBadge status={paste} />}
                       {l.productName.trim() || '—'}
-                      {isNew && <span className="ml-2 rounded-md bg-sky-100 px-1.5 py-0.5 align-middle text-[11px] font-medium text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">Yangi tovar</span>}
+                      {isNew && review?.kind !== 'choose' && <span className="ml-2 rounded-md bg-sky-100 px-1.5 py-0.5 align-middle text-[11px] font-medium text-sky-800 dark:bg-sky-500/15 dark:text-sky-300">Yangi tovar</span>}
                     </p>
                     {yellow && (
                       <p className="mt-0.5 flex items-center gap-1 text-[13px] font-medium text-amber-800 dark:text-amber-300" role="status">
                         <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                        {errs.product ?? errs.unit ?? (needUnit ? 'Yangi tovar birligini tanlang' : null) ?? errs.qty ?? errs.cost ?? 'Soni va tan narxini kiriting'}
+                        {review?.message ?? errs.product ?? errs.unit ?? (needUnit ? 'Yangi tovar birligini tanlang' : null) ?? errs.qty ?? errs.cost ?? 'Soni va tan narxini kiriting'}
                       </p>
                     )}
                   </div>
@@ -112,6 +122,18 @@ export function PurchaseView(p: PurchaseViewProps) {
                     <X className="h-5 w-5" aria-hidden />
                   </button>
                 </div>
+                {review && l.pasted && (
+                  <ReviewActions
+                    review={review}
+                    raw={l.pasted.raw}
+                    lineNo={l.pasted.lineNo}
+                    candidates={p.candidatesOf?.(l) ?? []}
+                    disabled={p.locked}
+                    onChoose={(prod) => p.onChoose?.(l.key, prod)}
+                    onKeepNew={() => p.onKeepNew?.(l.key)}
+                    onAccept={() => p.onAccept?.(l.key)}
+                  />
+                )}
               </li>
             );
           })}

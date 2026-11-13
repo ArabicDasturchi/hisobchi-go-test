@@ -6,6 +6,7 @@
 import { ALLOWED_UNITS, calculatePurchase, normalizeProductName, settlePurchase } from '@hisobchi/core';
 import type { PaymentMethod, Product, Unit } from './data/types';
 import { parseMoneyInput, parseQtyInput } from './money';
+import type { LineReview, PastedOrigin } from './pasteList';
 import { firstError, productNameSchema } from './validation';
 
 export interface PurchaseDraftLine {
@@ -20,6 +21,10 @@ export interface PurchaseDraftLine {
   unit: Unit | null;
   qty: string;
   unitCost: string;
+  /** F1: ro'yxatdan joylangan qator (asl matn) */
+  pasted?: PastedOrigin;
+  /** F1: hal qilinmagan savollar. Bo'sh emas — sariq, kirim tasdiqlanmaydi */
+  reviews?: LineReview[];
 }
 
 export interface PostPurchaseLine {
@@ -148,7 +153,9 @@ export function buildPurchasePlan(input: {
     const name = l.productName.trim();
     const p = resolveProduct(input.products, l);
     let fresh: PendingNewProduct | null = null;
-    if (!name) errs.product = 'Tovarni tanlang';
+    const review = l.reviews?.[0];
+    if (review) errs.product = review.message;
+    else if (!name) errs.product = 'Tovarni tanlang';
     else if (p) {
       // Qo'lda yozilgan nom katalogdagi faol tovar bilan bir xil: birlik ham mos bo'lsa o'sha tovar, aks holda xato
       // (takror tovar yaratilmaydi, kg tovar dona bo'lib qolmaydi). Katalogdan tanlangan qatorda birlik tovarniki.

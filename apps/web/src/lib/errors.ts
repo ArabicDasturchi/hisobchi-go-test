@@ -83,6 +83,20 @@ const RULES: readonly [RegExp, AppErrorKind, string][] = [
   [/target_not_found/, 'not_found', 'Mijoz yoki tovar topilmadi.'],
   [/oauth_client_forbidden/, 'forbidden', 'Bu amal faqat Hisobchi Go ilovasida bajariladi.'],
   [/draft_immutable|draft_invalid_transition/, 'conflict', "Qoralamani o'zgartirib bo'lmaydi."],
+  // --- Xavfsizlik (014) va rollar (018) ---
+  [/unit_locked/, 'validation', "Bu tovar bo'yicha ombor harakati bor: birligini o'zgartirib bo'lmaydi. Boshqa birlik kerak bo'lsa, yangi tovar qo'shing va eskisini arxivlang."],
+  [/role_forbidden/, 'forbidden', "Bu amalni faqat do'kon egasi yoki administrator bajaradi."],
+  [/walkin_customer_id_forbidden/, 'validation', "Bir martalik mijozga qoralama alohida yaratilmaydi."],
+  // --- Savat (015) ---
+  [/version_conflict/, 'conflict', "Bu savat boshqa qurilmada o'zgartirilgan. Oxirgi holat yuklandi: tekshirib, kerak bo'lsa o'zgarishingizni qayta qo'llang."],
+  [/basket_closed/, 'conflict', 'Bu savat allaqachon yopilgan (tasdiqlangan yoki tashlangan).'],
+  [/basket_not_found/, 'not_found', 'Savat topilmadi.'],
+  [/basket_limit/, 'validation', "Ochiq savatlar juda ko'p (100 ta). Keraksizlarini tashlang."],
+  [/basket_partner_invalid/, 'validation', "Mijoz yoki ta'minotchi topilmadi (arxivlangan bo'lishi mumkin)."],
+  [/basket_too_many_lines/, 'validation', "Bitta savatda ko'pi bilan 200 qator."],
+  [/basket_too_large|basket_lines_invalid|basket_args_invalid|basket_kind_invalid/, 'validation', "Savat ma'lumoti noto'g'ri."],
+  [/basket_document_invalid|basket_document_required/, 'validation', 'Savat hujjat bilan bog\'lanmadi.'],
+  [/draft_kind_not_basket/, 'validation', "Bu turdagi qoralamani savatga olib bo'lmaydi."],
   // --- Ta'minotchi, kirim, ombor (006/007/009) ---
   [/supplier_not_in_shop|supplier_not_found/, 'not_found', "Ta'minotchi topilmadi yoki bu do'konga tegishli emas."],
   [/opening_balance_exists/, 'conflict', "Bu ta'minotchining boshlang'ich qarzi allaqachon kiritilgan. Avval uni bekor qiling."],

@@ -49,7 +49,7 @@ export function ActionMenu({ value, onChange, disabled }: { value: PanelAction; 
   );
 }
 
-export type PlusChoice = 'report' | 'product' | 'customer' | 'supplier';
+export type PlusChoice = 'report' | 'product' | 'customer' | 'supplier' | 'ai' | 'photo';
 
 /** "+" menyusi: Hisobotlar, yangi mahsulot/mijoz/ta'minotchi; "Tez orada" bandlar o'chirilgan */
 export function PlusMenu({ onChoose, disabled }: { onChoose: (c: PlusChoice) => void; disabled?: boolean }) {
@@ -85,7 +85,7 @@ export function PlusMenu({ onChoose, disabled }: { onChoose: (c: PlusChoice) => 
             }}
           />
         ))}
-        <div className="my-1 border-t border-line" />
+        {PLUS_SOON.length > 0 && <div className="my-1 border-t border-line" />}
         {PLUS_SOON.map((s) => (
           <MenuItem key={s} label={s} badge="Tez orada" disabled />
         ))}

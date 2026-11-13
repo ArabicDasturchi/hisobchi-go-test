@@ -133,3 +133,11 @@ export function checkProductDuplicate(
   }
   return out;
 }
+
+/**
+ * K3 (014): ombor harakati bor tovarda birlik o'zgarmaydi — server `unit_locked` bilan rad etadi, web oldindan aytadi.
+ * Boshqa birlikda sotish kerak bo'lsa: yangi tovar (masalan «Un (kg)») qo'shiladi, eskisi arxivlanadi.
+ */
+export function unitLockedMessage(name: string): string {
+  return `«${name}» bo'yicha ombor harakati bor: birligini o'zgartirib bo'lmaydi (qoldiq hisobi buziladi). Boshqa birlik kerak bo'lsa, yangi tovar qo'shing va eskisini arxivlang.`;
+}

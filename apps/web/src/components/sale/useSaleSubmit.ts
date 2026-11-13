@@ -39,6 +39,11 @@ export interface SaleSubmitInput {
   mode: PayMode;
   partial: string;
   method: PaymentMethod;
+  /**
+   * F2: savat kalitlari (savdo id = savat id, client_op_id = `basket:<id>`). Berilsa ishlatiladi: savatdan qayta
+   * tasdiqlash takroriy savdo yaratmaydi. Berilmasa — bir martalik tasodifiy kalitlar (avvalgidek).
+   */
+  keys?: { saleId: string; saleOp: string };
 }
 
 /**
@@ -114,8 +119,8 @@ export function useSaleSubmit(input: SaleSubmitInput) {
       const target = saleTarget(plan, customerId, walkinRef.current);
       saleId = await postSale(sb, {
         shopId,
-        saleId: keys.saleId,
-        clientOpId: keys.saleOp,
+        saleId: (input.keys ?? keys).saleId,
+        clientOpId: (input.keys ?? keys).saleOp,
         customerId: target.customerId,
         note: null,
         lines: plan.lines,
